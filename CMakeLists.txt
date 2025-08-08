@@ -10,9 +10,11 @@ find_package(implot CONFIG REQUIRED)
 find_package(cpr CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(Arrow CONFIG REQUIRED)
+find_package(glfw3 CONFIG REQUIRED)
+find_package(OpenGL REQUIRED)
 
 add_executable(TradingTerminal
-    src/main.cpp
+    main.cpp
     src/config.cpp
     src/candle.cpp
     src/signal.cpp
@@ -28,8 +30,8 @@ target_link_libraries(TradingTerminal PRIVATE
     cpr::cpr
     nlohmann_json::nlohmann_json
     arrow_shared
-    d3d11.lib
-    dxgi.lib
+    glfw
+    OpenGL::GL
 )
 
 # Include directories if needed (vcpkg handles most of this automatically)
