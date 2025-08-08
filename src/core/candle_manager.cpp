@@ -3,12 +3,46 @@
 #include <sstream>
 #include <iostream>
 #include <iomanip>
+#include <cstdlib>
+#include <nlohmann/json.hpp>
 
 namespace Core {
 
-// Define the data directory for candles
-// This should ideally be configurable, but for now, hardcode it.
-const std::filesystem::path DATA_DIR = "C:/Users/User/candle_data";
+namespace {
+
+std::filesystem::path resolve_data_dir() {
+    if (const char* env_dir = std::getenv("CANDLE_DATA_DIR")) {
+        return std::filesystem::path(env_dir);
+    }
+
+    std::ifstream cfg("config.json");
+    if (cfg.is_open()) {
+        try {
+            nlohmann::json j;
+            cfg >> j;
+            if (j.contains("data_dir") && j["data_dir"].is_string()) {
+                return std::filesystem::path(j["data_dir"].get<std::string>());
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to parse config.json: " << e.what() << std::endl;
+        }
+    }
+
+    const char* home = nullptr;
+#ifdef _WIN32
+    home = std::getenv("USERPROFILE");
+#else
+    home = std::getenv("HOME");
+#endif
+    if (home) {
+        return std::filesystem::path(home) / "candle_data";
+    }
+    return std::filesystem::current_path() / "candle_data";
+}
+
+const std::filesystem::path DATA_DIR = resolve_data_dir();
+
+} // namespace
 
 std::filesystem::path CandleManager::get_candle_path(const std::string& symbol, const std::string& interval) {
     std::filesystem::create_directories(DATA_DIR); // Ensure directory exists
