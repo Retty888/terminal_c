@@ -1,0 +1,30 @@
+# Ignore build directories and CMake artifacts
+build/
+CMakeFiles/
+CMakeCache.txt
+
+# Compiled object files
+*.o
+*.obj
+
+# Debug and program database files
+*.pdb
+*.idb
+
+# Visual Studio temporary files
+.vs/
+*.vcxproj.user
+*.vcproj.user
+*.suo
+*.user
+*.userosscache
+*.ncb
+*.log
+*.tlog
+*.cache
+
+# IDE settings
+.vscode/
+
+# Editor swap/backup files
+*~
