@@ -18,6 +18,7 @@ add_executable(TradingTerminal
     src/signal.cpp
     src/core/candle_manager.cpp
     src/core/data_fetcher.cpp
+    src/core/analytics.cpp
 )
 
 # Link libraries to the executable
