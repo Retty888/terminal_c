@@ -14,6 +14,7 @@
 #include "implot.h"
 #include "core/candle_manager.h"
 #include "core/data_fetcher.h"
+#include "core/backtester.h"
 
 // Data
 static ID3D11Device*            g_pd3d11Device = nullptr;
@@ -35,6 +36,20 @@ std::string current_symbol = "BTCUSDT";
 std::string current_interval = "1h";
 
 const std::vector<std::string> available_timeframes = {"1m", "5m", "15m", "30m", "1h", "4h", "1d"};
+
+// Simple momentum strategy: buy if price rises, sell if price falls
+struct SimpleStrategy : Core::IStrategy {
+    int generate_signal(const std::vector<Core::Candle>& candles, size_t index) override {
+        if (index == 0) return 0;
+        double prev = candles[index - 1].close;
+        double curr = candles[index].close;
+        if (curr > prev) return 1;
+        if (curr < prev) return -1;
+        return 0;
+    }
+};
+
+static Core::BacktestResult g_backtest_result;
 
 // Helper function to fetch data for a symbol across all timeframes
 void FetchAndStoreDataForSymbol(const std::string& symbol, std::stringstream& log_buffer) {
@@ -182,6 +197,15 @@ int main(int, char**)
             ImGui::SameLine();
         }
 
+        ImGui::Separator();
+        if (ImGui::Button("Run Backtest")) {
+            if (all_candles.count(current_symbol) && all_candles[current_symbol].count(current_interval)) {
+                SimpleStrategy strat;
+                Core::Backtester bt(all_candles[current_symbol][current_interval], strat);
+                g_backtest_result = bt.run();
+            }
+        }
+
         ImGui::End();
 
         // --- Signals Table Window ---
@@ -206,6 +230,21 @@ int main(int, char**)
                 }
             }
             ImPlot::EndPlot();
+        }
+        ImGui::End();
+
+        // --- Backtest Results Window ---
+        ImGui::Begin("Backtest Results");
+        if (!g_backtest_result.equity_curve.empty()) {
+            ImGui::Text("Total PnL: %.2f", g_backtest_result.total_pnl);
+            ImGui::Text("Trades: %zu", g_backtest_result.trades.size());
+            ImGui::Text("Win rate: %.2f%%", g_backtest_result.win_rate * 100.0);
+            if (ImPlot::BeginPlot("Equity Curve", ImVec2(-1,150))) {
+                std::vector<double> x(g_backtest_result.equity_curve.size());
+                for (size_t i = 0; i < x.size(); ++i) x[i] = static_cast<double>(i);
+                ImPlot::PlotLine("Equity", x.data(), g_backtest_result.equity_curve.data(), x.size());
+                ImPlot::EndPlot();
+            }
         }
         ImGui::End();
 
