@@ -1,2 +1,2 @@
 // Пока пустой, но ты можешь в будущем сюда добавлять методы работы с Candle
-#include "candle.h"
+#include "core/candle.h"
