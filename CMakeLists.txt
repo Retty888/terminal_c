@@ -9,7 +9,6 @@ find_package(imgui CONFIG REQUIRED)
 find_package(implot CONFIG REQUIRED)
 find_package(cpr CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
-find_package(Arrow CONFIG REQUIRED)
 
 add_executable(TradingTerminal
     src/main.cpp
@@ -27,10 +26,11 @@ target_link_libraries(TradingTerminal PRIVATE
     implot::implot
     cpr::cpr
     nlohmann_json::nlohmann_json
-    arrow_shared
-    d3d11.lib
-    dxgi.lib
 )
+
+if (WIN32)
+    target_link_libraries(TradingTerminal PRIVATE d3d11 dxgi)
+endif()
 
 # Include directories if needed (vcpkg handles most of this automatically)
 target_include_directories(TradingTerminal PRIVATE
