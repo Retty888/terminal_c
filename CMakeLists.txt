@@ -34,9 +34,5 @@ target_link_libraries(TradingTerminal PRIVATE
 # Include directories if needed (vcpkg handles most of this automatically)
 target_include_directories(TradingTerminal PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/indicators
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/strategies
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/utils
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
