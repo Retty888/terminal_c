@@ -3,6 +3,7 @@
 #include "core/candle.h"
 #include "core/data_fetcher.h"
 #include "config.h"
+#include "candle_manager.h"
 
 #include <map>
 #include <vector>
@@ -50,7 +51,14 @@ int main() {
     // Load candles
     std::map<std::string, std::vector<Candle>> all_candles;
     for (const auto& pair : selected_pairs) {
-        all_candles[pair] = DataFetcher::fetch_klines(pair, "1m", 200);
+        auto candles = CandleManager::load_candles(pair, "1m");
+        if (candles.empty()) {
+            candles = DataFetcher::fetch_klines(pair, "1m", 200);
+            if (!candles.empty()) {
+                CandleManager::save_candles(pair, "1m", candles);
+            }
+        }
+        all_candles[pair] = candles;
     }
 
     // Main loop
@@ -81,7 +89,14 @@ int main() {
             if (ImGui::RadioButton(pair.c_str(), active_pair == pair)) {
                 active_pair = pair;
                 if (all_candles.find(pair) == all_candles.end()) {
-                    all_candles[pair] = DataFetcher::fetch_klines(pair, "1m", 200);
+                    auto candles = CandleManager::load_candles(pair, "1m");
+                    if (candles.empty()) {
+                        candles = DataFetcher::fetch_klines(pair, "1m", 200);
+                        if (!candles.empty()) {
+                            CandleManager::save_candles(pair, "1m", candles);
+                        }
+                    }
+                    all_candles[pair] = candles;
                 }
             }
         }
