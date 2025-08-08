@@ -14,6 +14,7 @@
 #include "implot.h"
 #include "core/candle_manager.h"
 #include "core/data_fetcher.h"
+#include "core/analytics.h"
 
 // Data
 static ID3D11Device*            g_pd3d11Device = nullptr;
@@ -184,6 +185,30 @@ int main(int, char**)
 
         ImGui::End();
 
+        // --- Indicators Window ---
+        ImGui::Begin("Indicators");
+        static bool show_ma = false;
+        static int ma_period = 20;
+        ImGui::Checkbox("Moving Average", &show_ma);
+        if (show_ma) {
+            ImGui::InputInt("MA Period", &ma_period);
+        }
+        static bool show_rsi = false;
+        static int rsi_period = 14;
+        ImGui::Checkbox("RSI", &show_rsi);
+        if (show_rsi) {
+            ImGui::InputInt("RSI Period", &rsi_period);
+        }
+        static bool show_bb = false;
+        static int bb_period = 20;
+        static double bb_stddev = 2.0;
+        ImGui::Checkbox("Bollinger Bands", &show_bb);
+        if (show_bb) {
+            ImGui::InputInt("BB Period", &bb_period);
+            ImGui::InputDouble("BB StdDev", &bb_stddev);
+        }
+        ImGui::End();
+
         // --- Signals Table Window ---
         ImGui::Begin("Trading Signals");
         // ... (Table content remains the same for now)
@@ -203,11 +228,45 @@ int main(int, char**)
 
                     ImPlot::SetupAxes("Time", "Price");
                     ImPlot::PlotLine("Close Price", timestamps.data(), closes.data(), closes.size());
+                    if (show_ma && ma_period > 0 && closes.size() >= static_cast<size_t>(ma_period)) {
+                        auto ma = Core::Analytics::moving_average(closes, static_cast<std::size_t>(ma_period));
+                        ImPlot::PlotLine("MA", timestamps.data() + (ma_period - 1), ma.data(), ma.size());
+                    }
+                    if (show_bb && bb_period > 0 && closes.size() >= static_cast<size_t>(bb_period)) {
+                        auto bands = Core::Analytics::bollinger_bands(closes, static_cast<std::size_t>(bb_period), bb_stddev);
+                        const auto& upper = std::get<0>(bands);
+                        const auto& middle = std::get<1>(bands);
+                        const auto& lower = std::get<2>(bands);
+                        ImPlot::PlotLine("BB Upper", timestamps.data() + (bb_period - 1), upper.data(), upper.size());
+                        ImPlot::PlotLine("BB Middle", timestamps.data() + (bb_period - 1), middle.data(), middle.size());
+                        ImPlot::PlotLine("BB Lower", timestamps.data() + (bb_period - 1), lower.data(), lower.size());
+                    }
                 }
             }
             ImPlot::EndPlot();
         }
         ImGui::End();
+
+        // --- RSI Window ---
+        if (show_rsi) {
+            ImGui::Begin("RSI");
+            if (all_candles.count(current_symbol) && all_candles[current_symbol].count(current_interval)) {
+                const auto& candles_to_plot = all_candles[current_symbol][current_interval];
+                if (candles_to_plot.size() > static_cast<size_t>(rsi_period)) {
+                    std::vector<double> rsi_timestamps, rsi_closes;
+                    for (const auto& candle : candles_to_plot) {
+                        rsi_timestamps.push_back(static_cast<double>(candle.open_time / 1000));
+                        rsi_closes.push_back(candle.close);
+                    }
+                    auto rsi_vals = Core::Analytics::rsi(rsi_closes, static_cast<std::size_t>(rsi_period));
+                    if (ImPlot::BeginPlot("RSI", ImVec2(-1, -1))) {
+                        ImPlot::PlotLine("RSI", rsi_timestamps.data() + rsi_period, rsi_vals.data(), rsi_vals.size());
+                        ImPlot::EndPlot();
+                    }
+                }
+            }
+            ImGui::End();
+        }
 
         // --- Log/Info Window ---
         ImGui::Begin("System Information");
