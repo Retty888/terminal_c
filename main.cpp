@@ -3,6 +3,7 @@
 #include "core/candle.h"
 #include "core/data_fetcher.h"
 #include "config.h"
+#include "signal_manager.h"
 
 #include <map>
 #include <vector>
@@ -100,6 +101,23 @@ int main() {
                 closes.push_back(c.close);
             }
 
+            auto sma = SignalManager::calculate_sma(candles, 14);
+            auto rsi = SignalManager::calculate_rsi(candles, 14);
+            auto buy_flags = SignalManager::generate_buy_signal(candles, sma, rsi);
+            auto sell_flags = SignalManager::generate_sell_signal(candles, sma, rsi);
+
+            std::vector<double> buy_times, buy_prices, sell_times, sell_prices;
+            for (size_t i = 0; i < candles.size(); ++i) {
+                if (i < buy_flags.size() && buy_flags[i]) {
+                    buy_times.push_back(times[i]);
+                    buy_prices.push_back(candles[i].close);
+                }
+                if (i < sell_flags.size() && sell_flags[i]) {
+                    sell_times.push_back(times[i]);
+                    sell_prices.push_back(candles[i].close);
+                }
+            }
+
             ImPlot::PlotCandlestick(
                 "Candles",
                 times.data(), opens.data(), highs.data(), lows.data(), closes.data(),
@@ -107,6 +125,12 @@ int main() {
                 ImPlotCandlestickFlags_None,
                 0.25f
             );
+
+            ImPlot::PlotLine("SMA", times.data(), sma.data(), sma.size());
+            ImPlot::SetNextMarkerStyle(ImPlotMarker_Up, 6, ImVec4(0, 1, 0, 1));
+            ImPlot::PlotScatter("Buy", buy_times.data(), buy_prices.data(), buy_times.size());
+            ImPlot::SetNextMarkerStyle(ImPlotMarker_Down, 6, ImVec4(1, 0, 0, 1));
+            ImPlot::PlotScatter("Sell", sell_times.data(), sell_prices.data(), sell_times.size());
 
             ImPlot::EndPlot();
         }
