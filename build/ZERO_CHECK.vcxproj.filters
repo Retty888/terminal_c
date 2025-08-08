@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\User\trading_terminal_cpp\build\CMakeFiles\38e7acddbbc7590df38eda828bab335b\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{754E383F-A7C0-369A-89C5-956D6E7FA44E}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
