@@ -16,8 +16,8 @@ add_executable(TradingTerminal
     src/config.cpp
     src/candle.cpp
     src/signal.cpp
-    src/core/candle_manager.cpp
-    src/core/data_fetcher.cpp
+    src/candle_manager.cpp
+    src/data_fetcher.cpp
 )
 
 # Link libraries to the executable
@@ -34,7 +34,6 @@ target_link_libraries(TradingTerminal PRIVATE
 # Include directories if needed (vcpkg handles most of this automatically)
 target_include_directories(TradingTerminal PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
     ${CMAKE_CURRENT_SOURCE_DIR}/src/indicators
     ${CMAKE_CURRENT_SOURCE_DIR}/src/strategies

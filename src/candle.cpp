@@ -1,2 +1,3 @@
-// Пока пустой, но ты можешь в будущем сюда добавлять методы работы с Candle
 #include "candle.h"
+
+// TODO: Implement Candle utilities if needed

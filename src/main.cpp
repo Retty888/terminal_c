@@ -12,8 +12,8 @@
 
 // Add required headers for our app
 #include "implot.h"
-#include "core/candle_manager.h"
-#include "core/data_fetcher.h"
+#include "candle_manager.h"
+#include "data_fetcher.h"
 
 // Data
 static ID3D11Device*            g_pd3d11Device = nullptr;
