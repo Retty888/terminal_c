@@ -23,6 +23,11 @@ add_executable(TradingTerminal
     src/core/data_fetcher.cpp
     src/core/backtester.cpp
     src/journal.cpp
+    src/ui/control_panel.cpp
+    src/ui/signals_window.cpp
+    src/ui/analytics_window.cpp
+    src/ui/journal_window.cpp
+    src/ui/chart_window.cpp
 )
 
 target_sources(TradingTerminal PRIVATE
