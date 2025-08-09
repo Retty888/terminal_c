@@ -62,8 +62,12 @@ int main() {
         for (const auto& p : pairs) names.push_back(p.name);
         Config::save_selected_pairs("config.json", names);
     };
+    std::vector<std::string> selected_pairs = Config::load_selected_pairs("config.json");
+    if (selected_pairs.empty()) selected_pairs.push_back("BTCUSDT");
+    std::string active_pair = selected_pairs[0];
+    std::string active_interval = "1m";
 
-    // Load candles for several intervals
+    // Prepare candle storage by pair and interval
     const std::vector<std::string> intervals = {"1m", "5m", "15m", "1h", "4h", "1d"};
     std::map<std::string, std::vector<Candle>> all_candles;
     for (const auto& item : pairs) {
@@ -71,6 +75,8 @@ int main() {
     Journal::Journal journal;
     journal.load_json("journal.json");
     Core::BacktestResult last_result;
+
+    std::map<std::string, std::map<std::string, std::vector<Candle>>> all_candles;
     for (const auto& pair : selected_pairs) {
         for (const auto& interval : intervals) {
             auto candles = CandleManager::load_candles(pair, interval);
@@ -80,11 +86,20 @@ int main() {
                     CandleManager::save_candles(pair, interval, candles);
                 }
             }
-            // keep 1m candles in memory for charting
-            if (interval == "1m") {
-                all_candles[pair] = candles;
+            all_candles[pair][interval] = candles;
+    std::map<std::string, std::vector<Candle>> all_candles;
+    Journal::Journal journal;
+    journal.load_json("journal.json");
+    Core::BacktestResult last_result;
+    for (const auto& pair : selected_pairs) {
+        auto candles = CandleManager::load_candles(pair, active_interval);
+        if (candles.empty()) {
+            candles = DataFetcher::fetch_klines(pair, active_interval, 5000);
+            if (!candles.empty()) {
+                CandleManager::save_candles(pair, active_interval, candles);
             }
         }
+        all_candles[pair][active_interval] = candles;
     }
 
     // Main loop
@@ -101,7 +116,7 @@ int main() {
                 const auto& pair = item.name;
                 auto latest = DataFetcher::fetch_klines(pair, "1m", 1);
                 if (!latest.empty()) {
-                    auto& vec = all_candles[pair];
+                    auto& vec = all_candles[pair]["1m"];
                     if (vec.empty() || latest.back().open_time > vec.back().open_time) {
                         vec.push_back(latest.back());
                         CandleManager::append_candles(pair, "1m", {latest.back()});
@@ -115,6 +130,7 @@ int main() {
 
         ImGui::Text("Select pairs to load:");
         static char new_symbol[32] = "";
+        static std::string load_error;
         ImGui::InputText("##new_symbol", new_symbol, IM_ARRAYSIZE(new_symbol));
         ImGui::SameLine();
         if (ImGui::Button("Load Symbol")) {
@@ -132,8 +148,34 @@ int main() {
                              [&](const PairItem& p) { return p.name == symbol; })) {
                 pairs.push_back({symbol, true});
                 save_pairs();
+                std::find(selected_pairs.begin(), selected_pairs.end(), symbol) == selected_pairs.end()) {
+                selected_pairs.push_back(symbol);
+                Config::save_selected_pairs("config.json", selected_pairs);
+                bool failed = false;
+                for (const auto& interval : intervals) {
+                    auto candles = CandleManager::load_candles(symbol, interval);
+                    if (candles.empty()) {
+                        candles = DataFetcher::fetch_klines(symbol, interval, 5000);
+                        if (!candles.empty()) {
+                            CandleManager::save_candles(symbol, interval, candles);
+                        }
+                    }
+                    if (candles.empty()) {
+                        failed = true;
+                    } else {
+                        all_candles[symbol][interval] = candles;
+                    }
+                }
+                if (failed) {
+                    load_error = "Failed to load " + symbol;
+                } else {
+                    load_error.clear();
+                }
             }
             new_symbol[0] = '\0';
+        }
+        if (!load_error.empty()) {
+            ImGui::Text("%s", load_error.c_str());
         }
 
         for (auto it = pairs.begin(); it != pairs.end();) {
@@ -172,19 +214,33 @@ int main() {
             const auto& pair = item.name;
             if (ImGui::RadioButton(pair.c_str(), active_pair == pair)) {
                 active_pair = pair;
-                if (all_candles.find(pair) == all_candles.end()) {
-                    for (const auto& interval : intervals) {
-                        auto candles = CandleManager::load_candles(pair, interval);
-                        if (candles.empty()) {
-                            candles = DataFetcher::fetch_klines(pair, interval, 5000);
-                            if (!candles.empty()) {
-                                CandleManager::save_candles(pair, interval, candles);
-                            }
-                        }
-                        if (interval == "1m") {
-                            all_candles[pair] = candles;
+                if (all_candles[pair][active_interval].empty()) {
+                    auto candles = CandleManager::load_candles(pair, active_interval);
+                    if (candles.empty()) {
+                        candles = DataFetcher::fetch_klines(pair, active_interval, 5000);
+                        if (!candles.empty()) {
+                            CandleManager::save_candles(pair, active_interval, candles);
                         }
                     }
+                    all_candles[pair][active_interval] = candles;
+                }
+            }
+        }
+
+        ImGui::Separator();
+        ImGui::Text("Interval:");
+        for (const auto& interval : intervals) {
+            if (ImGui::RadioButton(interval.c_str(), active_interval == interval)) {
+                active_interval = interval;
+                if (all_candles[active_pair][interval].empty()) {
+                    auto candles = CandleManager::load_candles(active_pair, interval);
+                    if (candles.empty()) {
+                        candles = DataFetcher::fetch_klines(active_pair, interval, 5000);
+                        if (!candles.empty()) {
+                            CandleManager::save_candles(active_pair, interval, candles);
+                        }
+                    }
+                    all_candles[active_pair][interval] = candles;
                 }
             }
         }
@@ -273,6 +329,10 @@ int main() {
         ImGui::Begin("Chart");
         if (!active_pair.empty() && ImPlot::BeginPlot(("Candles - " + active_pair).c_str(), "Time", "Price")) {
             const auto& candles = all_candles[active_pair];
+        if (ImPlot::BeginPlot(("Candles - " + active_pair).c_str(), "Time", "Price")) {
+            const auto& candles = all_candles[active_pair]["1m"];
+        if (ImPlot::BeginPlot(("Candles - " + active_pair + " [" + active_interval + "]").c_str(), "Time", "Price")) {
+            const auto& candles = all_candles[active_pair][active_interval];
             std::vector<double> times, opens, highs, lows, closes;
             for (const auto& c : candles) {
                 times.push_back((double)c.open_time / 1000.0);
