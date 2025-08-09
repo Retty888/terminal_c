@@ -47,7 +47,7 @@ int main() {
 
     // Load candles for several intervals
     const std::vector<std::string> intervals = {"1m", "5m", "15m", "1h", "4h", "1d"};
-    std::map<std::string, std::vector<Candle>> all_candles;
+    std::map<std::string, std::map<std::string, std::vector<Candle>>> all_candles;
     for (const auto& pair : selected_pairs) {
         for (const auto& interval : intervals) {
             auto candles = CandleManager::load_candles(pair, interval);
@@ -57,10 +57,7 @@ int main() {
                     CandleManager::save_candles(pair, interval, candles);
                 }
             }
-            // keep 1m candles in memory for charting
-            if (interval == "1m") {
-                all_candles[pair] = candles;
-            }
+            all_candles[pair][interval] = candles;
         }
     }
 
@@ -77,7 +74,7 @@ int main() {
             for (const auto& pair : selected_pairs) {
                 auto latest = DataFetcher::fetch_klines(pair, "1m", 1);
                 if (!latest.empty()) {
-                    auto& vec = all_candles[pair];
+                    auto& vec = all_candles[pair]["1m"];
                     if (vec.empty() || latest.back().open_time > vec.back().open_time) {
                         vec.push_back(latest.back());
                         CandleManager::append_candles(pair, "1m", {latest.back()});
@@ -91,6 +88,7 @@ int main() {
 
         ImGui::Text("Select pairs to load:");
         static char new_symbol[32] = "";
+        static std::string load_error;
         ImGui::InputText("##new_symbol", new_symbol, IM_ARRAYSIZE(new_symbol));
         ImGui::SameLine();
         if (ImGui::Button("Load Symbol")) {
@@ -107,8 +105,31 @@ int main() {
                 std::find(selected_pairs.begin(), selected_pairs.end(), symbol) == selected_pairs.end()) {
                 selected_pairs.push_back(symbol);
                 Config::save_selected_pairs("config.json", selected_pairs);
+                bool failed = false;
+                for (const auto& interval : intervals) {
+                    auto candles = CandleManager::load_candles(symbol, interval);
+                    if (candles.empty()) {
+                        candles = DataFetcher::fetch_klines(symbol, interval, 5000);
+                        if (!candles.empty()) {
+                            CandleManager::save_candles(symbol, interval, candles);
+                        }
+                    }
+                    if (candles.empty()) {
+                        failed = true;
+                    } else {
+                        all_candles[symbol][interval] = candles;
+                    }
+                }
+                if (failed) {
+                    load_error = "Failed to load " + symbol;
+                } else {
+                    load_error.clear();
+                }
             }
             new_symbol[0] = '\0';
+        }
+        if (!load_error.empty()) {
+            ImGui::Text("%s", load_error.c_str());
         }
 
         for (auto it = selected_pairs.begin(); it != selected_pairs.end();) {
@@ -136,20 +157,6 @@ int main() {
         for (const auto& pair : selected_pairs) {
             if (ImGui::RadioButton(pair.c_str(), active_pair == pair)) {
                 active_pair = pair;
-                if (all_candles.find(pair) == all_candles.end()) {
-                    for (const auto& interval : intervals) {
-                        auto candles = CandleManager::load_candles(pair, interval);
-                        if (candles.empty()) {
-                            candles = DataFetcher::fetch_klines(pair, interval, 5000);
-                            if (!candles.empty()) {
-                                CandleManager::save_candles(pair, interval, candles);
-                            }
-                        }
-                        if (interval == "1m") {
-                            all_candles[pair] = candles;
-                        }
-                    }
-                }
             }
         }
 
@@ -157,7 +164,7 @@ int main() {
 
         ImGui::Begin("Chart");
         if (ImPlot::BeginPlot(("Candles - " + active_pair).c_str(), "Time", "Price")) {
-            const auto& candles = all_candles[active_pair];
+            const auto& candles = all_candles[active_pair]["1m"];
             std::vector<double> times, opens, highs, lows, closes;
             for (const auto& c : candles) {
                 times.push_back((double)c.open_time / 1000.0);
