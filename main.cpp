@@ -376,8 +376,8 @@ int main() {
         }
         ImGui::End();
 
-        // Analytics Window
-        ImGui::Begin("Analytics");
+        // Backtest Window
+        ImGui::Begin("Backtest");
         static int short_p = 9;
         static int long_p = 21;
         ImGui::InputInt("Short SMA", &short_p);
