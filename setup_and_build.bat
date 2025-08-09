@@ -23,7 +23,7 @@ if exist "%VCPKG_PATH%" (
 set TOOLCHAIN_FILE=%VCPKG_PATH%\scripts\buildsystems\vcpkg.cmake
 
 echo Installing required packages...
-"%VCPKG_PATH%\vcpkg.exe" install imgui implot cpr nlohmann-json arrow glfw3 opengl
+"%VCPKG_PATH%\vcpkg.exe" install imgui[core,glfw-binding,opengl3-binding] implot cpr nlohmann-json arrow glfw3 opengl
 
 set BUILD_DIR=%SCRIPT_DIR%build
 if exist "%BUILD_DIR%" (
