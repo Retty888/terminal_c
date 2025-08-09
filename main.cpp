@@ -109,9 +109,16 @@ int main() {
         ImGui::SameLine();
         if (ImGui::Button("Load Symbol")) {
             std::string symbol(new_symbol);
-            symbol.erase(std::remove(symbol.begin(), symbol.end(), '-'), symbol.end());
+            symbol.erase(
+                std::remove_if(symbol.begin(), symbol.end(),
+                               [](unsigned char c) { return std::isspace(c) || c == '-'; }),
+                symbol.end());
             std::transform(symbol.begin(), symbol.end(), symbol.begin(), ::toupper);
-            if (!symbol.empty() && std::find(selected_pairs.begin(), selected_pairs.end(), symbol) == selected_pairs.end()) {
+            bool valid = !symbol.empty() &&
+                         std::all_of(symbol.begin(), symbol.end(),
+                                     [](unsigned char c) { return std::isalnum(c); });
+            if (valid &&
+                std::find(selected_pairs.begin(), selected_pairs.end(), symbol) == selected_pairs.end()) {
                 selected_pairs.push_back(symbol);
                 Config::save_selected_pairs("config.json", selected_pairs);
             }
@@ -121,11 +128,16 @@ int main() {
         for (auto it = selected_pairs.begin(); it != selected_pairs.end();) {
             bool keep = true;
             if (ImGui::Checkbox(it->c_str(), &keep) && !keep) {
-                if (active_pair == *it && !selected_pairs.empty()) {
-                    active_pair = selected_pairs[0];
-                }
-                all_candles.erase(*it);
+                std::string removed = *it;
                 it = selected_pairs.erase(it);
+                all_candles.erase(removed);
+                if (active_pair == removed) {
+                    if (!selected_pairs.empty()) {
+                        active_pair = selected_pairs.front();
+                    } else {
+                        active_pair.clear();
+                    }
+                }
                 Config::save_selected_pairs("config.json", selected_pairs);
             } else {
                 ++it;
