@@ -11,16 +11,13 @@
 #include <thread>
 #include <chrono>
 #include <algorithm>
+#include <cctype>
 
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include <GLFW/glfw3.h>
 
 using namespace Core;
-
-std::vector<std::string> available_pairs = {
-    "BTCUSDT", "ETHUSDT", "SOLUSDT", "AVAXUSDT", "TONUSDT"
-};
 
 int main() {
     // Init GLFW
@@ -71,14 +68,31 @@ int main() {
         ImGui::Begin("Control Panel");
 
         ImGui::Text("Select pairs to load:");
-        for (const auto& pair : available_pairs) {
-            bool selected = std::find(selected_pairs.begin(), selected_pairs.end(), pair) != selected_pairs.end();
-            if (ImGui::Checkbox(pair.c_str(), &selected)) {
-                if (selected)
-                    selected_pairs.push_back(pair);
-                else
-                    selected_pairs.erase(std::remove(selected_pairs.begin(), selected_pairs.end(), pair), selected_pairs.end());
+        static char new_symbol[32] = "";
+        ImGui::InputText("##new_symbol", new_symbol, IM_ARRAYSIZE(new_symbol));
+        ImGui::SameLine();
+        if (ImGui::Button("Load Symbol")) {
+            std::string symbol(new_symbol);
+            symbol.erase(std::remove(symbol.begin(), symbol.end(), '-'), symbol.end());
+            std::transform(symbol.begin(), symbol.end(), symbol.begin(), ::toupper);
+            if (!symbol.empty() && std::find(selected_pairs.begin(), selected_pairs.end(), symbol) == selected_pairs.end()) {
+                selected_pairs.push_back(symbol);
                 Config::save_selected_pairs("config.json", selected_pairs);
+            }
+            new_symbol[0] = '\0';
+        }
+
+        for (auto it = selected_pairs.begin(); it != selected_pairs.end();) {
+            bool keep = true;
+            if (ImGui::Checkbox(it->c_str(), &keep) && !keep) {
+                if (active_pair == *it && !selected_pairs.empty()) {
+                    active_pair = selected_pairs[0];
+                }
+                all_candles.erase(*it);
+                it = selected_pairs.erase(it);
+                Config::save_selected_pairs("config.json", selected_pairs);
+            } else {
+                ++it;
             }
         }
 
