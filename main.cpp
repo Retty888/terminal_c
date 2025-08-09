@@ -22,6 +22,11 @@
 
 using namespace Core;
 
+struct PairItem {
+    std::string name;
+    bool visible;
+};
+
 int main() {
     // Init GLFW
     if (!glfwInit()) return -1;
@@ -44,6 +49,19 @@ int main() {
     ImGui_ImplOpenGL3_Init("#version 130");
 
     // Load config
+    std::vector<std::string> pair_names = Config::load_selected_pairs("config.json");
+    if (pair_names.empty()) pair_names.push_back("BTCUSDT");
+    std::vector<PairItem> pairs;
+    for (const auto& name : pair_names) {
+        pairs.push_back({name, true});
+    }
+    std::string active_pair = pairs.front().name;
+
+    auto save_pairs = [&]() {
+        std::vector<std::string> names;
+        for (const auto& p : pairs) names.push_back(p.name);
+        Config::save_selected_pairs("config.json", names);
+    };
     std::vector<std::string> selected_pairs = Config::load_selected_pairs("config.json");
     if (selected_pairs.empty()) selected_pairs.push_back("BTCUSDT");
     std::string active_pair = selected_pairs[0];
@@ -51,6 +69,13 @@ int main() {
 
     // Prepare candle storage by pair and interval
     const std::vector<std::string> intervals = {"1m", "5m", "15m", "1h", "4h", "1d"};
+    std::map<std::string, std::vector<Candle>> all_candles;
+    for (const auto& item : pairs) {
+        const auto& pair = item.name;
+    Journal::Journal journal;
+    journal.load_json("journal.json");
+    Core::BacktestResult last_result;
+
     std::map<std::string, std::map<std::string, std::vector<Candle>>> all_candles;
     for (const auto& pair : selected_pairs) {
         for (const auto& interval : intervals) {
@@ -87,7 +112,8 @@ int main() {
         static auto last_fetch = std::chrono::steady_clock::now();
         auto now = std::chrono::steady_clock::now();
         if (now - last_fetch >= std::chrono::minutes(1)) {
-            for (const auto& pair : selected_pairs) {
+            for (const auto& item : pairs) {
+                const auto& pair = item.name;
                 auto latest = DataFetcher::fetch_klines(pair, "1m", 1);
                 if (!latest.empty()) {
                     auto& vec = all_candles[pair]["1m"];
@@ -118,6 +144,10 @@ int main() {
                          std::all_of(symbol.begin(), symbol.end(),
                                      [](unsigned char c) { return std::isalnum(c); });
             if (valid &&
+                std::none_of(pairs.begin(), pairs.end(),
+                             [&](const PairItem& p) { return p.name == symbol; })) {
+                pairs.push_back({symbol, true});
+                save_pairs();
                 std::find(selected_pairs.begin(), selected_pairs.end(), symbol) == selected_pairs.end()) {
                 selected_pairs.push_back(symbol);
                 Config::save_selected_pairs("config.json", selected_pairs);
@@ -148,20 +178,29 @@ int main() {
             ImGui::Text("%s", load_error.c_str());
         }
 
-        for (auto it = selected_pairs.begin(); it != selected_pairs.end();) {
-            bool keep = true;
-            if (ImGui::Checkbox(it->c_str(), &keep) && !keep) {
-                std::string removed = *it;
-                it = selected_pairs.erase(it);
+        for (auto it = pairs.begin(); it != pairs.end();) {
+            if (ImGui::Checkbox(it->name.c_str(), &it->visible)) {
+                if (!it->visible && active_pair == it->name) {
+                    auto new_active = std::find_if(
+                        pairs.begin(), pairs.end(),
+                        [](const PairItem& p) { return p.visible; });
+                    active_pair = new_active != pairs.end() ? new_active->name : std::string();
+                } else if (it->visible && active_pair.empty()) {
+                    active_pair = it->name;
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::SmallButton((std::string("X##") + it->name).c_str())) {
+                std::string removed = it->name;
+                it = pairs.erase(it);
                 all_candles.erase(removed);
                 if (active_pair == removed) {
-                    if (!selected_pairs.empty()) {
-                        active_pair = selected_pairs.front();
-                    } else {
-                        active_pair.clear();
-                    }
+                    auto new_active = std::find_if(
+                        pairs.begin(), pairs.end(),
+                        [](const PairItem& p) { return p.visible; });
+                    active_pair = new_active != pairs.end() ? new_active->name : std::string();
                 }
-                Config::save_selected_pairs("config.json", selected_pairs);
+                save_pairs();
             } else {
                 ++it;
             }
@@ -170,7 +209,9 @@ int main() {
         ImGui::Separator();
         ImGui::Text("Active chart:");
 
-        for (const auto& pair : selected_pairs) {
+        for (const auto& item : pairs) {
+            if (!item.visible) continue;
+            const auto& pair = item.name;
             if (ImGui::RadioButton(pair.c_str(), active_pair == pair)) {
                 active_pair = pair;
                 if (all_candles[pair][active_interval].empty()) {
@@ -286,6 +327,8 @@ int main() {
         ImGui::End();
 
         ImGui::Begin("Chart");
+        if (!active_pair.empty() && ImPlot::BeginPlot(("Candles - " + active_pair).c_str(), "Time", "Price")) {
+            const auto& candles = all_candles[active_pair];
         if (ImPlot::BeginPlot(("Candles - " + active_pair).c_str(), "Time", "Price")) {
             const auto& candles = all_candles[active_pair]["1m"];
         if (ImPlot::BeginPlot(("Candles - " + active_pair + " [" + active_interval + "]").c_str(), "Time", "Price")) {
