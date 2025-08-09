@@ -455,21 +455,6 @@ int main() {
             if (!lows.empty() && !highs.empty()) {
                 manual_limits.Y.Min = *std::min_element(lows.begin(), lows.end());
                 manual_limits.Y.Max = *std::max_element(highs.begin(), highs.end());
-        if (ImPlot::BeginPlot(("Candles - " + active_pair + " (" + selected_interval + ")").c_str(), "Time", "Price")) {
-            const auto& candles = all_candles[active_pair][selected_interval];
-        if (!active_pair.empty() && ImPlot::BeginPlot(("Candles - " + active_pair).c_str(), "Time", "Price")) {
-            const auto& candles = all_candles[active_pair];
-        if (ImPlot::BeginPlot(("Candles - " + active_pair).c_str(), "Time", "Price")) {
-            const auto& candles = all_candles[active_pair]["1m"];
-        if (ImPlot::BeginPlot(("Candles - " + active_pair + " [" + active_interval + "]").c_str(), "Time", "Price")) {
-            const auto& candles = all_candles[active_pair][active_interval];
-            std::vector<double> times, opens, highs, lows, closes;
-            for (const auto& c : candles) {
-                times.push_back((double)c.open_time / 1000.0);
-                opens.push_back(c.open);
-                highs.push_back(c.high);
-                lows.push_back(c.low);
-                closes.push_back(c.close);
             }
             use_manual_limits = true;
         }
