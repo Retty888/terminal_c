@@ -26,6 +26,7 @@ add_executable(TradingTerminal
 # Link libraries to the executable
 target_link_libraries(TradingTerminal PRIVATE
     imgui::imgui
+    ${IMGUI_BACKEND_LIBS}
     imgui::imgui_impl_glfw
     imgui::imgui_impl_opengl3
     implot::implot
