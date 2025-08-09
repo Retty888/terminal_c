@@ -22,6 +22,7 @@ add_executable(TradingTerminal
     src/core/candle_manager.cpp
     src/core/data_fetcher.cpp
     src/core/backtester.cpp
+    src/journal.cpp
 )
 
 target_sources(TradingTerminal PRIVATE
