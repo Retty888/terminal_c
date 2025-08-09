@@ -55,15 +55,14 @@ int main() {
     for (const auto& name : pair_names) {
         pairs.push_back({name, true});
     }
-    std::string active_pair = pairs.front().name;
 
     auto save_pairs = [&]() {
         std::vector<std::string> names;
         for (const auto& p : pairs) names.push_back(p.name);
         Config::save_selected_pairs("config.json", names);
     };
-    std::vector<std::string> selected_pairs = Config::load_selected_pairs("config.json");
-    if (selected_pairs.empty()) selected_pairs.push_back("BTCUSDT");
+
+    std::vector<std::string> selected_pairs = pair_names;
     std::string active_pair = selected_pairs[0];
     std::string active_interval = "1m";
 
@@ -83,14 +82,12 @@ int main() {
     bool show_on_chart = false;
     std::vector<SignalEntry> signal_entries;
     std::vector<double> buy_times, buy_prices, sell_times, sell_prices;
-    std::map<std::string, std::vector<Candle>> all_candles;
-    for (const auto& item : pairs) {
-        const auto& pair = item.name;
+
+    std::map<std::string, std::map<std::string, std::vector<Candle>>> all_candles;
     Journal::Journal journal;
     journal.load_json("journal.json");
     Core::BacktestResult last_result;
 
-    std::map<std::string, std::map<std::string, std::vector<Candle>>> all_candles;
     for (const auto& pair : selected_pairs) {
         for (const auto& interval : intervals) {
             auto candles = CandleManager::load_candles(pair, interval);
@@ -101,19 +98,7 @@ int main() {
                 }
             }
             all_candles[pair][interval] = candles;
-    std::map<std::string, std::vector<Candle>> all_candles;
-    Journal::Journal journal;
-    journal.load_json("journal.json");
-    Core::BacktestResult last_result;
-    for (const auto& pair : selected_pairs) {
-        auto candles = CandleManager::load_candles(pair, active_interval);
-        if (candles.empty()) {
-            candles = DataFetcher::fetch_klines(pair, active_interval, 5000);
-            if (!candles.empty()) {
-                CandleManager::save_candles(pair, active_interval, candles);
-            }
         }
-        all_candles[pair][active_interval] = candles;
     }
 
     // Main loop
