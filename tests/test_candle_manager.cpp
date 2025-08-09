@@ -9,7 +9,7 @@ int main() {
     std::filesystem::path test_dir = std::filesystem::temp_directory_path() / "candle_manager_test";
     std::filesystem::remove_all(test_dir);
     std::filesystem::create_directories(test_dir);
-    setenv("CANDLE_DATA_DIR", test_dir.string().c_str(), 1);
+    CandleManager::set_data_dir(test_dir);
     std::vector<Candle> candles;
     candles.emplace_back(1,1,1,1,1,1,1,1,1,1,1,0);
     bool saved = CandleManager::save_candles("TEST","1m",candles);

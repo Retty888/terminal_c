@@ -41,14 +41,22 @@ std::filesystem::path resolve_data_dir() {
     return std::filesystem::current_path() / "candle_data";
 }
 
-const std::filesystem::path DATA_DIR = resolve_data_dir();
+std::filesystem::path data_dir = resolve_data_dir();
 
 } // namespace
 
 std::filesystem::path CandleManager::get_candle_path(const std::string& symbol, const std::string& interval) {
-    std::filesystem::create_directories(DATA_DIR); // Ensure directory exists
+    std::filesystem::create_directories(data_dir); // Ensure directory exists
     std::string filename = symbol + "_" + interval + ".csv";
-    return DATA_DIR / filename;
+    return data_dir / filename;
+}
+
+void CandleManager::set_data_dir(const std::filesystem::path& dir) {
+    data_dir = dir;
+}
+
+std::filesystem::path CandleManager::get_data_dir() {
+    return data_dir;
 }
 
 bool CandleManager::save_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) {
@@ -185,8 +193,8 @@ std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const
 
 std::vector<std::string> CandleManager::list_stored_data() {
     std::vector<std::string> stored_files;
-    if (std::filesystem::exists(DATA_DIR) && std::filesystem::is_directory(DATA_DIR)) {
-        for (const auto& entry : std::filesystem::directory_iterator(DATA_DIR)) {
+    if (std::filesystem::exists(data_dir) && std::filesystem::is_directory(data_dir)) {
+        for (const auto& entry : std::filesystem::directory_iterator(data_dir)) {
             if (entry.is_regular_file() && entry.path().extension() == ".csv") {
                 std::string filename = entry.path().filename().string();
                 // Assuming filename format is SYMBOL_INTERVAL.csv
@@ -196,10 +204,8 @@ std::vector<std::string> CandleManager::list_stored_data() {
                 if (last_underscore != std::string::npos && dot_csv != std::string::npos && last_underscore < dot_csv) {
                     std::string symbol = filename.substr(0, last_underscore);
                     std::string interval = filename.substr(last_underscore + 1, dot_csv - (last_underscore + 1));
-                    std::cout << "Processing file: " << filename << ", Extracted: Symbol=" << symbol << ", Interval=" << interval << std::endl; // Debug print
                     stored_files.push_back(symbol + " (" + interval + ")");
                 } else {
-                    std::cout << "Processing file: " << filename << ", Unknown format." << std::endl; // Debug print
                     stored_files.push_back(filename + " (unknown format)");
                 }
             }
