@@ -8,7 +8,8 @@ namespace Core {
 
 std::vector<Candle> DataFetcher::fetch_klines(const std::string& symbol, const std::string& interval, int limit) {
     std::vector<Candle> candles;
-    std::string url = "https://api.binance.com/api/v3/klines?symbol=" + symbol + "&interval=" + interval + "&limit=" + std::to_string(limit);
+    std::string url = "https://api.binance.com/api/v3/klines?symbol=" + symbol +
+                       "&interval=" + interval + "&limit=" + std::to_string(limit);
     std::cout << "Fetching from URL: " << url << std::endl; // Debug print
 
     cpr::Response r = cpr::Get(cpr::Url{url});

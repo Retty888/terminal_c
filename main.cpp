@@ -48,17 +48,23 @@ int main() {
     if (selected_pairs.empty()) selected_pairs.push_back("BTCUSDT");
     std::string active_pair = selected_pairs[0];
 
-    // Load candles
+    // Load candles for several intervals
+    const std::vector<std::string> intervals = {"1m", "5m", "15m", "1h", "4h", "1d"};
     std::map<std::string, std::vector<Candle>> all_candles;
     for (const auto& pair : selected_pairs) {
-        auto candles = CandleManager::load_candles(pair, "1m");
-        if (candles.empty()) {
-            candles = DataFetcher::fetch_klines(pair, "1m", 200);
-            if (!candles.empty()) {
-                CandleManager::save_candles(pair, "1m", candles);
+        for (const auto& interval : intervals) {
+            auto candles = CandleManager::load_candles(pair, interval);
+            if (candles.empty()) {
+                candles = DataFetcher::fetch_klines(pair, interval, 5000);
+                if (!candles.empty()) {
+                    CandleManager::save_candles(pair, interval, candles);
+                }
+            }
+            // keep 1m candles in memory for charting
+            if (interval == "1m") {
+                all_candles[pair] = candles;
             }
         }
-        all_candles[pair] = candles;
     }
 
     // Main loop
@@ -89,14 +95,18 @@ int main() {
             if (ImGui::RadioButton(pair.c_str(), active_pair == pair)) {
                 active_pair = pair;
                 if (all_candles.find(pair) == all_candles.end()) {
-                    auto candles = CandleManager::load_candles(pair, "1m");
-                    if (candles.empty()) {
-                        candles = DataFetcher::fetch_klines(pair, "1m", 200);
-                        if (!candles.empty()) {
-                            CandleManager::save_candles(pair, "1m", candles);
+                    for (const auto& interval : intervals) {
+                        auto candles = CandleManager::load_candles(pair, interval);
+                        if (candles.empty()) {
+                            candles = DataFetcher::fetch_klines(pair, interval, 5000);
+                            if (!candles.empty()) {
+                                CandleManager::save_candles(pair, interval, candles);
+                            }
+                        }
+                        if (interval == "1m") {
+                            all_candles[pair] = candles;
                         }
                     }
-                    all_candles[pair] = candles;
                 }
             }
         }
