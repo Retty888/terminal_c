@@ -10,6 +10,7 @@ BacktestResult Backtester::run() {
     BacktestResult result;
     bool in_position = false;
     double entry_price = 0.0;
+    size_t entry_index = 0;
     double total_pnl = 0.0;
     size_t wins = 0;
 
@@ -19,15 +20,17 @@ BacktestResult Backtester::run() {
             // enter long
             in_position = true;
             entry_price = m_candles[i].close;
+            entry_index = i;
         } else if (in_position && signal < 0) {
             // exit long
             double exit_price = m_candles[i].close;
             double pnl = exit_price - entry_price;
-            result.trades.push_back({i, i, entry_price, exit_price, pnl});
+            result.trades.push_back({entry_index, i, entry_price, exit_price, pnl});
             total_pnl += pnl;
             if (pnl > 0) ++wins;
             in_position = false;
             entry_price = 0.0;
+            entry_index = 0;
         }
 
         // mark-to-market equity

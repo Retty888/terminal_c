@@ -10,11 +10,7 @@ std::vector<Candle> DataFetcher::fetch_klines(const std::string& symbol, const s
     std::vector<Candle> candles;
     std::string url = "https://api.binance.com/api/v3/klines?symbol=" + symbol +
                        "&interval=" + interval + "&limit=" + std::to_string(limit);
-    std::cout << "Fetching from URL: " << url << std::endl; // Debug print
-
     cpr::Response r = cpr::Get(cpr::Url{url});
-
-    std::cout << "HTTP Status Code: " << r.status_code << std::endl; // Debug print
 
     if (r.status_code == 200) {
         try {
