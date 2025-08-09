@@ -1,5 +1,6 @@
 #include "imgui.h"
 #include "implot.h"
+#include "plot/candlestick.h"
 #include "core/candle.h"
 #include "core/data_fetcher.h"
 #include "config.h"
@@ -166,11 +167,11 @@ int main() {
                 closes.push_back(c.close);
             }
 
-            ImPlot::PlotCandlestick(
+            Plot::PlotCandlestick(
                 "Candles",
-                times.data(), opens.data(), highs.data(), lows.data(), closes.data(),
+                times.data(), opens.data(), closes.data(), lows.data(), highs.data(),
                 (int)candles.size(),
-                ImPlotCandlestickFlags_None,
+                true,
                 0.25f
             );
 

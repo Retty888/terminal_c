@@ -18,6 +18,7 @@ add_executable(TradingTerminal
     src/config.cpp
     src/candle.cpp
     src/signal.cpp
+    src/plot/candlestick.cpp
     src/core/candle_manager.cpp
     src/core/data_fetcher.cpp
     src/core/backtester.cpp
