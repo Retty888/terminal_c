@@ -5,6 +5,9 @@
 #include "core/data_fetcher.h"
 #include "config.h"
 #include "core/candle_manager.h"
+#include "journal.h"
+#include "core/backtester.h"
+#include "signal.h"
 
 #include <map>
 #include <vector>
@@ -44,8 +47,9 @@ int main() {
     std::vector<std::string> selected_pairs = Config::load_selected_pairs("config.json");
     if (selected_pairs.empty()) selected_pairs.push_back("BTCUSDT");
     std::string active_pair = selected_pairs[0];
+    std::string active_interval = "1m";
 
-    // Load candles for several intervals
+    // Prepare candle storage by pair and interval
     const std::vector<std::string> intervals = {"1m", "5m", "15m", "1h", "4h", "1d"};
     std::map<std::string, std::map<std::string, std::vector<Candle>>> all_candles;
     for (const auto& pair : selected_pairs) {
@@ -58,7 +62,19 @@ int main() {
                 }
             }
             all_candles[pair][interval] = candles;
+    std::map<std::string, std::vector<Candle>> all_candles;
+    Journal::Journal journal;
+    journal.load_json("journal.json");
+    Core::BacktestResult last_result;
+    for (const auto& pair : selected_pairs) {
+        auto candles = CandleManager::load_candles(pair, active_interval);
+        if (candles.empty()) {
+            candles = DataFetcher::fetch_klines(pair, active_interval, 5000);
+            if (!candles.empty()) {
+                CandleManager::save_candles(pair, active_interval, candles);
+            }
         }
+        all_candles[pair][active_interval] = candles;
     }
 
     // Main loop
@@ -157,14 +173,123 @@ int main() {
         for (const auto& pair : selected_pairs) {
             if (ImGui::RadioButton(pair.c_str(), active_pair == pair)) {
                 active_pair = pair;
+                if (all_candles[pair][active_interval].empty()) {
+                    auto candles = CandleManager::load_candles(pair, active_interval);
+                    if (candles.empty()) {
+                        candles = DataFetcher::fetch_klines(pair, active_interval, 5000);
+                        if (!candles.empty()) {
+                            CandleManager::save_candles(pair, active_interval, candles);
+                        }
+                    }
+                    all_candles[pair][active_interval] = candles;
+                }
+            }
+        }
+
+        ImGui::Separator();
+        ImGui::Text("Interval:");
+        for (const auto& interval : intervals) {
+            if (ImGui::RadioButton(interval.c_str(), active_interval == interval)) {
+                active_interval = interval;
+                if (all_candles[active_pair][interval].empty()) {
+                    auto candles = CandleManager::load_candles(active_pair, interval);
+                    if (candles.empty()) {
+                        candles = DataFetcher::fetch_klines(active_pair, interval, 5000);
+                        if (!candles.empty()) {
+                            CandleManager::save_candles(active_pair, interval, candles);
+                        }
+                    }
+                    all_candles[active_pair][interval] = candles;
+                }
             }
         }
 
         ImGui::End();
 
+        // Journal Window
+        ImGui::Begin("Journal");
+        static char j_symbol[32] = "";
+        static int j_side = 0;
+        static double j_price = 0.0;
+        static double j_qty = 0.0;
+        ImGui::InputText("Symbol", j_symbol, IM_ARRAYSIZE(j_symbol));
+        ImGui::Combo("Side", &j_side, "BUY\0SELL\0");
+        ImGui::InputDouble("Price", &j_price, 0, 0, "%.2f");
+        ImGui::InputDouble("Quantity", &j_qty, 0, 0, "%.4f");
+        if (ImGui::Button("Add Trade")) {
+            Journal::Entry e;
+            e.symbol = j_symbol;
+            e.side = j_side == 0 ? "BUY" : "SELL";
+            e.price = j_price;
+            e.quantity = j_qty;
+            e.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            journal.add_entry(e);
+            j_symbol[0] = '\0';
+            j_price = 0.0;
+            j_qty = 0.0;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Save")) {
+            journal.save_json("journal.json");
+            journal.save_csv("journal.csv");
+        }
+        if (ImGui::BeginTable("JournalTable", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
+            ImGui::TableSetupColumn("Symbol");
+            ImGui::TableSetupColumn("Side");
+            ImGui::TableSetupColumn("Price");
+            ImGui::TableSetupColumn("Qty");
+            ImGui::TableSetupColumn("Time");
+            ImGui::TableHeadersRow();
+            for (const auto& e : journal.entries()) {
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0); ImGui::Text("%s", e.symbol.c_str());
+                ImGui::TableSetColumnIndex(1); ImGui::Text("%s", e.side.c_str());
+                ImGui::TableSetColumnIndex(2); ImGui::Text("%.2f", e.price);
+                ImGui::TableSetColumnIndex(3); ImGui::Text("%.4f", e.quantity);
+                ImGui::TableSetColumnIndex(4); ImGui::Text("%lld", (long long)e.timestamp);
+            }
+            ImGui::EndTable();
+        }
+        ImGui::End();
+
+        // Analytics Window
+        ImGui::Begin("Analytics");
+        static int short_p = 9;
+        static int long_p = 21;
+        ImGui::InputInt("Short SMA", &short_p);
+        ImGui::InputInt("Long SMA", &long_p);
+        if (ImGui::Button("Run Backtest")) {
+            struct Strat : Core::IStrategy {
+                int s, l;
+                Strat(int sp, int lp) : s(sp), l(lp) {}
+                int generate_signal(const std::vector<Candle>& candles, size_t index) override {
+                    return Signal::sma_crossover_signal(candles, index, s, l);
+                }
+            } strat(short_p, long_p);
+            auto it = all_candles.find(active_pair);
+            if (it != all_candles.end()) {
+                Core::Backtester bt(it->second, strat);
+                last_result = bt.run();
+            }
+        }
+        if (!last_result.equity_curve.empty()) {
+            ImGui::Text("Total PnL: %.2f", last_result.total_pnl);
+            ImGui::Text("Win rate: %.2f%%", last_result.win_rate * 100.0);
+            if (ImPlot::BeginPlot("Equity")) {
+                std::vector<double> x(last_result.equity_curve.size());
+                for (size_t i = 0; i < x.size(); ++i) x[i] = static_cast<double>(i);
+                ImPlot::PlotLine("Equity", x.data(), last_result.equity_curve.data(), x.size());
+                ImPlot::EndPlot();
+            }
+        }
+        ImGui::End();
+
         ImGui::Begin("Chart");
         if (ImPlot::BeginPlot(("Candles - " + active_pair).c_str(), "Time", "Price")) {
             const auto& candles = all_candles[active_pair]["1m"];
+        if (ImPlot::BeginPlot(("Candles - " + active_pair + " [" + active_interval + "]").c_str(), "Time", "Price")) {
+            const auto& candles = all_candles[active_pair][active_interval];
             std::vector<double> times, opens, highs, lows, closes;
             for (const auto& c : candles) {
                 times.push_back((double)c.open_time / 1000.0);
@@ -181,6 +306,51 @@ int main() {
                 true,
                 0.25f
             );
+
+            // Overlay journal entries
+            std::vector<double> jb_times, jb_prices, js_times, js_prices;
+            for (const auto& e : journal.entries()) {
+                if (e.symbol == active_pair) {
+                    double t = (double)e.timestamp / 1000.0;
+                    if (e.side == "BUY") { jb_times.push_back(t); jb_prices.push_back(e.price); }
+                    else { js_times.push_back(t); js_prices.push_back(e.price); }
+                }
+            }
+            if (!jb_times.empty()) {
+                ImPlot::PushStyleColor(ImPlotCol_MarkerFill, ImVec4(0,1,0,1));
+                ImPlot::SetNextMarkerStyle(ImPlotMarker_Circle, 4);
+                ImPlot::PlotScatter("Journal Buy", jb_times.data(), jb_prices.data(), jb_times.size());
+                ImPlot::PopStyleColor();
+            }
+            if (!js_times.empty()) {
+                ImPlot::PushStyleColor(ImPlotCol_MarkerFill, ImVec4(1,0,0,1));
+                ImPlot::SetNextMarkerStyle(ImPlotMarker_Cross, 4);
+                ImPlot::PlotScatter("Journal Sell", js_times.data(), js_prices.data(), js_times.size());
+                ImPlot::PopStyleColor();
+            }
+
+            // Overlay backtest trades
+            if (!last_result.trades.empty()) {
+                std::vector<double> bt_entry_t, bt_entry_p, bt_exit_t, bt_exit_p;
+                for (const auto& t : last_result.trades) {
+                    bt_entry_t.push_back((double)candles[t.entry_index].open_time / 1000.0);
+                    bt_entry_p.push_back(candles[t.entry_index].close);
+                    bt_exit_t.push_back((double)candles[t.exit_index].open_time / 1000.0);
+                    bt_exit_p.push_back(candles[t.exit_index].close);
+                }
+                if (!bt_entry_t.empty()) {
+                    ImPlot::PushStyleColor(ImPlotCol_MarkerFill, ImVec4(0,0,1,1));
+                    ImPlot::SetNextMarkerStyle(ImPlotMarker_Square, 4);
+                    ImPlot::PlotScatter("BT Entry", bt_entry_t.data(), bt_entry_p.data(), bt_entry_t.size());
+                    ImPlot::PopStyleColor();
+                }
+                if (!bt_exit_t.empty()) {
+                    ImPlot::PushStyleColor(ImPlotCol_MarkerFill, ImVec4(1,1,0,1));
+                    ImPlot::SetNextMarkerStyle(ImPlotMarker_Diamond, 4);
+                    ImPlot::PlotScatter("BT Exit", bt_exit_t.data(), bt_exit_p.data(), bt_exit_t.size());
+                    ImPlot::PopStyleColor();
+                }
+            }
 
             ImPlot::EndPlot();
         }
