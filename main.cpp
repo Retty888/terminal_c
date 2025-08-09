@@ -3,7 +3,7 @@
 #include "core/candle.h"
 #include "core/data_fetcher.h"
 #include "config.h"
-#include "candle_manager.h"
+#include "core/candle_manager.h"
 
 #include <map>
 #include <vector>
