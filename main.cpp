@@ -10,6 +10,9 @@
 #include <string>
 #include <thread>
 #include <chrono>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
 #include <algorithm>
 #include <cctype>
 
@@ -20,6 +23,17 @@
 using namespace Core;
 
 int main() {
+    std::atomic<bool> fetch_running{true};
+    std::mutex fetch_mutex;
+    std::condition_variable fetch_cv;
+
+    std::thread fetch_thread([&]() {
+        while (fetch_running) {
+            std::unique_lock<std::mutex> lock(fetch_mutex);
+            fetch_cv.wait_for(lock, std::chrono::seconds(1), [&] { return !fetch_running; });
+        }
+    });
+
     // Init GLFW
     if (!glfwInit()) return -1;
 
@@ -159,6 +173,12 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         glfwSwapBuffers(window);
+    }
+
+    fetch_running = false;
+    fetch_cv.notify_all();
+    if (fetch_thread.joinable()) {
+        fetch_thread.join();
     }
 
     // Cleanup
