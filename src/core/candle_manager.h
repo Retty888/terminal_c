@@ -12,6 +12,9 @@ public:
     // Saves a vector of candles to a CSV file.
     static bool save_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles);
 
+    // Appends new candles to an existing CSV file, skipping duplicates.
+    static bool append_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles);
+
     // Loads candles from a CSV file into a vector.
     static std::vector<Candle> load_candles(const std::string& symbol, const std::string& interval);
 

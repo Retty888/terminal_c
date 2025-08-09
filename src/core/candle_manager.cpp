@@ -4,6 +4,7 @@
 #include <iostream>
 #include <iomanip>
 #include <cstdlib>
+#include <unordered_set>
 #include <nlohmann/json.hpp>
 
 namespace Core {
@@ -76,6 +77,50 @@ bool CandleManager::save_candles(const std::string& symbol, const std::string& i
              << std::fixed << std::setprecision(8) << candle.taker_buy_base_asset_volume << ","
              << std::fixed << std::setprecision(8) << candle.taker_buy_quote_asset_volume << ","
              << std::fixed << std::setprecision(8) << candle.ignore << "\n";
+    }
+
+    file.close();
+    return true;
+}
+
+bool CandleManager::append_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) {
+    std::filesystem::path path_to_save = get_candle_path(symbol, interval);
+
+    // Load existing open times to avoid duplicates
+    std::unordered_set<long long> existing_times;
+    if (std::filesystem::exists(path_to_save)) {
+        auto existing = load_candles(symbol, interval);
+        for (const auto& c : existing) {
+            existing_times.insert(c.open_time);
+        }
+    }
+
+    std::ofstream file(path_to_save, std::ios::app);
+    if (!file.is_open()) {
+        std::cerr << "Error: Could not open file for appending: " << path_to_save << std::endl;
+        return false;
+    }
+
+    // If file newly created, write header
+    if (std::filesystem::file_size(path_to_save) == 0) {
+        file << "open_time,open,high,low,close,volume,close_time,quote_asset_volume,number_of_trades,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore\n";
+    }
+
+    for (const auto& candle : candles) {
+        if (existing_times.insert(candle.open_time).second) {
+            file << candle.open_time << ","
+                 << std::fixed << std::setprecision(8) << candle.open << ","
+                 << std::fixed << std::setprecision(8) << candle.high << ","
+                 << std::fixed << std::setprecision(8) << candle.low << ","
+                 << std::fixed << std::setprecision(8) << candle.close << ","
+                 << std::fixed << std::setprecision(8) << candle.volume << ","
+                 << candle.close_time << ","
+                 << std::fixed << std::setprecision(8) << candle.quote_asset_volume << ","
+                 << candle.number_of_trades << ","
+                 << std::fixed << std::setprecision(8) << candle.taker_buy_base_asset_volume << ","
+                 << std::fixed << std::setprecision(8) << candle.taker_buy_quote_asset_volume << ","
+                 << std::fixed << std::setprecision(8) << candle.ignore << "\n";
+        }
     }
 
     file.close();
