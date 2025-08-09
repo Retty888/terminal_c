@@ -1,7 +1,7 @@
 @echo off
-set PROJECT_DIR=C:\Users\User\trading_terminal_cpp
+set PROJECT_DIR=%~dp0
 set BUILD_DIR=%PROJECT_DIR%\build
-set VCPKG_TOOLCHAIN_FILE=C:\Users\User\vcpkg\scripts\buildsystems\vcpkg.cmake
+set VCPKG_TOOLCHAIN_FILE=%PROJECT_DIR%vcpkg\scripts\buildsystems\vcpkg.cmake
 
 echo Creating build directory if it doesn't exist...
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
