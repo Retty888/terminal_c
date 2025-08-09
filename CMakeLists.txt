@@ -23,11 +23,14 @@ add_executable(TradingTerminal
     src/core/backtester.cpp
 )
 
+target_sources(TradingTerminal PRIVATE
+    ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_glfw.cpp
+    ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_opengl3.cpp
+)
+
 # Link libraries to the executable
 target_link_libraries(TradingTerminal PRIVATE
     imgui::imgui
-    imgui::imgui_impl_glfw
-    imgui::imgui_impl_opengl3
     implot::implot
     cpr::cpr
     nlohmann_json::nlohmann_json
@@ -40,4 +43,5 @@ target_link_libraries(TradingTerminal PRIVATE
 target_include_directories(TradingTerminal PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends
 )
