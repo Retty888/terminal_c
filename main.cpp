@@ -5,6 +5,7 @@
 #include "core/data_fetcher.h"
 #include "config.h"
 #include "core/candle_manager.h"
+#include "signal.h"
 
 #include <map>
 #include <vector>
@@ -47,7 +48,21 @@ int main() {
 
     // Load candles for several intervals
     const std::vector<std::string> intervals = {"1m", "5m", "15m", "1h", "4h", "1d"};
-    std::map<std::string, std::vector<Candle>> all_candles;
+    std::map<std::string, std::map<std::string, std::vector<Candle>>> all_candles;
+    std::string selected_interval = "1m";
+
+    struct SignalEntry {
+        double time;
+        double price;
+        double short_sma;
+        double long_sma;
+        int type;
+    };
+    int short_period = 9;
+    int long_period = 21;
+    bool show_on_chart = false;
+    std::vector<SignalEntry> signal_entries;
+    std::vector<double> buy_times, buy_prices, sell_times, sell_prices;
     for (const auto& pair : selected_pairs) {
         for (const auto& interval : intervals) {
             auto candles = CandleManager::load_candles(pair, interval);
@@ -57,10 +72,7 @@ int main() {
                     CandleManager::save_candles(pair, interval, candles);
                 }
             }
-            // keep 1m candles in memory for charting
-            if (interval == "1m") {
-                all_candles[pair] = candles;
-            }
+            all_candles[pair][interval] = candles;
         }
     }
 
@@ -77,7 +89,7 @@ int main() {
             for (const auto& pair : selected_pairs) {
                 auto latest = DataFetcher::fetch_klines(pair, "1m", 1);
                 if (!latest.empty()) {
-                    auto& vec = all_candles[pair];
+                    auto& vec = all_candles[pair]["1m"];
                     if (vec.empty() || latest.back().open_time > vec.back().open_time) {
                         vec.push_back(latest.back());
                         CandleManager::append_candles(pair, "1m", {latest.back()});
@@ -145,19 +157,99 @@ int main() {
                                 CandleManager::save_candles(pair, interval, candles);
                             }
                         }
-                        if (interval == "1m") {
-                            all_candles[pair] = candles;
-                        }
+                        all_candles[pair][interval] = candles;
                     }
                 }
             }
         }
 
+        ImGui::Separator();
+        ImGui::Text("Timeframe:");
+        if (ImGui::BeginCombo("##interval_combo", selected_interval.c_str())) {
+            for (const auto& interval : intervals) {
+                bool is_selected = (selected_interval == interval);
+                if (ImGui::Selectable(interval.c_str(), is_selected)) {
+                    selected_interval = interval;
+                }
+                if (is_selected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+
+        ImGui::End();
+
+        ImGui::Begin("Signals");
+        ImGui::InputInt("Short SMA", &short_period);
+        ImGui::InputInt("Long SMA", &long_period);
+        if (long_period <= short_period) {
+            long_period = short_period + 1;
+        }
+        ImGui::Checkbox("Show on Chart", &show_on_chart);
+
+        signal_entries.clear();
+        buy_times.clear();
+        buy_prices.clear();
+        sell_times.clear();
+        sell_prices.clear();
+
+        const auto& sig_candles = all_candles[active_pair][selected_interval];
+        for (std::size_t i = static_cast<std::size_t>(long_period); i < sig_candles.size(); ++i) {
+            int sig = Signal::sma_crossover_signal(sig_candles, i, short_period, long_period);
+            if (sig != 0) {
+                double t = static_cast<double>(sig_candles[i].open_time) / 1000.0;
+                double price = sig_candles[i].close;
+                double short_sma = Signal::simple_moving_average(sig_candles, i, short_period);
+                double long_sma = Signal::simple_moving_average(sig_candles, i, long_period);
+                signal_entries.push_back({t, price, short_sma, long_sma, sig});
+                if (sig > 0) {
+                    buy_times.push_back(t);
+                    buy_prices.push_back(price);
+                } else {
+                    sell_times.push_back(t);
+                    sell_prices.push_back(price);
+                }
+            }
+        }
+
+        if (ImGui::BeginTable("SignalsTable", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
+            ImGui::TableSetupColumn("Time");
+            ImGui::TableSetupColumn("Short SMA");
+            ImGui::TableSetupColumn("Long SMA");
+            ImGui::TableSetupColumn("Signal");
+            ImGui::TableHeadersRow();
+            int rows = static_cast<int>(signal_entries.size());
+            int start = std::max(0, rows - 10);
+            for (int i = start; i < rows; ++i) {
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0);
+                ImGui::Text("%lld", (long long)signal_entries[i].time);
+                ImGui::TableSetColumnIndex(1);
+                ImGui::Text("%.2f", signal_entries[i].short_sma);
+                ImGui::TableSetColumnIndex(2);
+                ImGui::Text("%.2f", signal_entries[i].long_sma);
+                ImGui::TableSetColumnIndex(3);
+                ImGui::Text("%s", signal_entries[i].type > 0 ? "Buy" : "Sell");
+            }
+            ImGui::EndTable();
+        }
+        ImGui::End();
+
+        ImGui::Begin("Analytics");
+        const auto& ana_candles = all_candles[active_pair][selected_interval];
+        if (!ana_candles.empty()) {
+            ImGui::Text("Data points: %d", (int)ana_candles.size());
+            ImGui::Text("Last open: %.2f", ana_candles.back().open);
+            ImGui::Text("Last close: %.2f", ana_candles.back().close);
+        } else {
+            ImGui::Text("No data");
+        }
         ImGui::End();
 
         ImGui::Begin("Chart");
-        if (ImPlot::BeginPlot(("Candles - " + active_pair).c_str(), "Time", "Price")) {
-            const auto& candles = all_candles[active_pair];
+        if (ImPlot::BeginPlot(("Candles - " + active_pair + " (" + selected_interval + ")").c_str(), "Time", "Price")) {
+            const auto& candles = all_candles[active_pair][selected_interval];
             std::vector<double> times, opens, highs, lows, closes;
             for (const auto& c : candles) {
                 times.push_back((double)c.open_time / 1000.0);
@@ -174,6 +266,17 @@ int main() {
                 true,
                 0.25f
             );
+
+            if (show_on_chart) {
+                if (!buy_times.empty()) {
+                    ImPlot::SetNextMarkerStyle(ImPlotMarker_Up, 6, ImVec4(0,1,0,1));
+                    ImPlot::PlotScatter("Buy", buy_times.data(), buy_prices.data(), (int)buy_times.size());
+                }
+                if (!sell_times.empty()) {
+                    ImPlot::SetNextMarkerStyle(ImPlotMarker_Down, 6, ImVec4(1,0,0,1));
+                    ImPlot::PlotScatter("Sell", sell_times.data(), sell_prices.data(), (int)sell_times.size());
+                }
+            }
 
             ImPlot::EndPlot();
         }
