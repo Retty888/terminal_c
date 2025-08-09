@@ -26,6 +26,8 @@ add_executable(TradingTerminal
 # Link libraries to the executable
 target_link_libraries(TradingTerminal PRIVATE
     imgui::imgui
+    imgui::imgui_impl_glfw
+    imgui::imgui_impl_opengl3
     implot::implot
     cpr::cpr
     nlohmann_json::nlohmann_json
