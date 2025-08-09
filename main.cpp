@@ -71,6 +71,22 @@ int main() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+        static auto last_fetch = std::chrono::steady_clock::now();
+        auto now = std::chrono::steady_clock::now();
+        if (now - last_fetch >= std::chrono::minutes(1)) {
+            for (const auto& pair : selected_pairs) {
+                auto latest = DataFetcher::fetch_klines(pair, "1m", 1);
+                if (!latest.empty()) {
+                    auto& vec = all_candles[pair];
+                    if (vec.empty() || latest.back().open_time > vec.back().open_time) {
+                        vec.push_back(latest.back());
+                        CandleManager::append_candles(pair, "1m", {latest.back()});
+                    }
+                }
+            }
+            last_fetch = now;
+        }
+
         ImGui::Begin("Control Panel");
 
         ImGui::Text("Select pairs to load:");
