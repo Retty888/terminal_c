@@ -23,25 +23,12 @@ add_executable(TradingTerminal
     src/core/backtester.cpp
 )
 
-# Attempt to use backend targets if available; otherwise add source files directly
-set(IMGUI_BACKEND_LIBS "")
-if(TARGET imgui::imgui_impl_glfw AND TARGET imgui::imgui_impl_opengl3)
-    list(APPEND IMGUI_BACKEND_LIBS imgui::imgui_impl_glfw imgui::imgui_impl_opengl3)
-else()
-    get_target_property(IMGUI_INCLUDE_DIRS imgui::imgui INTERFACE_INCLUDE_DIRECTORIES)
-    list(GET IMGUI_INCLUDE_DIRS 0 IMGUI_MAIN_INCLUDE_DIR)
-    set(IMGUI_BACKEND_DIR "${IMGUI_MAIN_INCLUDE_DIR}/backends")
-    target_sources(TradingTerminal PRIVATE
-        ${IMGUI_BACKEND_DIR}/imgui_impl_glfw.cpp
-        ${IMGUI_BACKEND_DIR}/imgui_impl_opengl3.cpp
-    )
-    target_include_directories(TradingTerminal PRIVATE ${IMGUI_BACKEND_DIR})
-endif()
-
 # Link libraries to the executable
 target_link_libraries(TradingTerminal PRIVATE
     imgui::imgui
     ${IMGUI_BACKEND_LIBS}
+    imgui::imgui_impl_glfw
+    imgui::imgui_impl_opengl3
     implot::implot
     cpr::cpr
     nlohmann_json::nlohmann_json
