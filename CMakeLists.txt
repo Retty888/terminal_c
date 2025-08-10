@@ -4,51 +4,69 @@ project(TradingTerminal LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Find all necessary packages using vcpkg
-find_package(imgui CONFIG REQUIRED)
-find_package(implot CONFIG REQUIRED)
-find_package(cpr CONFIG REQUIRED)
-find_package(nlohmann_json CONFIG REQUIRED)
-find_package(Arrow CONFIG REQUIRED)
-find_package(glfw3 CONFIG REQUIRED)
-find_package(OpenGL REQUIRED)
+option(BUILD_TRADING_TERMINAL "Build the TradingTerminal application" OFF)
 
-add_executable(TradingTerminal
-    main.cpp
-    src/config.cpp
-    src/candle.cpp
-    src/signal.cpp
-    src/plot/candlestick.cpp
-    src/core/candle_manager.cpp
-    src/core/data_fetcher.cpp
+if(BUILD_TRADING_TERMINAL)
+    # Find all necessary packages using vcpkg
+    find_package(imgui CONFIG REQUIRED)
+    find_package(implot CONFIG REQUIRED)
+    find_package(cpr CONFIG REQUIRED)
+    find_package(nlohmann_json CONFIG REQUIRED)
+    find_package(Arrow CONFIG REQUIRED)
+    find_package(glfw3 CONFIG REQUIRED)
+    find_package(OpenGL REQUIRED)
+
+    add_executable(TradingTerminal
+        main.cpp
+        src/config.cpp
+        src/candle.cpp
+        src/signal.cpp
+        src/plot/candlestick.cpp
+        src/core/candle_manager.cpp
+        src/core/data_fetcher.cpp
+        src/core/backtester.cpp
+        src/journal.cpp
+        src/ui/control_panel.cpp
+        src/ui/signals_window.cpp
+        src/ui/analytics_window.cpp
+        src/ui/journal_window.cpp
+        src/ui/chart_window.cpp
+    )
+
+    target_sources(TradingTerminal PRIVATE
+        ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_glfw.cpp
+        ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_opengl3.cpp
+    )
+
+    # Link libraries to the executable
+    target_link_libraries(TradingTerminal PRIVATE
+        imgui::imgui
+        implot::implot
+        cpr::cpr
+        nlohmann_json::nlohmann_json
+        arrow_shared
+        glfw
+        OpenGL::GL
+    )
+
+    # Include directories if needed (vcpkg handles most of this automatically)
+    target_include_directories(TradingTerminal PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends
+    )
+endif()
+
+enable_testing()
+
+add_executable(test_backtester
+    tests/test_backtester.cpp
     src/core/backtester.cpp
-    src/journal.cpp
-    src/ui/control_panel.cpp
-    src/ui/signals_window.cpp
-    src/ui/analytics_window.cpp
-    src/ui/journal_window.cpp
-    src/ui/chart_window.cpp
+    src/candle.cpp
 )
 
-target_sources(TradingTerminal PRIVATE
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_glfw.cpp
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_opengl3.cpp
-)
-
-# Link libraries to the executable
-target_link_libraries(TradingTerminal PRIVATE
-    imgui::imgui
-    implot::implot
-    cpr::cpr
-    nlohmann_json::nlohmann_json
-    arrow_shared
-    glfw
-    OpenGL::GL
-)
-
-# Include directories if needed (vcpkg handles most of this automatically)
-target_include_directories(TradingTerminal PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
+target_include_directories(test_backtester PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends
 )
+
+add_test(NAME test_backtester COMMAND test_backtester)
