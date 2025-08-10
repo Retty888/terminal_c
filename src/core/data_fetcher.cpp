@@ -2,7 +2,7 @@
 #include <chrono>
 #include <cpr/cpr.h>
 #include <future>
-#include <iostream>
+#include "logger.h"
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <thread>
@@ -37,12 +37,11 @@ DataFetcher::fetch_klines(const std::string &symbol,
         }
         return candles;
       } catch (const std::exception &e) {
-        std::cerr << "Error processing kline data: " << e.what() << std::endl;
+        Logger::instance().error(std::string("Error processing kline data: ") + e.what());
         return std::nullopt;
       }
     }
-    std::cerr << "HTTP Request failed with status code: " << r.status_code
-              << std::endl;
+    Logger::instance().error("HTTP Request failed with status code: " + std::to_string(r.status_code));
     if (attempt < max_retries - 1) {
       std::this_thread::sleep_for(retry_delay);
     }
@@ -71,12 +70,11 @@ std::optional<std::vector<std::string>> DataFetcher::fetch_all_symbols() {
       }
       return symbols;
     } catch (const std::exception &e) {
-      std::cerr << "Error processing symbol list: " << e.what() << std::endl;
+      Logger::instance().error(std::string("Error processing symbol list: ") + e.what());
       return std::nullopt;
     }
   }
-  std::cerr << "HTTP Request failed with status code: " << r.status_code
-            << std::endl;
+  Logger::instance().error("HTTP Request failed with status code: " + std::to_string(r.status_code));
   return std::nullopt;
 }
 
