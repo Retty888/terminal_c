@@ -32,8 +32,13 @@ void Logger::log(LogLevel level, const std::string &message) {
   using namespace std::chrono;
   auto now = system_clock::now();
   auto t = system_clock::to_time_t(now);
-  auto tm = *std::localtime(&t);
   std::lock_guard<std::mutex> lock(mutex_);
+  std::tm tm;
+#if defined(_WIN32)
+  localtime_s(&tm, &t);
+#else
+  localtime_r(&t, &tm);
+#endif
   if (out_.is_open()) {
     out_ << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << " ["
          << level_to_string(level) << "] " << message << std::endl;
