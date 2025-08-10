@@ -10,7 +10,7 @@ echo Changing to build directory...
 cd "%BUILD_DIR%"
 
 echo Running CMake configuration...
-cmake .. -DCMAKE_TOOLCHAIN_FILE="%VCPKG_TOOLCHAIN_FILE%"
+cmake .. -DBUILD_TRADING_TERMINAL=ON -DCMAKE_TOOLCHAIN_FILE="%VCPKG_TOOLCHAIN_FILE%"
 if %errorlevel% neq 0 (
     echo CMake configuration failed!
     goto :eof
