@@ -31,6 +31,8 @@ void save_selected_pairs(const std::string& filename, const std::vector<std::str
         nlohmann::json j;
         j["pairs"] = pairs;
         out << j.dump(4);
+    } else {
+        std::cerr << "Failed to open " << filename << " for writing" << std::endl;
     }
 }
 

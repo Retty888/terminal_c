@@ -8,6 +8,7 @@ Backtester::Backtester(const std::vector<Candle>& candles, IStrategy& strategy)
 
 BacktestResult Backtester::run() {
     BacktestResult result;
+    result.equity_curve.reserve(m_candles.size());
     bool in_position = false;
     double entry_price = 0.0;
     size_t entry_index = 0;

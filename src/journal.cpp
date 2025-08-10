@@ -51,12 +51,16 @@ bool Journal::load_csv(const std::string& filename) {
         std::getline(ss, e.symbol, ',');
         std::getline(ss, field, ',');
         e.side = side_from_string(field);
-        std::getline(ss, field, ',');
-        e.price = std::stod(field);
-        std::getline(ss, field, ',');
-        e.quantity = std::stod(field);
-        std::getline(ss, field, ',');
-        e.timestamp = std::stoll(field);
+        try {
+            std::getline(ss, field, ',');
+            e.price = std::stod(field);
+            std::getline(ss, field, ',');
+            e.quantity = std::stod(field);
+            std::getline(ss, field, ',');
+            e.timestamp = std::stoll(field);
+        } catch (const std::exception&) {
+            return false;
+        }
         m_entries.push_back(e);
     }
     return true;

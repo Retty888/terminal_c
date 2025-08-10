@@ -39,8 +39,10 @@ int main() {
   // Create window with OpenGL context
   GLFWwindow *window =
       glfwCreateWindow(1280, 720, "Trading Terminal", NULL, NULL);
-  if (!window)
+  if (!window) {
+    glfwTerminate();
     return -1;
+  }
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1); // Enable vsync
 
