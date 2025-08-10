@@ -4,7 +4,7 @@
 #include <iostream>
 #include <iomanip>
 #include <cstdlib>
-#include <nlohmann/json.hpp>
+
 
 namespace Core {
 
@@ -17,14 +17,17 @@ std::filesystem::path resolve_data_dir() {
 
     std::ifstream cfg("config.json");
     if (cfg.is_open()) {
-        try {
-            nlohmann::json j;
-            cfg >> j;
-            if (j.contains("data_dir") && j["data_dir"].is_string()) {
-                return std::filesystem::path(j["data_dir"].get<std::string>());
+        std::string content((std::istreambuf_iterator<char>(cfg)), std::istreambuf_iterator<char>());
+        auto pos = content.find("\"data_dir\"");
+        if (pos != std::string::npos) {
+            pos = content.find(':', pos);
+            if (pos != std::string::npos) {
+                auto start = content.find('"', pos);
+                auto end = content.find('"', start + 1);
+                if (start != std::string::npos && end != std::string::npos && end > start) {
+                    return std::filesystem::path(content.substr(start + 1, end - start - 1));
+                }
             }
-        } catch (const std::exception& e) {
-            std::cerr << "Failed to parse config.json: " << e.what() << std::endl;
         }
     }
 

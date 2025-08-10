@@ -157,8 +157,11 @@ int main() {
             } strat(short_p, long_p);
             auto it = all_candles.find(active_pair);
             if (it != all_candles.end()) {
-                Core::Backtester bt(it->second, strat);
-                last_result = bt.run();
+                auto jt = it->second.find(active_interval);
+                if (jt != it->second.end()) {
+                    Core::Backtester bt(jt->second, strat);
+                    last_result = bt.run();
+                }
             }
         }
         if (!last_result.equity_curve.empty()) {
