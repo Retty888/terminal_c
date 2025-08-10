@@ -4,7 +4,6 @@
 #include <iostream>
 #include <iomanip>
 #include <cstdlib>
-#include <unordered_set>
 #include <nlohmann/json.hpp>
 
 namespace Core {
@@ -42,6 +41,59 @@ std::filesystem::path resolve_data_dir() {
 }
 
 std::filesystem::path data_dir = resolve_data_dir();
+
+std::filesystem::path get_index_path(const std::string& symbol, const std::string& interval) {
+    std::filesystem::create_directories(data_dir);
+    std::string filename = symbol + "_" + interval + ".idx";
+    return data_dir / filename;
+}
+
+long long read_last_open_time(const std::string& symbol, const std::string& interval) {
+    std::filesystem::path idx_path = get_index_path(symbol, interval);
+    long long last = -1;
+    if (std::filesystem::exists(idx_path)) {
+        std::ifstream idx(idx_path);
+        if (idx.is_open()) {
+            idx >> last;
+            return last;
+        }
+    }
+
+    std::filesystem::path csv_path = data_dir / (symbol + "_" + interval + ".csv");
+    if (std::filesystem::exists(csv_path)) {
+        std::ifstream csv(csv_path);
+        if (csv.is_open()) {
+            std::string line, last_line;
+            while (std::getline(csv, line)) {
+                if (!line.empty()) last_line = line;
+            }
+            csv.close();
+            if (!last_line.empty()) {
+                std::stringstream ss(last_line);
+                std::string first;
+                if (std::getline(ss, first, ',')) {
+                    try {
+                        last = std::stoll(first);
+                        std::ofstream idx_new(idx_path);
+                        if (idx_new.is_open()) idx_new << last;
+                    } catch (...) {
+                        last = -1;
+                    }
+                }
+            }
+        }
+    }
+    return last;
+}
+
+void write_last_open_time(const std::string& symbol, const std::string& interval, long long t) {
+    if (t < 0) return;
+    std::filesystem::path idx_path = get_index_path(symbol, interval);
+    std::ofstream idx(idx_path, std::ios::trunc);
+    if (idx.is_open()) {
+        idx << t;
+    }
+}
 
 } // namespace
 
@@ -88,20 +140,16 @@ bool CandleManager::save_candles(const std::string& symbol, const std::string& i
     }
 
     file.close();
+
+    if (!candles.empty()) {
+        write_last_open_time(symbol, interval, candles.back().open_time);
+    }
     return true;
 }
 
 bool CandleManager::append_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) {
     std::filesystem::path path_to_save = get_candle_path(symbol, interval);
-
-    // Load existing open times to avoid duplicates
-    std::unordered_set<long long> existing_times;
-    if (std::filesystem::exists(path_to_save)) {
-        auto existing = load_candles(symbol, interval);
-        for (const auto& c : existing) {
-            existing_times.insert(c.open_time);
-        }
-    }
+    long long last_open_time = read_last_open_time(symbol, interval);
 
     std::ofstream file(path_to_save, std::ios::app);
     if (!file.is_open()) {
@@ -115,7 +163,7 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
     }
 
     for (const auto& candle : candles) {
-        if (existing_times.insert(candle.open_time).second) {
+        if (candle.open_time > last_open_time) {
             file << candle.open_time << ","
                  << std::fixed << std::setprecision(8) << candle.open << ","
                  << std::fixed << std::setprecision(8) << candle.high << ","
@@ -128,10 +176,12 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
                  << std::fixed << std::setprecision(8) << candle.taker_buy_base_asset_volume << ","
                  << std::fixed << std::setprecision(8) << candle.taker_buy_quote_asset_volume << ","
                  << std::fixed << std::setprecision(8) << candle.ignore << "\n";
+            last_open_time = candle.open_time;
         }
     }
 
     file.close();
+    write_last_open_time(symbol, interval, last_open_time);
     return true;
 }
 
