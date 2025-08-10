@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 #include <iostream>
 #include <vector>
+#include <future>
 
 namespace Core {
 
@@ -55,6 +56,12 @@ std::vector<Candle> DataFetcher::fetch_klines(const std::string& symbol, const s
     }
 
     return candles;
+}
+
+std::future<std::vector<Candle>> DataFetcher::fetch_klines_async(const std::string& symbol, const std::string& interval, int limit) {
+    return std::async(std::launch::async, [symbol, interval, limit]() {
+        return fetch_klines(symbol, interval, limit);
+    });
 }
 
 } // namespace Core
