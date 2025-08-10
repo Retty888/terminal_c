@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <numeric>
 
 using namespace Core;
 
@@ -14,7 +15,8 @@ void DrawControlPanel(
     std::vector<PairItem> &pairs, std::vector<std::string> &selected_pairs,
     std::string &active_pair, std::string &active_interval,
     const std::vector<std::string> &intervals, std::string &selected_interval,
-    std::map<std::string, std::map<std::string, std::vector<Candle>>> &all_candles,
+    std::map<std::string, std::map<std::string, std::vector<Candle>>>
+        &all_candles,
     const std::function<void()> &save_pairs,
     const std::vector<std::string> &exchange_pairs) {
   ImGui::Begin("Control Panel");
@@ -109,6 +111,37 @@ void DrawControlPanel(
       } else if (it->visible && active_pair.empty()) {
         active_pair = it->name;
       }
+    }
+
+    bool missing_data = false;
+    struct TooltipStat {
+      std::string interval;
+      size_t count;
+      double volume;
+    };
+    std::vector<TooltipStat> stats;
+    for (const auto &interval : intervals) {
+      const auto &candles = all_candles[it->name][interval];
+      size_t count = candles.size();
+      double volume = std::accumulate(
+          candles.begin(), candles.end(), 0.0,
+          [](double sum, const Candle &c) { return sum + c.volume; });
+      if (candles.empty()) {
+        missing_data = true;
+      }
+      stats.push_back({interval, count, volume});
+    }
+    if (ImGui::IsItemHovered()) {
+      ImGui::BeginTooltip();
+      for (const auto &s : stats) {
+        ImGui::Text("%s: %zu candles, vol %.2f", s.interval.c_str(), s.count,
+                    s.volume);
+      }
+      ImGui::EndTooltip();
+    }
+    if (missing_data) {
+      ImGui::SameLine();
+      ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "!");
     }
     ImGui::SameLine();
     if (ImGui::SmallButton((std::string("X##remove_") + it->name).c_str())) {
