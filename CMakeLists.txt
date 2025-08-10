@@ -25,6 +25,7 @@ if(BUILD_TRADING_TERMINAL)
         src/core/candle_manager.cpp
         src/core/data_fetcher.cpp
         src/core/backtester.cpp
+        src/logger.cpp
         src/journal.cpp
         src/ui/control_panel.cpp
         src/ui/signals_window.cpp
