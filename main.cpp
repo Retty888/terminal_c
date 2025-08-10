@@ -128,7 +128,8 @@ int main() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
+    ImGui::DockSpaceOverViewport(ImGui::GetID("MainDock"),
+                                 ImGui::GetMainViewport());
 
     static auto last_fetch = std::chrono::steady_clock::now();
     auto now = std::chrono::steady_clock::now();
