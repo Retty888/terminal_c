@@ -55,6 +55,40 @@ int main() {
         assert(result.equity_curve[i] == expected_equity[i]);
     }
 
+    // Scenario: open position at the end should be closed automatically
+    {
+        std::vector<Candle> candles2;
+        double closes2[] = {10, 12, 11};
+        for (size_t i = 0; i < 3; ++i) {
+            candles2.emplace_back(static_cast<long long>(i), 0, 0, 0, closes2[i], 0, 0, 0, 0, 0, 0, 0);
+        }
+
+        std::vector<int> signals2 = {1, 0, 0};
+        MockStrategy strategy2(signals2);
+
+        Backtester backtester2(candles2, strategy2);
+        BacktestResult result2 = backtester2.run();
+
+        // A single trade that exits on the last candle
+        assert(result2.trades.size() == 1);
+        assert(result2.trades[0].entry_index == 0);
+        assert(result2.trades[0].exit_index == 2);
+        assert(result2.trades[0].entry_price == 10);
+        assert(result2.trades[0].exit_price == 11);
+        assert(result2.trades[0].pnl == 1);
+
+        // PnL and win rate
+        assert(result2.total_pnl == 1);
+        assert(result2.win_rate == 1.0);
+
+        // Equity curve should reflect the final realized PnL
+        std::vector<double> expected_equity2 = {0, 2, 1};
+        assert(result2.equity_curve.size() == expected_equity2.size());
+        for (size_t i = 0; i < expected_equity2.size(); ++i) {
+            assert(result2.equity_curve[i] == expected_equity2[i]);
+        }
+    }
+
     return 0;
 }
 
