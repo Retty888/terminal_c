@@ -8,6 +8,7 @@
 #include "journal.h"
 #include "plot/candlestick.h"
 #include "signal.h"
+#include "logger.h"
 
 #include <algorithm>
 #include <cctype>
@@ -33,13 +34,19 @@ using namespace Core;
 
 int main() {
   // Init GLFW
-  if (!glfwInit())
+  Logger::instance().set_file("terminal.log");
+  Logger::instance().info("Application started");
+
+  if (!glfwInit()) {
+    Logger::instance().error("Failed to initialize GLFW");
     return -1;
+  }
 
   // Create window with OpenGL context
   GLFWwindow *window =
       glfwCreateWindow(1280, 720, "Trading Terminal", NULL, NULL);
   if (!window) {
+    Logger::instance().error("Failed to create GLFW window");
     glfwTerminate();
     return -1;
   }
@@ -224,6 +231,8 @@ int main() {
   ImGui::DestroyContext();
   glfwDestroyWindow(window);
   glfwTerminate();
+
+  Logger::instance().info("Application exiting");
 
   return 0;
 }
