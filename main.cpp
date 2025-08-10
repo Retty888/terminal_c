@@ -148,6 +148,36 @@ int main() {
       }
     }
 
+        DrawControlPanel(pairs, selected_pairs, active_pair, active_interval, intervals, selected_interval, all_candles, save_pairs);
+
+        DrawSignalsWindow(short_period, long_period, show_on_chart, signal_entries, buy_times, buy_prices, sell_times, sell_prices, all_candles, active_pair, selected_interval);
+
+        DrawAnalyticsWindow(all_candles, active_pair, selected_interval);
+
+        DrawJournalWindow(journal);
+
+        // Backtest Window
+        ImGui::Begin("Backtest");
+        static int short_p = 9;
+        static int long_p = 21;
+        ImGui::InputInt("Short SMA", &short_p);
+        ImGui::InputInt("Long SMA", &long_p);
+        if (ImGui::Button("Run Backtest")) {
+            struct Strat : Core::IStrategy {
+                int s, l;
+                Strat(int sp, int lp) : s(sp), l(lp) {}
+                int generate_signal(const std::vector<Candle>& candles, size_t index) override {
+                    return Signal::sma_crossover_signal(candles, index, s, l);
+                }
+            } strat(short_p, long_p);
+            auto it = all_candles.find(active_pair);
+            if (it != all_candles.end()) {
+                auto jt = it->second.find(active_interval);
+                if (jt != it->second.end()) {
+                    Core::Backtester bt(jt->second, strat);
+                    last_result = bt.run();
+                }
+            }
     DrawControlPanel(pairs, selected_pairs, active_pair, active_interval,
                      intervals, selected_interval, all_candles, save_pairs);
 
