@@ -13,7 +13,6 @@ if(BUILD_TRADING_TERMINAL)
     find_package(imgui CONFIG REQUIRED)
     find_package(implot CONFIG REQUIRED)
     find_package(cpr CONFIG REQUIRED)
-    find_package(Arrow CONFIG REQUIRED)
     find_package(glfw3 CONFIG REQUIRED)
     find_package(OpenGL REQUIRED)
 
@@ -45,7 +44,6 @@ if(BUILD_TRADING_TERMINAL)
         implot::implot
         cpr::cpr
         nlohmann_json::nlohmann_json
-        arrow_shared
         glfw
         OpenGL::GL
     )
