@@ -41,6 +41,20 @@ BacktestResult Backtester::run() {
         result.equity_curve.push_back(equity);
     }
 
+    // If still in a position, close it at the last available price
+    if (in_position && !m_candles.empty()) {
+        double exit_price = m_candles.back().close;
+        double pnl = exit_price - entry_price;
+        result.trades.push_back({entry_index, m_candles.size() - 1, entry_price, exit_price, pnl});
+        total_pnl += pnl;
+        if (pnl > 0) {
+            ++wins;
+        }
+        if (!result.equity_curve.empty()) {
+            result.equity_curve.back() = total_pnl;
+        }
+    }
+
     result.total_pnl = total_pnl;
     if (!result.trades.empty()) {
         result.win_rate = static_cast<double>(wins) / result.trades.size();
