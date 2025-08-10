@@ -70,3 +70,38 @@ target_include_directories(test_backtester PRIVATE
 )
 
 add_test(NAME test_backtester COMMAND test_backtester)
+
+add_executable(test_candle_manager
+    tests/test_candle_manager.cpp
+    src/core/candle_manager.cpp
+    src/candle.cpp
+)
+
+target_include_directories(test_candle_manager PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME test_candle_manager COMMAND test_candle_manager)
+
+add_executable(test_journal
+    tests/test_journal.cpp
+    src/journal.cpp
+)
+
+target_include_directories(test_journal PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME test_journal COMMAND test_journal)
+
+add_executable(test_signal
+    tests/test_signal.cpp
+    src/signal.cpp
+    src/candle.cpp
+)
+
+target_include_directories(test_signal PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+add_test(NAME test_signal COMMAND test_signal)
