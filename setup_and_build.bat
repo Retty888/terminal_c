@@ -34,7 +34,7 @@ mkdir "%BUILD_DIR%"
 cd /d "%BUILD_DIR%"
 
 echo Running CMake configuration...
-cmake .. -DCMAKE_TOOLCHAIN_FILE="%TOOLCHAIN_FILE%"
+cmake .. -DBUILD_TRADING_TERMINAL=ON -DCMAKE_TOOLCHAIN_FILE="%TOOLCHAIN_FILE%"
 if %errorlevel% neq 0 (
     echo CMake configuration failed!
     pause
