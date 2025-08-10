@@ -3,6 +3,7 @@
 #include <vector>
 #include <filesystem>
 #include <cstdlib>
+#include <fstream>
 
 int main() {
     using namespace Core;
@@ -31,6 +32,37 @@ int main() {
     assert(appended_dup);
     loaded = CandleManager::load_candles("TEST","1m");
     assert(loaded.size() == 2); // no duplicates
+
+    std::filesystem::path idx_path = test_dir / "TEST_1m.idx";
+    assert(std::filesystem::exists(idx_path));
+    std::ifstream idx(idx_path);
+    long long idx_time = -1;
+    idx >> idx_time;
+    assert(idx_time == 2);
+    idx.close();
+
+    std::filesystem::remove(idx_path);
+    bool appended_dup_no_idx = CandleManager::append_candles("TEST","1m",more);
+    assert(appended_dup_no_idx);
+    loaded = CandleManager::load_candles("TEST","1m");
+    assert(loaded.size() == 2);
+    idx.open(idx_path);
+    idx_time = -1;
+    idx >> idx_time;
+    assert(idx_time == 2);
+    idx.close();
+
+    std::vector<Candle> next;
+    next.emplace_back(3,3,3,3,3,3,3,3,3,3,3,0);
+    bool appended_next = CandleManager::append_candles("TEST","1m",next);
+    assert(appended_next);
+    loaded = CandleManager::load_candles("TEST","1m");
+    assert(loaded.size() == 3);
+    idx.open(idx_path);
+    idx_time = -1;
+    idx >> idx_time;
+    assert(idx_time == 3);
+    idx.close();
 
     std::filesystem::remove_all(test_dir);
     return 0;
