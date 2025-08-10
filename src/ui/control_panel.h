@@ -20,5 +20,6 @@ void DrawControlPanel(
     const std::vector<std::string>& intervals,
     std::string& selected_interval,
     std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>& all_candles,
-    const std::function<void()>& save_pairs);
+    const std::function<void()>& save_pairs,
+    const std::vector<std::string>& exchange_pairs);
 

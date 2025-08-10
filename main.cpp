@@ -51,7 +51,7 @@ int main() {
   ImGui::CreateContext();
   ImPlot::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
-  (void)io;
+  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   ImGui::StyleColorsDark();
 
   // Setup Platform/Renderer bindings
@@ -78,6 +78,10 @@ int main() {
   std::vector<std::string> selected_pairs = pair_names;
   std::string active_pair = selected_pairs[0];
   std::string active_interval = "1m";
+
+  auto exchange_pairs_opt = DataFetcher::fetch_all_symbols();
+  std::vector<std::string> exchange_pairs =
+      exchange_pairs_opt.value_or(std::vector<std::string>{});
 
   // Prepare candle storage by pair and interval
   const std::vector<std::string> intervals = {"1m", "5m", "15m",
@@ -117,6 +121,7 @@ int main() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+    ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
 
     static auto last_fetch = std::chrono::steady_clock::now();
     auto now = std::chrono::steady_clock::now();
@@ -149,7 +154,8 @@ int main() {
     }
 
     DrawControlPanel(pairs, selected_pairs, active_pair, active_interval,
-                     intervals, selected_interval, all_candles, save_pairs);
+                     intervals, selected_interval, all_candles, save_pairs,
+                     exchange_pairs);
 
     DrawSignalsWindow(short_period, long_period, show_on_chart, signal_entries,
                       buy_times, buy_prices, sell_times, sell_prices,

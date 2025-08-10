@@ -58,4 +58,26 @@ DataFetcher::fetch_klines_async(const std::string &symbol,
   });
 }
 
+std::optional<std::vector<std::string>> DataFetcher::fetch_all_symbols() {
+  const std::string url =
+      "https://api.binance.com/api/v3/exchangeInfo";
+  cpr::Response r = cpr::Get(cpr::Url{url});
+  if (r.status_code == 200) {
+    try {
+      std::vector<std::string> symbols;
+      auto json_data = nlohmann::json::parse(r.text);
+      for (const auto &item : json_data["symbols"]) {
+        symbols.push_back(item["symbol"].get<std::string>());
+      }
+      return symbols;
+    } catch (const std::exception &e) {
+      std::cerr << "Error processing symbol list: " << e.what() << std::endl;
+      return std::nullopt;
+    }
+  }
+  std::cerr << "HTTP Request failed with status code: " << r.status_code
+            << std::endl;
+  return std::nullopt;
+}
+
 } // namespace Core
