@@ -6,9 +6,19 @@
 
 namespace Journal {
 
+enum class Side { Buy, Sell };
+
+inline const char* side_to_string(Side s) {
+    return s == Side::Buy ? "BUY" : "SELL";
+}
+
+inline Side side_from_string(const std::string& s) {
+    return s == "SELL" ? Side::Sell : Side::Buy;
+}
+
 struct Entry {
     std::string symbol;
-    std::string side; // "BUY" or "SELL"
+    Side side = Side::Buy;
     double price = 0.0;
     double quantity = 0.0;
     std::int64_t timestamp = 0; // milliseconds since epoch

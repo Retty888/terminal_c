@@ -17,7 +17,7 @@ void DrawJournalWindow(Journal::Journal& journal) {
     if (ImGui::Button("Add Trade")) {
         Journal::Entry e;
         e.symbol = j_symbol;
-        e.side = j_side == 0 ? "BUY" : "SELL";
+        e.side = j_side == 0 ? Journal::Side::Buy : Journal::Side::Sell;
         e.price = j_price;
         e.quantity = j_qty;
         e.timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -42,7 +42,7 @@ void DrawJournalWindow(Journal::Journal& journal) {
         for (const auto& e : journal.entries()) {
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0); ImGui::Text("%s", e.symbol.c_str());
-            ImGui::TableSetColumnIndex(1); ImGui::Text("%s", e.side.c_str());
+            ImGui::TableSetColumnIndex(1); ImGui::Text("%s", Journal::side_to_string(e.side));
             ImGui::TableSetColumnIndex(2); ImGui::Text("%.2f", e.price);
             ImGui::TableSetColumnIndex(3); ImGui::Text("%.4f", e.quantity);
             ImGui::TableSetColumnIndex(4); ImGui::Text("%lld", (long long)e.timestamp);
