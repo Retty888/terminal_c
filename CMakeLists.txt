@@ -6,12 +6,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(BUILD_TRADING_TERMINAL "Build the TradingTerminal application" ON)
 
+find_package(nlohmann_json CONFIG REQUIRED)
+
 if(BUILD_TRADING_TERMINAL)
     # Find all necessary packages using vcpkg
     find_package(imgui CONFIG REQUIRED)
     find_package(implot CONFIG REQUIRED)
     find_package(cpr CONFIG REQUIRED)
-    find_package(nlohmann_json CONFIG REQUIRED)
     find_package(Arrow CONFIG REQUIRED)
     find_package(glfw3 CONFIG REQUIRED)
     find_package(OpenGL REQUIRED)
@@ -81,6 +82,8 @@ target_include_directories(test_candle_manager PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+target_link_libraries(test_candle_manager PRIVATE nlohmann_json::nlohmann_json)
+
 add_test(NAME test_candle_manager COMMAND test_candle_manager)
 
 add_executable(test_journal
@@ -91,6 +94,7 @@ add_executable(test_journal
 target_include_directories(test_journal PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+target_link_libraries(test_journal PRIVATE nlohmann_json::nlohmann_json)
 
 add_test(NAME test_journal COMMAND test_journal)
 

@@ -71,18 +71,20 @@ void DrawChartWindow(
     }
     ImGui::SameLine();
     if (ImGui::Button("Fit")) {
-        ImPlot::FitNextPlotAxes();
+        ImPlot::SetNextAxesToFit();
         use_manual_limits = false;
     }
 
     if (use_manual_limits) {
-        ImPlot::SetNextPlotLimits(manual_limits.X.Min, manual_limits.X.Max,
-                                 manual_limits.Y.Min, manual_limits.Y.Max,
-                                 ImGuiCond_Always);
+        ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max,
+                                  manual_limits.Y.Min, manual_limits.Y.Max,
+                                  ImGuiCond_Always);
     }
 
-    ImPlotFlags plot_flags = ImPlotFlags_ContextMenu | ImPlotFlags_Crosshairs;
-    if (ImPlot::BeginPlot(("Candles - " + active_pair).c_str(), "Time", "Price", plot_flags)) {
+    ImPlotFlags plot_flags = ImPlotFlags_Crosshairs;
+    if (ImPlot::BeginPlot(("Candles - " + active_pair).c_str(), ImVec2(-1,0), plot_flags)) {
+        ImPlot::SetupAxes("Time", "Price");
+        ImPlot::SetupLegend(ImPlotLocation_South, ImPlotLegendFlags_Outside);
         Plot::PlotCandlestick(
             "Candles",
             times.data(), opens.data(), closes.data(), lows.data(), highs.data(),
@@ -176,7 +178,6 @@ void DrawChartWindow(
         }
 
         ImPlot::EndPlot();
-        ImPlot::ShowAltLegend();
     }
     ImGui::End();
 }
