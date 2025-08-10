@@ -122,21 +122,23 @@ bool CandleManager::save_candles(const std::string& symbol, const std::string& i
 
     // Write header
     file << "open_time,open,high,low,close,volume,close_time,quote_asset_volume,number_of_trades,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore\n";
+    file.setf(std::ios::fixed);
+    file << std::setprecision(8);
 
     // Write candle data
     for (const auto& candle : candles) {
         file << candle.open_time << ","
-             << std::fixed << std::setprecision(8) << candle.open << ","
-             << std::fixed << std::setprecision(8) << candle.high << ","
-             << std::fixed << std::setprecision(8) << candle.low << ","
-             << std::fixed << std::setprecision(8) << candle.close << ","
-             << std::fixed << std::setprecision(8) << candle.volume << ","
+             << candle.open << ","
+             << candle.high << ","
+             << candle.low << ","
+             << candle.close << ","
+             << candle.volume << ","
              << candle.close_time << ","
-             << std::fixed << std::setprecision(8) << candle.quote_asset_volume << ","
+             << candle.quote_asset_volume << ","
              << candle.number_of_trades << ","
-             << std::fixed << std::setprecision(8) << candle.taker_buy_base_asset_volume << ","
-             << std::fixed << std::setprecision(8) << candle.taker_buy_quote_asset_volume << ","
-             << std::fixed << std::setprecision(8) << candle.ignore << "\n";
+             << candle.taker_buy_base_asset_volume << ","
+             << candle.taker_buy_quote_asset_volume << ","
+             << candle.ignore << "\n";
     }
 
     file.close();

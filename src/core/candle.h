@@ -26,6 +26,8 @@ struct Candle {
         : open_time(ot), open(o), high(h), low(l), close(c), volume(v),
           close_time(ct), quote_asset_volume(qav), number_of_trades(notr),
           taker_buy_base_asset_volume(tbbav), taker_buy_quote_asset_volume(tbqav), ignore(ign) {}
+
+    bool is_bullish() const;
 };
 
 } // namespace Core
