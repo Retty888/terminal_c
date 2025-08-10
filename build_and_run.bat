@@ -24,16 +24,17 @@ if %errorlevel% neq 0 (
 )
 
 echo Running the application...
-rem Try to run Debug version first, then Release if Debug not found
+pushd "%BUILD_DIR%"
 if exist "Debug\TradingTerminal.exe" (
-    start "" "Debug\TradingTerminal.exe" > "%PROJECT_DIR%\error_log.txt" 2>&1
+    start "" cmd /K ".\Debug\TradingTerminal.exe"
 ) else if exist "Release\TradingTerminal.exe" (
-    start "" "Release\TradingTerminal.exe" > "%PROJECT_DIR%\error_log.txt" 2>&1
+    start "" cmd /K ".\Release\TradingTerminal.exe"
+) else if exist "TradingTerminal.exe" (
+    start "" cmd /K "TradingTerminal.exe"
 ) else (
     echo Executable not found in Debug or Release folders.
 )
-
-echo Check error_log.txt for details.
+popd
 
 echo Done.
 pause

@@ -174,10 +174,13 @@ int main() {
           return Signal::sma_crossover_signal(candles, index, s, l);
         }
       } strat(short_p, long_p);
-      auto it = all_candles.find(active_pair);
-      if (it != all_candles.end()) {
-        Core::Backtester bt(it->second, strat);
-        last_result = bt.run();
+      auto pair_it = all_candles.find(active_pair);
+      if (pair_it != all_candles.end()) {
+        auto interval_it = pair_it->second.find(active_interval);
+        if (interval_it != pair_it->second.end()) {
+          Core::Backtester bt(interval_it->second, strat);
+          last_result = bt.run();
+        }
       }
     }
     if (!last_result.equity_curve.empty()) {
