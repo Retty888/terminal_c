@@ -26,6 +26,9 @@ public:
   static std::future<std::optional<std::vector<Candle>>>
   fetch_klines_async(const std::string &symbol, const std::string &interval,
                      int limit = 500);
+
+  // Fetch list of all available trading symbols from the exchange.
+  static std::optional<std::vector<std::string>> fetch_all_symbols();
 };
 
 } // namespace Core

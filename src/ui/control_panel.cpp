@@ -14,18 +14,17 @@ void DrawControlPanel(
     std::vector<PairItem> &pairs, std::vector<std::string> &selected_pairs,
     std::string &active_pair, std::string &active_interval,
     const std::vector<std::string> &intervals, std::string &selected_interval,
-    std::map<std::string, std::map<std::string, std::vector<Candle>>>
-        &all_candles,
-    const std::function<void()> &save_pairs) {
+    std::map<std::string, std::map<std::string, std::vector<Candle>>> &all_candles,
+    const std::function<void()> &save_pairs,
+    const std::vector<std::string> &exchange_pairs) {
   ImGui::Begin("Control Panel");
 
   ImGui::Text("Select pairs to load:");
   static char new_symbol[32] = "";
   static std::string load_error;
-  ImGui::InputText("##new_symbol", new_symbol, IM_ARRAYSIZE(new_symbol));
-  ImGui::SameLine();
-  if (ImGui::Button("Load Symbol")) {
-    std::string symbol(new_symbol);
+
+  auto try_add_symbol = [&](const std::string &input) {
+    std::string symbol(input);
     symbol.erase(std::remove_if(symbol.begin(), symbol.end(),
                                 [](unsigned char c) {
                                   return std::isspace(c) || c == '-';
@@ -63,8 +62,37 @@ void DrawControlPanel(
       }
       load_error = failed ? "Failed to load " + symbol : "";
     }
+  };
+
+  ImGui::InputText("##new_symbol", new_symbol, IM_ARRAYSIZE(new_symbol));
+  ImGui::SameLine();
+  if (ImGui::Button("Load Symbol")) {
+    try_add_symbol(new_symbol);
     new_symbol[0] = '\0';
   }
+
+  ImGui::Separator();
+  ImGui::Text("Load from exchange:");
+  static int selected_idx = 0;
+  std::string current =
+      exchange_pairs.empty() ? std::string() : exchange_pairs[selected_idx];
+  if (ImGui::BeginCombo("##exchange_combo", current.c_str())) {
+    for (int i = 0; i < (int)exchange_pairs.size(); ++i) {
+      bool is_selected = (selected_idx == i);
+      if (ImGui::Selectable(exchange_pairs[i].c_str(), is_selected)) {
+        selected_idx = i;
+      }
+      if (is_selected)
+        ImGui::SetItemDefaultFocus();
+    }
+    ImGui::EndCombo();
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Load Selected")) {
+    if (!exchange_pairs.empty())
+      try_add_symbol(exchange_pairs[selected_idx]);
+  }
+
   if (!load_error.empty()) {
     ImGui::Text("%s", load_error.c_str());
   }
