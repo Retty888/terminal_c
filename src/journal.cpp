@@ -18,7 +18,7 @@ bool Journal::load_json(const std::string& filename) {
     for (const auto& item : j) {
         Entry e;
         e.symbol = item.value("symbol", "");
-        e.side = item.value("side", "");
+        e.side = side_from_string(item.value("side", "BUY"));
         e.price = item.value("price", 0.0);
         e.quantity = item.value("quantity", 0.0);
         e.timestamp = item.value("timestamp", 0LL);
@@ -32,7 +32,7 @@ bool Journal::save_json(const std::string& filename) const {
     if (!f.is_open()) return false;
     nlohmann::json j = nlohmann::json::array();
     for (const auto& e : m_entries) {
-        j.push_back({{"symbol", e.symbol}, {"side", e.side}, {"price", e.price}, {"quantity", e.quantity}, {"timestamp", e.timestamp}});
+        j.push_back({{"symbol", e.symbol}, {"side", side_to_string(e.side)}, {"price", e.price}, {"quantity", e.quantity}, {"timestamp", e.timestamp}});
     }
     f << j.dump(4);
     return true;
@@ -49,7 +49,8 @@ bool Journal::load_csv(const std::string& filename) {
         Entry e;
         std::string field;
         std::getline(ss, e.symbol, ',');
-        std::getline(ss, e.side, ',');
+        std::getline(ss, field, ',');
+        e.side = side_from_string(field);
         std::getline(ss, field, ',');
         e.price = std::stod(field);
         std::getline(ss, field, ',');
@@ -65,7 +66,7 @@ bool Journal::save_csv(const std::string& filename) const {
     std::ofstream f(filename);
     if (!f.is_open()) return false;
     for (const auto& e : m_entries) {
-        f << e.symbol << ',' << e.side << ',' << e.price << ',' << e.quantity << ',' << e.timestamp << '\n';
+        f << e.symbol << ',' << side_to_string(e.side) << ',' << e.price << ',' << e.quantity << ',' << e.timestamp << '\n';
     }
     return true;
 }

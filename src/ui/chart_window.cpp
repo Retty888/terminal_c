@@ -135,7 +135,7 @@ void DrawChartWindow(
         for (const auto& e : journal.entries()) {
             if (e.symbol == active_pair) {
                 double t = (double)e.timestamp / 1000.0;
-                if (e.side == "BUY") { jb_times.push_back(t); jb_prices.push_back(e.price); }
+                if (e.side == Journal::Side::Buy) { jb_times.push_back(t); jb_prices.push_back(e.price); }
                 else { js_times.push_back(t); js_prices.push_back(e.price); }
             }
         }
