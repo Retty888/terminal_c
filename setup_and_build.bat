@@ -24,6 +24,13 @@ set TOOLCHAIN_FILE=%VCPKG_PATH%\scripts\buildsystems\vcpkg.cmake
 
 echo Installing required packages...
 "%VCPKG_PATH%\vcpkg.exe" install --recurse imgui[core,glfw-binding,opengl3-binding] implot cpr nlohmann-json arrow glfw3 opengl
+"%VCPKG_PATH%\vcpkg.exe" install imgui[core,glfw-binding,opengl3-binding] implot cpr nlohmann-json arrow glfw3 opengl
+if %errorlevel% neq 0 (
+    echo Dependency installation failed!
+    pause
+    exit /b %errorlevel%
+)
+"%VCPKG_PATH%\vcpkg.exe" list
 
 set BUILD_DIR=%SCRIPT_DIR%build
 if exist "%BUILD_DIR%" (
