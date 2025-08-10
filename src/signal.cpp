@@ -7,11 +7,12 @@ double simple_moving_average(const std::vector<Core::Candle>& candles, std::size
     if (period == 0 || index >= candles.size() || index + 1 < period) {
         return 0.0;
     }
-    std::size_t start = index + 1 - period;
-    double sum = 0.0;
-    for (std::size_t i = start; i <= index; ++i) {
-        sum += candles[i].close;
-    }
+    const std::size_t start = index + 1 - period;
+    const auto begin = candles.begin() + static_cast<long>(start);
+    const auto end = candles.begin() + static_cast<long>(index) + 1;
+    const double sum = std::accumulate(begin, end, 0.0, [](double acc, const Core::Candle& c) {
+        return acc + c.close;
+    });
     return sum / static_cast<double>(period);
 }
 
