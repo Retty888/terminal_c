@@ -15,6 +15,8 @@
 #include <chrono>
 #include <algorithm>
 #include <cctype>
+#include <future>
+#include <mutex>
 
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -77,6 +79,8 @@ int main() {
     std::vector<double> buy_times, buy_prices, sell_times, sell_prices;
 
     std::map<std::string, std::map<std::string, std::vector<Candle>>> all_candles;
+    std::mutex candles_mutex; // protects access to all_candles
+    std::map<std::string, std::future<std::vector<Candle>>> pending_fetches;
     Journal::Journal journal;
     journal.load_json("journal.json");
     Core::BacktestResult last_result;
@@ -106,16 +110,27 @@ int main() {
         if (now - last_fetch >= std::chrono::minutes(1)) {
             for (const auto& item : pairs) {
                 const auto& pair = item.name;
-                auto latest = DataFetcher::fetch_klines(pair, "1m", 1);
-                if (!latest.empty()) {
-                    auto& vec = all_candles[pair]["1m"];
-                    if (vec.empty() || latest.back().open_time > vec.back().open_time) {
-                        vec.push_back(latest.back());
-                        CandleManager::append_candles(pair, "1m", {latest.back()});
-                    }
+                if (pending_fetches.find(pair) == pending_fetches.end()) {
+                    pending_fetches[pair] = DataFetcher::fetch_klines_async(pair, "1m", 1);
                 }
             }
             last_fetch = now;
+        }
+        for (auto it = pending_fetches.begin(); it != pending_fetches.end(); ) {
+            if (it->second.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                auto latest = it->second.get();
+                if (!latest.empty()) {
+                    std::lock_guard<std::mutex> lock(candles_mutex);
+                    auto& vec = all_candles[it->first]["1m"];
+                    if (vec.empty() || latest.back().open_time > vec.back().open_time) {
+                        vec.push_back(latest.back());
+                        CandleManager::append_candles(it->first, "1m", {latest.back()});
+                    }
+                }
+                it = pending_fetches.erase(it);
+            } else {
+                ++it;
+            }
         }
 
         DrawControlPanel(pairs, selected_pairs, active_pair, active_interval, intervals, selected_interval, all_candles, save_pairs);
