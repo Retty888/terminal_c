@@ -98,7 +98,8 @@ void DrawControlPanel(
   }
 
   for (auto it = pairs.begin(); it != pairs.end();) {
-    if (ImGui::Checkbox(it->name.c_str(), &it->visible)) {
+    std::string checkbox_id = it->name + "##checkbox_" + it->name;
+    if (ImGui::Checkbox(checkbox_id.c_str(), &it->visible)) {
       if (!it->visible && active_pair == it->name) {
         auto new_active =
             std::find_if(pairs.begin(), pairs.end(),
@@ -110,7 +111,7 @@ void DrawControlPanel(
       }
     }
     ImGui::SameLine();
-    if (ImGui::SmallButton((std::string("X##") + it->name).c_str())) {
+    if (ImGui::SmallButton((std::string("X##remove_") + it->name).c_str())) {
       std::string removed = it->name;
       it = pairs.erase(it);
       all_candles.erase(removed);
@@ -134,7 +135,8 @@ void DrawControlPanel(
     if (!item.visible)
       continue;
     const auto &pair = item.name;
-    if (ImGui::RadioButton(pair.c_str(), active_pair == pair)) {
+    std::string radio_id = pair + "##radiobtn_" + pair;
+    if (ImGui::RadioButton(radio_id.c_str(), active_pair == pair)) {
       active_pair = pair;
       if (all_candles[pair][active_interval].empty()) {
         auto candles = CandleManager::load_candles(pair, active_interval);
