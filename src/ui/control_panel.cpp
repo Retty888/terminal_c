@@ -7,9 +7,35 @@
 
 #include <algorithm>
 #include <cctype>
+#include <ctime>
 #include <numeric>
 
 using namespace Core;
+
+namespace {
+constexpr size_t EXPECTED_CANDLES = 5000;
+constexpr size_t THRESHOLD_LOW = 100;
+constexpr size_t THRESHOLD_MED = 1000;
+
+const char *EMOJI_LOW = "\xF0\x9F\x98\x9F";  // 😟
+const char *EMOJI_MED = "\xF0\x9F\x98\x90";  // 😐
+const char *EMOJI_HIGH = "\xF0\x9F\x98\x83"; // 😃
+
+const ImVec4 COLOR_LOW = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
+const ImVec4 COLOR_MED = ImVec4(1.0f, 1.0f, 0.0f, 1.0f);
+const ImVec4 COLOR_HIGH = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+
+std::string format_date(long long ms) {
+  if (ms == 0)
+    return "-";
+  std::time_t t = ms / 1000;
+  std::tm *tm = std::gmtime(&t);
+  char buf[6];
+  if (std::strftime(buf, sizeof(buf), "%d.%m", tm))
+    return std::string(buf);
+  return "-";
+}
+} // namespace
 
 void DrawControlPanel(
     std::vector<PairItem> &pairs, std::vector<std::string> &selected_pairs,
@@ -118,30 +144,74 @@ void DrawControlPanel(
       std::string interval;
       size_t count;
       double volume;
+      std::string start;
+      std::string end;
     };
     std::vector<TooltipStat> stats;
+    size_t sel_count = 0;
+    std::string sel_start = "-";
+    std::string sel_end = "-";
     for (const auto &interval : intervals) {
       const auto &candles = all_candles[it->name][interval];
       size_t count = candles.size();
       double volume = std::accumulate(
           candles.begin(), candles.end(), 0.0,
           [](double sum, const Candle &c) { return sum + c.volume; });
-      if (candles.empty()) {
+      long long min_t = 0;
+      long long max_t = 0;
+      if (!candles.empty()) {
+        auto [min_it, max_it] = std::minmax_element(
+            candles.begin(), candles.end(),
+            [](const Candle &a, const Candle &b) {
+              return a.open_time < b.open_time;
+            });
+        min_t = min_it->open_time;
+        max_t = max_it->open_time;
+      } else {
         missing_data = true;
       }
-      stats.push_back({interval, count, volume});
+      std::string start = format_date(min_t);
+      std::string end = format_date(max_t);
+      stats.push_back({interval, count, volume, start, end});
+      if (interval == selected_interval) {
+        sel_count = count;
+        sel_start = start;
+        sel_end = end;
+      }
     }
+
+    const char *emoji = EMOJI_LOW;
+    ImVec4 color = COLOR_LOW;
+    if (sel_count >= THRESHOLD_MED) {
+      emoji = EMOJI_HIGH;
+      color = COLOR_HIGH;
+    } else if (sel_count >= THRESHOLD_LOW) {
+      emoji = EMOJI_MED;
+      color = COLOR_MED;
+    }
+    std::string label = sel_start + "–" + sel_end + " (" +
+                        std::to_string(sel_count) + ")";
+    ImGui::SameLine();
+    ImGui::Text("%s %s", emoji, label.c_str());
+    ImGui::SameLine();
+    float progress = EXPECTED_CANDLES
+                         ? static_cast<float>(sel_count) / EXPECTED_CANDLES
+                         : 0.0f;
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, color);
+    ImGui::ProgressBar(progress, ImVec2(100.0f, 0.0f));
+    ImGui::PopStyleColor();
+
     if (ImGui::IsItemHovered()) {
       ImGui::BeginTooltip();
       for (const auto &s : stats) {
-        ImGui::Text("%s: %zu candles, vol %.2f", s.interval.c_str(), s.count,
-                    s.volume);
+        ImGui::Text("%s: %zu candles, vol %.2f, %s-%s", s.interval.c_str(),
+                    s.count, s.volume, s.start.c_str(), s.end.c_str());
       }
       ImGui::EndTooltip();
     }
     if (missing_data) {
       ImGui::SameLine();
-      ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "!");
+      ImGui::TextColored(COLOR_LOW, "!");
     }
     ImGui::SameLine();
     if (ImGui::SmallButton((std::string("X##remove_") + it->name).c_str())) {
