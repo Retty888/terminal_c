@@ -84,9 +84,11 @@ int App::run() {
   std::string active_pair = selected_pairs[0];
   std::string active_interval = "1m";
 
-  auto exchange_pairs_opt = data_service_.fetch_all_symbols();
+  auto exchange_pairs_res = data_service_.fetch_all_symbols();
   std::vector<std::string> exchange_pairs =
-      exchange_pairs_opt.value_or(std::vector<std::string>{});
+      exchange_pairs_res.error == FetchError::None
+          ? exchange_pairs_res.symbols
+          : std::vector<std::string>{};
 
   // Prepare candle storage by pair and interval
   const std::vector<std::string> intervals = {"1m", "5m", "15m",
@@ -100,8 +102,7 @@ int App::run() {
 
   std::map<std::string, std::map<std::string, std::vector<Candle>>> all_candles;
   std::mutex candles_mutex; // protects access to all_candles
-  std::map<std::string, std::future<std::optional<std::vector<Candle>>>>
-      pending_fetches;
+  std::map<std::string, std::future<Core::KlinesResult>> pending_fetches;
   journal_service_.load("journal.json");
   Core::BacktestResult last_result;
 
@@ -110,8 +111,8 @@ int App::run() {
       auto candles = data_service_.load_candles(pair, interval);
       if (candles.empty()) {
         auto fetched = data_service_.fetch_klines(pair, interval, 5000);
-        if (fetched && !fetched->empty()) {
-          candles = *fetched;
+        if (fetched.error == FetchError::None && !fetched.candles.empty()) {
+          candles = fetched.candles;
           data_service_.save_candles(pair, interval, candles);
         }
       }
@@ -144,12 +145,14 @@ int App::run() {
       if (it->second.wait_for(std::chrono::seconds(0)) ==
           std::future_status::ready) {
         auto latest = it->second.get();
-        if (latest && !latest->empty()) {
+        if (latest.error == FetchError::None && !latest.candles.empty()) {
           std::lock_guard<std::mutex> lock(candles_mutex);
           auto &vec = all_candles[it->first]["1m"];
-          if (vec.empty() || latest->back().open_time > vec.back().open_time) {
-            vec.push_back(latest->back());
-            data_service_.append_candles(it->first, "1m", {latest->back()});
+          if (vec.empty() ||
+              latest.candles.back().open_time > vec.back().open_time) {
+            vec.push_back(latest.candles.back());
+            data_service_.append_candles(it->first, "1m",
+                                         {latest.candles.back()});
           }
         }
         it = pending_fetches.erase(it);

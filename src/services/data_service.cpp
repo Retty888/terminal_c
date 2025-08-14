@@ -14,19 +14,30 @@ void DataService::save_selected_pairs(
   Config::save_selected_pairs(filename, pairs);
 }
 
-std::optional<std::vector<std::string>> DataService::fetch_all_symbols() const {
-  return Core::DataFetcher::fetch_all_symbols();
+Core::SymbolsResult DataService::fetch_all_symbols(
+    int max_retries, std::chrono::milliseconds retry_delay,
+    std::chrono::milliseconds request_pause) const {
+  return Core::DataFetcher::fetch_all_symbols(max_retries, retry_delay,
+                                             request_pause);
 }
 
-std::optional<std::vector<Core::Candle>> DataService::fetch_klines(
-    const std::string &symbol, const std::string &interval, int limit) const {
-  return Core::DataFetcher::fetch_klines(symbol, interval, limit);
+Core::KlinesResult DataService::fetch_klines(
+    const std::string &symbol, const std::string &interval, int limit,
+    int max_retries, std::chrono::milliseconds retry_delay,
+    std::chrono::milliseconds request_pause) const {
+  return Core::DataFetcher::fetch_klines(symbol, interval, limit, max_retries,
+                                        retry_delay, request_pause);
 }
 
-std::future<std::optional<std::vector<Core::Candle>>>
+std::future<Core::KlinesResult>
 DataService::fetch_klines_async(const std::string &symbol,
-                                const std::string &interval, int limit) const {
-  return Core::DataFetcher::fetch_klines_async(symbol, interval, limit);
+                                const std::string &interval, int limit,
+                                int max_retries,
+                                std::chrono::milliseconds retry_delay,
+                                std::chrono::milliseconds request_pause) const {
+  return Core::DataFetcher::fetch_klines_async(symbol, interval, limit,
+                                               max_retries, retry_delay,
+                                               request_pause);
 }
 
 std::vector<Core::Candle>
