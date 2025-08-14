@@ -1,4 +1,4 @@
 {
-  "data_dir": "candle_data",
+  "data_dir": "/home/user/trading_terminal/candle_data",
   "pairs": []
 }

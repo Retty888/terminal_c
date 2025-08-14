@@ -4,27 +4,55 @@
 #include <iostream>
 #include <iomanip>
 #include <cstdlib>
+#include <system_error>
 #include <nlohmann/json.hpp>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 namespace Core {
 
 namespace {
+
+// Determine directory of running executable
+std::filesystem::path get_executable_dir() {
+#ifdef _WIN32
+    wchar_t buffer[MAX_PATH];
+    DWORD len = GetModuleFileNameW(nullptr, buffer, MAX_PATH);
+    if (len != 0) {
+        return std::filesystem::path(buffer).parent_path();
+    }
+    return {};
+#else
+    std::error_code ec;
+    auto exe = std::filesystem::canonical("/proc/self/exe", ec);
+    if (!ec) {
+        return exe.parent_path();
+    }
+    return {};
+#endif
+}
 
 std::filesystem::path resolve_data_dir() {
     if (const char* env_dir = std::getenv("CANDLE_DATA_DIR")) {
         return std::filesystem::path(env_dir);
     }
 
-    std::ifstream cfg("config.json");
-    if (cfg.is_open()) {
-        try {
-            nlohmann::json j;
-            cfg >> j;
-            if (j.contains("data_dir") && j["data_dir"].is_string()) {
-                return std::filesystem::path(j["data_dir"].get<std::string>());
+    std::filesystem::path exe_dir = get_executable_dir();
+    if (!exe_dir.empty()) {
+        std::filesystem::path cfg_path = exe_dir / "config.json";
+        std::ifstream cfg(cfg_path);
+        if (cfg.is_open()) {
+            try {
+                nlohmann::json j;
+                cfg >> j;
+                if (j.contains("data_dir") && j["data_dir"].is_string()) {
+                    // treat path as absolute
+                    return std::filesystem::path(j["data_dir"].get<std::string>());
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Failed to parse " << cfg_path << ": " << e.what() << std::endl;
             }
-        } catch (const std::exception& e) {
-            std::cerr << "Failed to parse config.json: " << e.what() << std::endl;
         }
     }
 
@@ -35,9 +63,9 @@ std::filesystem::path resolve_data_dir() {
     home = std::getenv("HOME");
 #endif
     if (home) {
-        return std::filesystem::path(home) / "candle_data";
+        return std::filesystem::path(home) / "trading_terminal" / "candle_data";
     }
-    return std::filesystem::current_path() / "candle_data";
+    return std::filesystem::current_path() / "trading_terminal" / "candle_data";
 }
 
 std::filesystem::path data_dir = resolve_data_dir();
@@ -105,6 +133,11 @@ std::filesystem::path CandleManager::get_candle_path(const std::string& symbol, 
 
 void CandleManager::set_data_dir(const std::filesystem::path& dir) {
     data_dir = dir;
+    std::error_code ec;
+    std::filesystem::create_directories(data_dir, ec);
+    if (ec) {
+        std::cerr << "Failed to create directory " << data_dir << ": " << ec.message() << std::endl;
+    }
 }
 
 std::filesystem::path CandleManager::get_data_dir() {
