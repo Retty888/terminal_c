@@ -18,6 +18,7 @@ if(BUILD_TRADING_TERMINAL)
 
     add_executable(TradingTerminal
         main.cpp
+        src/app.cpp
         src/config.cpp
         src/candle.cpp
         src/signal.cpp
@@ -27,6 +28,8 @@ if(BUILD_TRADING_TERMINAL)
         src/core/backtester.cpp
         src/logger.cpp
         src/journal.cpp
+        src/services/data_service.cpp
+        src/services/journal_service.cpp
         src/ui/control_panel.cpp
         src/ui/signals_window.cpp
         src/ui/analytics_window.cpp
