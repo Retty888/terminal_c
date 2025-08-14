@@ -5,8 +5,26 @@
 #include "plot/candlestick.h"
 
 #include <algorithm>
+#include <map>
+#include <string>
+#include <cstdint>
 
 using namespace Core;
+
+namespace {
+
+struct CandleDataCache {
+    std::vector<double> times;
+    std::vector<double> opens;
+    std::vector<double> highs;
+    std::vector<double> lows;
+    std::vector<double> closes;
+    std::uint64_t last_time = 0;
+};
+
+std::map<std::string, std::map<std::string, CandleDataCache>> cache;
+
+} // namespace
 
 void DrawChartWindow(
     const std::map<std::string, std::map<std::string, std::vector<Candle>>>& all_candles,
@@ -22,14 +40,38 @@ void DrawChartWindow(
     ImGui::Begin("Chart");
 
     const auto& candles = all_candles.at(active_pair).at(active_interval);
-    std::vector<double> times, opens, highs, lows, closes;
-    for (const auto& c : candles) {
-        times.push_back((double)c.open_time / 1000.0);
-        opens.push_back(c.open);
-        highs.push_back(c.high);
-        lows.push_back(c.low);
-        closes.push_back(c.close);
+    auto& cached = cache[active_pair][active_interval];
+    if (!candles.empty() &&
+        (cached.times.size() != candles.size() ||
+         cached.last_time != candles.back().open_time)) {
+        cached.times.resize(candles.size());
+        cached.opens.resize(candles.size());
+        cached.highs.resize(candles.size());
+        cached.lows.resize(candles.size());
+        cached.closes.resize(candles.size());
+        for (size_t i = 0; i < candles.size(); ++i) {
+            const auto& c = candles[i];
+            cached.times[i] = static_cast<double>(c.open_time) / 1000.0;
+            cached.opens[i] = c.open;
+            cached.highs[i] = c.high;
+            cached.lows[i] = c.low;
+            cached.closes[i] = c.close;
+        }
+        cached.last_time = candles.back().open_time;
+    } else if (candles.empty()) {
+        cached.times.clear();
+        cached.opens.clear();
+        cached.highs.clear();
+        cached.lows.clear();
+        cached.closes.clear();
+        cached.last_time = 0;
     }
+
+    const auto& times = cached.times;
+    const auto& opens = cached.opens;
+    const auto& highs = cached.highs;
+    const auto& lows = cached.lows;
+    const auto& closes = cached.closes;
 
     static ImPlotRect manual_limits;
     static bool use_manual_limits = false;
