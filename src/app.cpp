@@ -123,6 +123,18 @@ int App::run() {
   for (const auto &pair : selected_pairs) {
     for (const auto &interval : intervals) {
       auto candles = data_service_.load_candles(pair, interval);
+      if (candles.size() < candles_limit) {
+        int missing = candles_limit - static_cast<int>(candles.size());
+        auto fetched = data_service_.fetch_klines(pair, interval, missing);
+        if (fetched.error == FetchError::None && !fetched.candles.empty()) {
+          data_service_.append_candles(pair, interval, fetched.candles);
+          long long last_time = candles.empty() ? 0 : candles.back().open_time;
+          for (const auto &c : fetched.candles) {
+            if (c.open_time > last_time)
+              candles.push_back(c);
+          }
+        }
+      }
       if (candles.empty()) {
         all_candles[pair][interval] = {};
         initial_fetches.push_back(

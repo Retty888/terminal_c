@@ -81,12 +81,18 @@ void DrawControlPanel(
         bool failed = false;
         for (const auto &interval : intervals) {
           auto candles = CandleManager::load_candles(symbol, interval);
-          if (candles.empty()) {
+          if (candles.size() < EXPECTED_CANDLES) {
+            int missing = EXPECTED_CANDLES - static_cast<int>(candles.size());
             auto fetched =
-                DataFetcher::fetch_klines(symbol, interval, EXPECTED_CANDLES);
+                DataFetcher::fetch_klines(symbol, interval, missing);
             if (fetched.error == FetchError::None && !fetched.candles.empty()) {
-              candles = fetched.candles;
-              CandleManager::save_candles(symbol, interval, candles);
+              CandleManager::append_candles(symbol, interval, fetched.candles);
+              long long last_time =
+                  candles.empty() ? 0 : candles.back().open_time;
+              for (const auto &c : fetched.candles) {
+                if (c.open_time > last_time)
+                  candles.push_back(c);
+              }
             }
           }
           if (candles.empty()) {
