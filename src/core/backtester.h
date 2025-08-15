@@ -27,6 +27,10 @@ struct BacktestResult {
     std::vector<double> equity_curve; // cumulative PnL over time
     double total_pnl = 0.0;
     double win_rate = 0.0;
+    double max_drawdown = 0.0;
+    double sharpe_ratio = 0.0;
+    double avg_win = 0.0;
+    double avg_loss = 0.0;
 };
 
 class Backtester {

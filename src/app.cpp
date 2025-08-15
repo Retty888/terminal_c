@@ -203,6 +203,10 @@ int App::run() {
     if (!last_result.equity_curve.empty()) {
       ImGui::Text("Total PnL: %.2f", last_result.total_pnl);
       ImGui::Text("Win rate: %.2f%%", last_result.win_rate * 100.0);
+      ImGui::Text("Max Drawdown: %.2f", last_result.max_drawdown);
+      ImGui::Text("Sharpe Ratio: %.2f", last_result.sharpe_ratio);
+      ImGui::Text("Average Win: %.2f", last_result.avg_win);
+      ImGui::Text("Average Loss: %.2f", last_result.avg_loss);
       if (ImPlot::BeginPlot("Equity")) {
         std::vector<double> x(last_result.equity_curve.size());
         for (size_t i = 0; i < x.size(); ++i)
