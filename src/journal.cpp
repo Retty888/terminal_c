@@ -1,7 +1,10 @@
 #include "journal.h"
 #include <fstream>
-#include <sstream>
+#include <charconv>
+#include <string_view>
+#include <array>
 #include <nlohmann/json.hpp>
+#include "logger.h"
 
 namespace Journal {
 
@@ -45,22 +48,44 @@ bool Journal::load_csv(const std::string& filename) {
     std::string line;
     while (std::getline(f, line)) {
         if (line.empty()) continue;
-        std::stringstream ss(line);
-        Entry e;
-        std::string field;
-        std::getline(ss, e.symbol, ',');
-        std::getline(ss, field, ',');
-        e.side = side_from_string(field);
-        try {
-            std::getline(ss, field, ',');
-            e.price = std::stod(field);
-            std::getline(ss, field, ',');
-            e.quantity = std::stod(field);
-            std::getline(ss, field, ',');
-            e.timestamp = std::stoll(field);
-        } catch (const std::exception&) {
-            return false;
+        std::string_view sv(line);
+        std::array<std::string_view, 5> fields{};
+        size_t start = 0;
+        size_t idx = 0;
+        while (idx < fields.size()) {
+            size_t comma = sv.find(',', start);
+            if (comma == std::string_view::npos) {
+                fields[idx++] = sv.substr(start);
+                break;
+            }
+            fields[idx++] = sv.substr(start, comma - start);
+            start = comma + 1;
         }
+        if (idx != fields.size()) {
+            Logger::instance().error("Malformed journal line: " + line);
+            continue;
+        }
+
+        Entry e;
+        e.symbol = std::string(fields[0]);
+        e.side = side_from_string(std::string(fields[1]));
+
+        auto parse_double = [](std::string_view s, double& out) {
+            auto res = std::from_chars(s.data(), s.data() + s.size(), out);
+            return res.ec == std::errc() && res.ptr == s.data() + s.size();
+        };
+        auto parse_ll = [](std::string_view s, std::int64_t& out) {
+            auto res = std::from_chars(s.data(), s.data() + s.size(), out);
+            return res.ec == std::errc() && res.ptr == s.data() + s.size();
+        };
+
+        if (!parse_double(fields[2], e.price) ||
+            !parse_double(fields[3], e.quantity) ||
+            !parse_ll(fields[4], e.timestamp)) {
+            Logger::instance().error("Failed to parse journal line: " + line);
+            continue;
+        }
+
         m_entries.push_back(e);
     }
     return true;

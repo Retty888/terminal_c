@@ -1,10 +1,13 @@
 #include "candle_manager.h"
 #include <fstream>
-#include <sstream>
 #include <iostream>
 #include <iomanip>
 #include <cstdlib>
+#include <charconv>
+#include <string_view>
+#include <array>
 #include <nlohmann/json.hpp>
+#include "logger.h"
 
 namespace Core {
 
@@ -69,16 +72,18 @@ long long read_last_open_time(const std::string& symbol, const std::string& inte
             }
             csv.close();
             if (!last_line.empty()) {
-                std::stringstream ss(last_line);
-                std::string first;
-                if (std::getline(ss, first, ',')) {
-                    try {
-                        last = std::stoll(first);
-                        std::ofstream idx_new(idx_path);
-                        if (idx_new.is_open()) idx_new << last;
-                    } catch (...) {
-                        last = -1;
-                    }
+                std::string_view sv(last_line);
+                size_t comma = sv.find(',');
+                if (comma != std::string_view::npos)
+                    sv = sv.substr(0, comma);
+                long long value = -1;
+                auto res = std::from_chars(sv.data(), sv.data() + sv.size(), value);
+                if (res.ec == std::errc() && res.ptr == sv.data() + sv.size()) {
+                    last = value;
+                    std::ofstream idx_new(idx_path);
+                    if (idx_new.is_open()) idx_new << last;
+                } else {
+                    Logger::instance().error("Failed to parse last open time: " + last_line);
                 }
             }
         }
@@ -205,37 +210,56 @@ std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const
     std::string line;
     std::getline(file, line); // Skip header
 
-    while (std::getline(file, line)) {
-        std::stringstream ss(line);
-        std::string segment;
-        std::vector<std::string> seglist;
+    auto parse_ll = [](std::string_view s, long long& out) {
+        auto res = std::from_chars(s.data(), s.data() + s.size(), out);
+        return res.ec == std::errc() && res.ptr == s.data() + s.size();
+    };
+    auto parse_int = [](std::string_view s, int& out) {
+        auto res = std::from_chars(s.data(), s.data() + s.size(), out);
+        return res.ec == std::errc() && res.ptr == s.data() + s.size();
+    };
+    auto parse_double = [](std::string_view s, double& out) {
+        auto res = std::from_chars(s.data(), s.data() + s.size(), out);
+        return res.ec == std::errc() && res.ptr == s.data() + s.size();
+    };
 
-        while(std::getline(ss, segment, ',')) {
-            seglist.push_back(segment);
+    while (std::getline(file, line)) {
+        if (line.empty()) continue;
+        std::string_view sv(line);
+        std::array<std::string_view, 12> fields{};
+        size_t start = 0;
+        size_t idx = 0;
+        while (idx < fields.size()) {
+            size_t comma = sv.find(',', start);
+            if (comma == std::string_view::npos) {
+                fields[idx++] = sv.substr(start);
+                break;
+            }
+            fields[idx++] = sv.substr(start, comma - start);
+            start = comma + 1;
         }
 
-        // Ensure we have enough segments for a full candle
-        if (seglist.size() == 12) {
-            try {
-                Candle candle;
-                candle.open_time = std::stoll(seglist[0]);
-                candle.open = std::stod(seglist[1]);
-                candle.high = std::stod(seglist[2]);
-                candle.low = std::stod(seglist[3]);
-                candle.close = std::stod(seglist[4]);
-                candle.volume = std::stod(seglist[5]);
-                candle.close_time = std::stoll(seglist[6]);
-                candle.quote_asset_volume = std::stod(seglist[7]);
-                candle.number_of_trades = std::stoi(seglist[8]);
-                candle.taker_buy_base_asset_volume = std::stod(seglist[9]);
-                candle.taker_buy_quote_asset_volume = std::stod(seglist[10]);
-                candle.ignore = std::stod(seglist[11]);
-                candles.push_back(candle);
-            } catch (const std::exception& e) {
-                std::cerr << "Error parsing candle line: " << line << " - " << e.what() << std::endl;
-            }
+        if (idx != fields.size()) {
+            Logger::instance().warn("Malformed candle line: " + line);
+            continue;
+        }
+
+        Candle candle;
+        if (parse_ll(fields[0], candle.open_time) &&
+            parse_double(fields[1], candle.open) &&
+            parse_double(fields[2], candle.high) &&
+            parse_double(fields[3], candle.low) &&
+            parse_double(fields[4], candle.close) &&
+            parse_double(fields[5], candle.volume) &&
+            parse_ll(fields[6], candle.close_time) &&
+            parse_double(fields[7], candle.quote_asset_volume) &&
+            parse_int(fields[8], candle.number_of_trades) &&
+            parse_double(fields[9], candle.taker_buy_base_asset_volume) &&
+            parse_double(fields[10], candle.taker_buy_quote_asset_volume) &&
+            parse_double(fields[11], candle.ignore)) {
+            candles.push_back(candle);
         } else {
-            std::cerr << "Warning: Malformed candle line (expected 12 segments): " << line << std::endl;
+            Logger::instance().error("Failed to parse candle line: " + line);
         }
     }
 
