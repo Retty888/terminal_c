@@ -46,7 +46,6 @@ void DrawControlPanel(
     const std::vector<std::string> &exchange_pairs,
     const AppStatus &status) {
   ImGui::Begin("Control Panel");
-  (void)active_interval;
 
   ImGui::Text("Select pairs to load:");
   static std::string load_error;
