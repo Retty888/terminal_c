@@ -38,10 +38,9 @@ std::string format_date(long long ms) {
 
 void DrawControlPanel(
     std::vector<PairItem> &pairs, std::vector<std::string> &selected_pairs,
-    std::string &active_pair, std::string &active_interval,
-    const std::vector<std::string> &intervals, std::string &selected_interval,
-    std::map<std::string, std::map<std::string, std::vector<Candle>>>
-        &all_candles,
+    std::string &active_pair, const std::vector<std::string> &intervals,
+    std::string &selected_interval,
+    std::map<std::string, std::map<std::string, std::vector<Candle>>> &all_candles,
     const std::function<void()> &save_pairs,
     const std::vector<std::string> &exchange_pairs) {
   ImGui::Begin("Control Panel");

@@ -16,7 +16,6 @@ void DrawControlPanel(
     std::vector<PairItem>& pairs,
     std::vector<std::string>& selected_pairs,
     std::string& active_pair,
-    std::string& active_interval,
     const std::vector<std::string>& intervals,
     std::string& selected_interval,
     std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>& all_candles,
