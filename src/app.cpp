@@ -109,17 +109,27 @@ int App::run() {
   journal_service_.load("journal.json");
   Core::BacktestResult last_result;
 
+  struct FetchTask {
+    std::string pair;
+    std::string interval;
+    std::future<Core::KlinesResult> future;
+  };
+  std::vector<FetchTask> initial_fetches;
+  const int total_initial_fetches = selected_pairs.size() * intervals.size();
+  int completed_initial_fetches = 0;
+
   for (const auto &pair : selected_pairs) {
     for (const auto &interval : intervals) {
       auto candles = data_service_.load_candles(pair, interval);
       if (candles.empty()) {
-        auto fetched = data_service_.fetch_klines(pair, interval, 5000);
-        if (fetched.error == FetchError::None && !fetched.candles.empty()) {
-          candles = fetched.candles;
-          data_service_.save_candles(pair, interval, candles);
-        }
+        all_candles[pair][interval] = {};
+        initial_fetches.push_back({
+            pair, interval,
+            data_service_.fetch_klines_async(pair, interval, 5000)});
+      } else {
+        all_candles[pair][interval] = candles;
+        ++completed_initial_fetches;
       }
-      all_candles[pair][interval] = candles;
     }
   }
 
@@ -162,6 +172,31 @@ int App::run() {
       } else {
         ++it;
       }
+    }
+
+    for (auto it = initial_fetches.begin(); it != initial_fetches.end();) {
+      if (it->future.wait_for(std::chrono::seconds(0)) ==
+          std::future_status::ready) {
+        auto fetched = it->future.get();
+        if (fetched.error == FetchError::None && !fetched.candles.empty()) {
+          std::lock_guard<std::mutex> lock(candles_mutex);
+          all_candles[it->pair][it->interval] = fetched.candles;
+          data_service_.save_candles(it->pair, it->interval, fetched.candles);
+        }
+        ++completed_initial_fetches;
+        it = initial_fetches.erase(it);
+      } else {
+        ++it;
+      }
+    }
+
+    if (completed_initial_fetches < total_initial_fetches) {
+      ImGui::Begin("Loading data", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+      float progress = static_cast<float>(completed_initial_fetches) /
+                       static_cast<float>(total_initial_fetches);
+      ImGui::ProgressBar(progress, ImVec2(0.0f, 0.0f));
+      ImGui::Text("%d / %d", completed_initial_fetches, total_initial_fetches);
+      ImGui::End();
     }
 
     DrawControlPanel(pairs, selected_pairs, active_pair, active_interval,
