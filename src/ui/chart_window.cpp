@@ -8,6 +8,7 @@
 #include <map>
 #include <string>
 #include <cstdint>
+#include <cstdio>
 
 using namespace Core;
 
@@ -24,12 +25,24 @@ struct CandleDataCache {
 
 std::map<std::string, std::map<std::string, CandleDataCache>> cache;
 
+struct Line { ImPlotPoint p1; ImPlotPoint p2; };
+struct Rect { ImPlotPoint p1; ImPlotPoint p2; };
+std::vector<Line> lines;
+std::vector<Rect> rects;
+bool adding_line = false;
+bool adding_rect = false;
+bool measure_mode = false;
+bool has_measure = false;
+ImPlotPoint measure_start, measure_end;
+
 } // namespace
 
 void DrawChartWindow(
     const std::map<std::string, std::map<std::string, std::vector<Candle>>>& all_candles,
-    const std::string& active_pair,
-    const std::string& active_interval,
+    std::string& active_pair,
+    std::string& active_interval,
+    const std::vector<std::string>& pair_list,
+    const std::vector<std::string>& interval_list,
     bool show_on_chart,
     const std::vector<double>& buy_times,
     const std::vector<double>& buy_prices,
@@ -38,6 +51,28 @@ void DrawChartWindow(
     const Journal::Journal& journal,
     const Core::BacktestResult& last_result) {
     ImGui::Begin("Chart");
+
+    if (ImGui::BeginCombo("Pair", active_pair.c_str())) {
+        for (const auto& p : pair_list) {
+            bool sel = (p == active_pair);
+            if (ImGui::Selectable(p.c_str(), sel))
+                active_pair = p;
+            if (sel)
+                ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
+    ImGui::SameLine();
+    if (ImGui::BeginCombo("Interval", active_interval.c_str())) {
+        for (const auto& iv : interval_list) {
+            bool sel = (iv == active_interval);
+            if (ImGui::Selectable(iv.c_str(), sel))
+                active_interval = iv;
+            if (sel)
+                ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
 
     const auto& candles = all_candles.at(active_pair).at(active_interval);
     auto& cached = cache[active_pair][active_interval];
@@ -92,6 +127,19 @@ void DrawChartWindow(
         ImPlot::SetNextAxesToFit();
         apply_manual_limits = false;
     }
+    ImGui::SameLine();
+    if (ImGui::Button("Add Line")) {
+        adding_line = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Add Rect")) {
+        adding_rect = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Measure")) {
+        measure_mode = true;
+        has_measure = false;
+    }
 
     if (apply_manual_limits) {
         ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max,
@@ -119,7 +167,7 @@ void DrawChartWindow(
         if (ImPlot::IsPlotHovered()) {
             ImGuiIO& io = ImGui::GetIO();
             ImPlotPoint mouse = ImPlot::GetPlotMousePos();
-            if (io.MouseWheel != 0.0f) {
+            if (io.MouseWheel != 0.0f && !adding_line && !adding_rect && !measure_mode) {
                 double zoom = io.MouseWheel > 0 ? 0.9 : 1.1;
                 manual_limits.X.Min = mouse.x - (mouse.x - cur_limits.X.Min) * zoom;
                 manual_limits.X.Max = mouse.x + (cur_limits.X.Max - mouse.x) * zoom;
@@ -127,7 +175,7 @@ void DrawChartWindow(
                 manual_limits.Y.Max = mouse.y + (cur_limits.Y.Max - mouse.y) * zoom;
                 apply_manual_limits = true;
             }
-            if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+            if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) && !adding_line && !adding_rect && !measure_mode) {
                 ImVec2 drag = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
                 ImPlotPoint p0 = ImPlot::PixelsToPlot(ImVec2(0,0));
                 ImPlotPoint p1 = ImPlot::PixelsToPlot(drag);
@@ -139,6 +187,41 @@ void DrawChartWindow(
                 manual_limits.Y.Max += dy;
                 ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
                 apply_manual_limits = true;
+            }
+
+            if (adding_line) {
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                    lines.push_back({mouse, mouse});
+                } else if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && !lines.empty()) {
+                    lines.back().p2 = mouse;
+                } else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !lines.empty()) {
+                    lines.back().p2 = mouse;
+                    adding_line = false;
+                }
+            }
+
+            if (adding_rect) {
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                    rects.push_back({mouse, mouse});
+                } else if (ImGui::IsMouseDown(ImGuiMouseButton_Left) && !rects.empty()) {
+                    rects.back().p2 = mouse;
+                } else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !rects.empty()) {
+                    rects.back().p2 = mouse;
+                    adding_rect = false;
+                }
+            }
+
+            if (measure_mode) {
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                    measure_start = mouse;
+                    measure_end = mouse;
+                    has_measure = true;
+                } else if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+                    measure_end = mouse;
+                } else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+                    measure_end = mouse;
+                    measure_mode = false;
+                }
             }
         }
 
@@ -223,6 +306,26 @@ void DrawChartWindow(
                 ImPlot::PlotScatter("BT Exit", bt_exit_t.data(), bt_exit_p.data(), bt_exit_t.size());
                 ImPlot::PopStyleColor();
             }
+        }
+
+        auto* draw_list = ImPlot::GetPlotDrawList();
+        for (const auto& l : lines) {
+            ImVec2 p1 = ImPlot::PlotToPixels(l.p1);
+            ImVec2 p2 = ImPlot::PlotToPixels(l.p2);
+            draw_list->AddLine(p1, p2, IM_COL32(255,255,0,255));
+        }
+        for (const auto& r : rects) {
+            ImVec2 p1 = ImPlot::PlotToPixels(r.p1);
+            ImVec2 p2 = ImPlot::PlotToPixels(r.p2);
+            draw_list->AddRect(p1, p2, IM_COL32(0,255,255,255));
+        }
+        if (has_measure) {
+            ImVec2 p1 = ImPlot::PlotToPixels(measure_start);
+            ImVec2 p2 = ImPlot::PlotToPixels(measure_end);
+            draw_list->AddRect(p1, p2, IM_COL32(255,0,255,255));
+            char buf[64];
+            std::snprintf(buf, sizeof(buf), "dT: %.2f dP: %.2f", measure_end.x - measure_start.x, measure_end.y - measure_start.y);
+            draw_list->AddText(p2, IM_COL32(255,255,255,255), buf);
         }
 
         ImPlot::EndPlot();

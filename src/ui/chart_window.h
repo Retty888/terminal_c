@@ -10,8 +10,10 @@
 
 void DrawChartWindow(
     const std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>& all_candles,
-    const std::string& active_pair,
-    const std::string& active_interval,
+    std::string& active_pair,
+    std::string& active_interval,
+    const std::vector<std::string>& pair_list,
+    const std::vector<std::string>& interval_list,
     bool show_on_chart,
     const std::vector<double>& buy_times,
     const std::vector<double>& buy_prices,
