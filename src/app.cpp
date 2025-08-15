@@ -152,6 +152,7 @@ int App::run() {
 
   // Prepare candle storage by pair and interval
   std::string selected_interval = intervals.empty() ? "1m" : intervals[0];
+  std::string strategy = "sma_crossover";
   int short_period = 9;
   int long_period = 21;
   bool show_on_chart = false;
@@ -290,7 +291,7 @@ int App::run() {
                      selected_interval, all_candles, save_pairs,
                      exchange_pairs, status_);
 
-    DrawSignalsWindow(short_period, long_period, show_on_chart, signal_entries,
+    DrawSignalsWindow(strategy, short_period, long_period, show_on_chart, signal_entries,
                       buy_times, buy_prices, sell_times, sell_prices,
                       all_candles, active_pair, selected_interval, status_);
 

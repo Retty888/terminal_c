@@ -41,5 +41,80 @@ int sma_crossover_signal(const std::vector<Core::Candle>& candles,
     return 0;
 }
 
+double exponential_moving_average(const std::vector<Core::Candle>& candles,
+                                  std::size_t index,
+                                  std::size_t period) {
+    if (period == 0 || index >= candles.size() || index + 1 < period) {
+        return 0.0;
+    }
+    const double k = 2.0 / (static_cast<double>(period) + 1.0);
+    // Start with SMA for the first period
+    std::size_t start = index + 1 - period;
+    double ema = simple_moving_average(candles, index - (period > 1 ? 1 : 0), period);
+    for (std::size_t i = start; i <= index; ++i) {
+        ema = (candles[i].close - ema) * k + ema;
+    }
+    return ema;
+}
+
+int ema_signal(const std::vector<Core::Candle>& candles,
+               std::size_t index,
+               std::size_t period) {
+    if (index == 0) {
+        return 0;
+    }
+    double prev_ema = exponential_moving_average(candles, index - 1, period);
+    double curr_ema = exponential_moving_average(candles, index, period);
+    double prev_price = candles[index - 1].close;
+    double curr_price = candles[index].close;
+    if (prev_price <= prev_ema && curr_price > curr_ema) {
+        return 1;
+    }
+    if (prev_price >= prev_ema && curr_price < curr_ema) {
+        return -1;
+    }
+    return 0;
+}
+
+double relative_strength_index(const std::vector<Core::Candle>& candles,
+                               std::size_t index,
+                               std::size_t period) {
+    if (period == 0 || index >= candles.size() || index < period) {
+        return 0.0;
+    }
+    double gain = 0.0;
+    double loss = 0.0;
+    for (std::size_t i = index + 1 - period; i <= index; ++i) {
+        double change = candles[i].close - candles[i - 1].close;
+        if (change > 0) {
+            gain += change;
+        } else {
+            loss -= change;
+        }
+    }
+    double avg_gain = gain / static_cast<double>(period);
+    double avg_loss = loss / static_cast<double>(period);
+    if (avg_loss == 0.0) {
+        return 100.0;
+    }
+    double rs = avg_gain / avg_loss;
+    return 100.0 - (100.0 / (1.0 + rs));
+}
+
+int rsi_signal(const std::vector<Core::Candle>& candles,
+               std::size_t index,
+               std::size_t period,
+               double oversold,
+               double overbought) {
+    double rsi = relative_strength_index(candles, index, period);
+    if (rsi < oversold) {
+        return 1;
+    }
+    if (rsi > overbought) {
+        return -1;
+    }
+    return 0;
+}
+
 } // namespace Signal
 
