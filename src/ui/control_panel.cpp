@@ -13,7 +13,7 @@
 using namespace Core;
 
 namespace {
-constexpr size_t EXPECTED_CANDLES = 5000;
+const size_t EXPECTED_CANDLES = Config::load_candles_limit("config.json");
 constexpr size_t THRESHOLD_LOW = 100;
 constexpr size_t THRESHOLD_MED = 1000;
 
@@ -76,7 +76,7 @@ void DrawControlPanel(
       for (const auto &interval : intervals) {
         auto candles = CandleManager::load_candles(symbol, interval);
         if (candles.empty()) {
-          auto fetched = DataFetcher::fetch_klines(symbol, interval, 5000);
+          auto fetched = DataFetcher::fetch_klines(symbol, interval, EXPECTED_CANDLES);
           if (fetched.error == FetchError::None &&
               !fetched.candles.empty()) {
             candles = fetched.candles;
@@ -245,7 +245,7 @@ void DrawControlPanel(
       if (all_candles[pair][active_interval].empty()) {
         auto candles = CandleManager::load_candles(pair, active_interval);
         if (candles.empty()) {
-          auto fetched = DataFetcher::fetch_klines(pair, active_interval, 5000);
+          auto fetched = DataFetcher::fetch_klines(pair, active_interval, EXPECTED_CANDLES);
           if (fetched.error == FetchError::None &&
               !fetched.candles.empty()) {
             candles = fetched.candles;
@@ -265,7 +265,7 @@ void DrawControlPanel(
       if (all_candles[active_pair][interval].empty()) {
         auto candles = CandleManager::load_candles(active_pair, interval);
         if (candles.empty()) {
-          auto fetched = DataFetcher::fetch_klines(active_pair, interval, 5000);
+          auto fetched = DataFetcher::fetch_klines(active_pair, interval, EXPECTED_CANDLES);
           if (fetched.error == FetchError::None &&
               !fetched.candles.empty()) {
             candles = fetched.candles;

@@ -1,5 +1,6 @@
 {
   "data_dir": "candle_data",
   "pairs": [],
-  "log_level": "INFO"
+  "log_level": "INFO",
+  "candles_limit": 5000
 }
