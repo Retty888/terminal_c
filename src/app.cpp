@@ -201,9 +201,9 @@ int App::run() {
       ImGui::End();
     }
 
-    DrawControlPanel(pairs, selected_pairs, active_pair, active_interval,
-                     intervals, selected_interval, all_candles, save_pairs,
-                     exchange_pairs);
+      DrawControlPanel(pairs, selected_pairs, active_pair, intervals,
+                       selected_interval, all_candles, save_pairs,
+                       exchange_pairs);
 
     DrawSignalsWindow(short_period, long_period, show_on_chart, signal_entries,
                       buy_times, buy_prices, sell_times, sell_prices,

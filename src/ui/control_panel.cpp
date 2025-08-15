@@ -38,10 +38,9 @@ std::string format_date(long long ms) {
 
 void DrawControlPanel(
     std::vector<PairItem> &pairs, std::vector<std::string> &selected_pairs,
-    std::string &active_pair, std::string &active_interval,
-    const std::vector<std::string> &intervals, std::string &selected_interval,
-    std::map<std::string, std::map<std::string, std::vector<Candle>>>
-        &all_candles,
+    std::string &active_pair, const std::vector<std::string> &intervals,
+    std::string &selected_interval,
+    std::map<std::string, std::map<std::string, std::vector<Candle>>> &all_candles,
     const std::function<void()> &save_pairs,
     const std::vector<std::string> &exchange_pairs) {
   ImGui::Begin("Control Panel");
@@ -210,64 +209,5 @@ void DrawControlPanel(
     }
   }
 
-  ImGui::Separator();
-  ImGui::Text("Active chart:");
-
-  for (const auto &item : pairs) {
-    if (!item.visible)
-      continue;
-    const auto &pair = item.name;
-    std::string radio_id = pair + "##radiobtn_" + pair;
-    if (ImGui::RadioButton(radio_id.c_str(), active_pair == pair)) {
-      active_pair = pair;
-      if (all_candles[pair][active_interval].empty()) {
-        auto candles = CandleManager::load_candles(pair, active_interval);
-        if (candles.empty()) {
-          auto fetched = DataFetcher::fetch_klines(pair, active_interval,
-                                                   EXPECTED_CANDLES);
-          if (fetched.error == FetchError::None && !fetched.candles.empty()) {
-            candles = fetched.candles;
-            CandleManager::save_candles(pair, active_interval, candles);
-          }
-        }
-        all_candles[pair][active_interval] = candles;
-      }
-    }
-  }
-
-  ImGui::Separator();
-  ImGui::Text("Interval:");
-  for (const auto &interval : intervals) {
-    if (ImGui::RadioButton(interval.c_str(), active_interval == interval)) {
-      active_interval = interval;
-      if (all_candles[active_pair][interval].empty()) {
-        auto candles = CandleManager::load_candles(active_pair, interval);
-        if (candles.empty()) {
-          auto fetched = DataFetcher::fetch_klines(active_pair, interval,
-                                                   EXPECTED_CANDLES);
-          if (fetched.error == FetchError::None && !fetched.candles.empty()) {
-            candles = fetched.candles;
-            CandleManager::save_candles(active_pair, interval, candles);
-          }
-        }
-        all_candles[active_pair][interval] = candles;
-      }
-    }
-  }
-
-  ImGui::Separator();
-  ImGui::Text("Timeframe:");
-  if (ImGui::BeginCombo("##interval_combo", selected_interval.c_str())) {
-    for (const auto &interval : intervals) {
-      bool is_selected = (selected_interval == interval);
-      if (ImGui::Selectable(interval.c_str(), is_selected)) {
-        selected_interval = interval;
-      }
-      if (is_selected) {
-        ImGui::SetItemDefaultFocus();
-      }
-    }
-    ImGui::EndCombo();
-  }
   ImGui::End();
 }
