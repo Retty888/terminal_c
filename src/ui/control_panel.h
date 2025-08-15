@@ -6,6 +6,7 @@
 #include <functional>
 
 #include "core/candle.h"
+#include "app.h"
 
 struct PairItem {
     std::string name;
@@ -20,5 +21,6 @@ void DrawControlPanel(
     std::string& selected_interval,
     std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>& all_candles,
     const std::function<void()>& save_pairs,
-    const std::vector<std::string>& exchange_pairs);
+    const std::vector<std::string>& exchange_pairs,
+    const AppStatus& status);
 

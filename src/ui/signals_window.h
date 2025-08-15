@@ -5,6 +5,7 @@
 #include <map>
 
 #include "core/candle.h"
+#include "app.h"
 
 struct SignalEntry {
     double time;
@@ -25,5 +26,6 @@ void DrawSignalsWindow(
     std::vector<double>& sell_prices,
     const std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>& all_candles,
     const std::string& active_pair,
-    const std::string& selected_interval);
+    const std::string& selected_interval,
+    AppStatus& status);
 

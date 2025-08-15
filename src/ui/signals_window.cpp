@@ -22,7 +22,8 @@ void DrawSignalsWindow(
     std::vector<double>& sell_prices,
     const std::map<std::string, std::map<std::string, std::vector<Candle>>>& all_candles,
     const std::string& active_pair,
-    const std::string& selected_interval) {
+    const std::string& selected_interval,
+    AppStatus& status) {
     ImGui::Begin("Signals");
     ImGui::InputInt("Short SMA", &short_period);
     ImGui::InputInt("Long SMA", &long_period);
@@ -56,6 +57,9 @@ void DrawSignalsWindow(
                        cache.last_candle_time != latest_time;
 
     if (need_recalc) {
+        status.signal_message = "Computing signals";
+        status.log.push_back("Computing signals for " + active_pair + " " + selected_interval);
+        if (status.log.size() > 50) status.log.erase(status.log.begin());
         cache.short_period = short_period;
         cache.long_period = long_period;
         cache.active_pair = active_pair;
@@ -87,6 +91,7 @@ void DrawSignalsWindow(
         }
 
         cache.initialized = true;
+        status.signal_message = "Signals updated";
     }
 
     signal_entries = cache.entries;
