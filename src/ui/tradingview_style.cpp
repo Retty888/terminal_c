@@ -18,13 +18,12 @@ void ApplyTradingViewStyle() {
 
   // ImPlot style
   ImPlotStyle &ps = ImPlot::GetStyle();
-  ps.AntiAliasedLines = true;
-  ps.AntiAliasedFill = true;
   ps.PlotBorderSize = 0.0f;
   ps.Colors[ImPlotCol_PlotBg] = bg;
-  ps.Colors[ImPlotCol_XAxis] = ImVec4(0.65f, 0.65f, 0.65f, 1.0f);
-  ps.Colors[ImPlotCol_YAxis] = ImVec4(0.65f, 0.65f, 0.65f, 1.0f);
-  ps.Colors[ImPlotCol_XAxisGrid] = ImVec4(0.18f, 0.2f, 0.25f, 1.0f);
-  ps.Colors[ImPlotCol_YAxisGrid] = ImVec4(0.18f, 0.2f, 0.25f, 1.0f);
+  ImVec4 axisText = ImVec4(0.65f, 0.65f, 0.65f, 1.0f);
+  ImVec4 axisGrid = ImVec4(0.18f, 0.2f, 0.25f, 1.0f);
+  ps.Colors[ImPlotCol_AxisText] = axisText;
+  ps.Colors[ImPlotCol_AxisTick] = axisText;
+  ps.Colors[ImPlotCol_AxisGrid] = axisGrid;
   ps.Colors[ImPlotCol_Crosshairs] = ImVec4(1.0f, 1.0f, 1.0f, 0.5f);
 }
