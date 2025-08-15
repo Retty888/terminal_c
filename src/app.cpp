@@ -33,6 +33,13 @@
 
 using namespace Core;
 
+void App::add_status(const std::string &msg) {
+  std::lock_guard<std::mutex> lock(status_mutex_);
+  status_.log.push_back(msg);
+  if (status_.log.size() > 50)
+    status_.log.erase(status_.log.begin());
+}
+
 int App::run() {
   // Init GLFW
   auto level = Config::load_min_log_level("config.json");
@@ -40,6 +47,7 @@ int App::run() {
   Logger::instance().enable_console_output(true);
   Logger::instance().set_file("terminal.log");
   Logger::instance().info("Application started");
+  status_ = AppStatus{};
 
   if (!glfwInit()) {
     Logger::instance().error("Failed to initialize GLFW");
@@ -157,9 +165,13 @@ int App::run() {
         initial_fetches.push_back(
             {pair, interval,
              data_service_.fetch_klines_async(pair, interval, candles_limit)});
+        add_status("Fetching " + pair + " " + interval);
       } else {
         all_candles[pair][interval] = candles;
         ++completed_initial_fetches;
+        status_.candle_progress =
+            static_cast<float>(completed_initial_fetches) /
+            static_cast<float>(total_initial_fetches);
       }
     }
   }
@@ -181,6 +193,7 @@ int App::run() {
         if (pending_fetches.find(pair) == pending_fetches.end()) {
           pending_fetches[pair] =
               data_service_.fetch_klines_async(pair, "1m", 1);
+          add_status("Updating " + pair);
         }
       }
       last_fetch = now;
@@ -198,6 +211,10 @@ int App::run() {
             data_service_.append_candles(it->first, "1m",
                                          {latest.candles.back()});
           }
+          add_status("Updated " + it->first);
+        } else {
+          status_.error_message = "Update failed for " + it->first;
+          add_status(status_.error_message);
         }
         it = pending_fetches.erase(it);
       } else {
@@ -213,8 +230,14 @@ int App::run() {
           std::lock_guard<std::mutex> lock(candles_mutex);
           all_candles[it->pair][it->interval] = fetched.candles;
           data_service_.save_candles(it->pair, it->interval, fetched.candles);
+          add_status("Loaded " + it->pair + " " + it->interval);
+        } else {
+          status_.error_message = "Failed to fetch " + it->pair + " " + it->interval;
+          add_status(status_.error_message);
         }
         ++completed_initial_fetches;
+        status_.candle_progress = static_cast<float>(completed_initial_fetches) /
+                                  static_cast<float>(total_initial_fetches);
         it = initial_fetches.erase(it);
       } else {
         ++it;
@@ -232,11 +255,11 @@ int App::run() {
 
     DrawControlPanel(pairs, selected_pairs, active_pair, intervals,
                      selected_interval, all_candles, save_pairs,
-                     exchange_pairs);
+                     exchange_pairs, status_);
 
     DrawSignalsWindow(short_period, long_period, show_on_chart, signal_entries,
                       buy_times, buy_prices, sell_times, sell_prices,
-                      all_candles, active_pair, selected_interval);
+                      all_candles, active_pair, selected_interval, status_);
 
     DrawAnalyticsWindow(all_candles, active_pair, selected_interval);
 
@@ -249,6 +272,8 @@ int App::run() {
     ImGui::InputInt("Short SMA", &short_p);
     ImGui::InputInt("Long SMA", &long_p);
     if (ImGui::Button("Run Backtest")) {
+      status_.analysis_message = "Running backtest";
+      add_status("Backtest started");
       struct Strat : Core::IStrategy {
         int s, l;
         Strat(int sp, int lp) : s(sp), l(lp) {}
@@ -265,6 +290,8 @@ int App::run() {
           last_result = bt.run();
         }
       }
+      status_.analysis_message = "Backtest done";
+      add_status("Backtest finished");
     }
     if (!last_result.equity_curve.empty()) {
       ImGui::Text("Total PnL: %.2f", last_result.total_pnl);

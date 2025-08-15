@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <ctime>
 #include <numeric>
+#include <cfloat>
 
 using namespace Core;
 
@@ -42,7 +43,8 @@ void DrawControlPanel(
     std::string &selected_interval,
     std::map<std::string, std::map<std::string, std::vector<Candle>>> &all_candles,
     const std::function<void()> &save_pairs,
-    const std::vector<std::string> &exchange_pairs) {
+    const std::vector<std::string> &exchange_pairs,
+    const AppStatus &status) {
   ImGui::Begin("Control Panel");
   (void)active_interval;
 
@@ -214,6 +216,20 @@ void DrawControlPanel(
     } else {
       ++it;
     }
+  }
+
+  ImGui::Separator();
+  ImGui::Text("Status");
+  ImGui::Text("Candles: %.0f%%", status.candle_progress * 100.0f);
+  ImGui::Text("Analysis: %s", status.analysis_message.c_str());
+  ImGui::Text("Signals: %s", status.signal_message.c_str());
+  if (!status.error_message.empty())
+    ImGui::TextColored(COLOR_LOW, "%s", status.error_message.c_str());
+  if (ImGui::BeginListBox("##status_log", ImVec2(-FLT_MIN, 100))) {
+    for (const auto &msg : status.log) {
+      ImGui::Selectable(msg.c_str(), false, ImGuiSelectableFlags_Disabled);
+    }
+    ImGui::EndListBox();
   }
 
   ImGui::End();
