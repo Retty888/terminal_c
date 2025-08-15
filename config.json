@@ -1,4 +1,5 @@
 {
   "data_dir": "candle_data",
-  "pairs": []
+  "pairs": [],
+  "log_level": "INFO"
 }
