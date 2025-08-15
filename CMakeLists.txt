@@ -4,6 +4,8 @@ project(TradingTerminal LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+add_compile_definitions(NOMINMAX)
+
 option(BUILD_TRADING_TERMINAL "Build the TradingTerminal application" ON)
 
 find_package(nlohmann_json CONFIG REQUIRED)
