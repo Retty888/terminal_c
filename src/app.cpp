@@ -71,6 +71,7 @@ int App::run() {
       data_service_.load_selected_pairs("config.json");
   if (pair_names.empty())
     pair_names.push_back("BTCUSDT");
+  int candles_limit = Config::load_candles_limit("config.json");
   std::vector<PairItem> pairs;
   for (const auto &name : pair_names) {
     pairs.push_back({name, true});
@@ -125,7 +126,7 @@ int App::run() {
         all_candles[pair][interval] = {};
         initial_fetches.push_back({
             pair, interval,
-            data_service_.fetch_klines_async(pair, interval, 5000)});
+            data_service_.fetch_klines_async(pair, interval, candles_limit)});
       } else {
         all_candles[pair][interval] = candles;
         ++completed_initial_fetches;

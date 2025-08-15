@@ -68,4 +68,20 @@ LogLevel load_min_log_level(const std::string& filename) {
     return LogLevel::Info;
 }
 
+size_t load_candles_limit(const std::string& filename) {
+    std::ifstream in(filename);
+    if (in.is_open()) {
+        try {
+            nlohmann::json j;
+            in >> j;
+            if (j.contains("candles_limit") && j["candles_limit"].is_number_unsigned()) {
+                return j["candles_limit"].get<size_t>();
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to parse config.json: " << e.what() << std::endl;
+        }
+    }
+    return 5000;
+}
+
 }
