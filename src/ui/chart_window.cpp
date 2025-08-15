@@ -74,32 +74,8 @@ void DrawChartWindow(
     const auto& closes = cached.closes;
 
     static ImPlotRect manual_limits;
-    static bool use_manual_limits = false;
+    static bool apply_manual_limits = false;
 
-    if (ImGui::Button("Zoom In")) {
-        double xc = (manual_limits.X.Min + manual_limits.X.Max) * 0.5;
-        double yc = (manual_limits.Y.Min + manual_limits.Y.Max) * 0.5;
-        double xr = (manual_limits.X.Max - manual_limits.X.Min) * 0.5;
-        double yr = (manual_limits.Y.Max - manual_limits.Y.Min) * 0.5;
-        manual_limits.X.Min = xc - xr * 0.5;
-        manual_limits.X.Max = xc + xr * 0.5;
-        manual_limits.Y.Min = yc - yr * 0.5;
-        manual_limits.Y.Max = yc + yr * 0.5;
-        use_manual_limits = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Zoom Out")) {
-        double xc = (manual_limits.X.Min + manual_limits.X.Max) * 0.5;
-        double yc = (manual_limits.Y.Min + manual_limits.Y.Max) * 0.5;
-        double xr = (manual_limits.X.Max - manual_limits.X.Min);
-        double yr = (manual_limits.Y.Max - manual_limits.Y.Min);
-        manual_limits.X.Min = xc - xr;
-        manual_limits.X.Max = xc + xr;
-        manual_limits.Y.Min = yc - yr;
-        manual_limits.Y.Max = yc + yr;
-        use_manual_limits = true;
-    }
-    ImGui::SameLine();
     if (ImGui::Button("Reset")) {
         if (!times.empty()) {
             manual_limits.X.Min = times.front();
@@ -109,18 +85,19 @@ void DrawChartWindow(
             manual_limits.Y.Min = *std::min_element(lows.begin(), lows.end());
             manual_limits.Y.Max = *std::max_element(highs.begin(), highs.end());
         }
-        use_manual_limits = true;
+        apply_manual_limits = true;
     }
     ImGui::SameLine();
     if (ImGui::Button("Fit")) {
         ImPlot::SetNextAxesToFit();
-        use_manual_limits = false;
+        apply_manual_limits = false;
     }
 
-    if (use_manual_limits) {
+    if (apply_manual_limits) {
         ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max,
                                   manual_limits.Y.Min, manual_limits.Y.Max,
                                   ImGuiCond_Always);
+        apply_manual_limits = false;
     }
 
     ImPlotFlags plot_flags = ImPlotFlags_Crosshairs;
@@ -136,7 +113,34 @@ void DrawChartWindow(
         );
 
         ImPlotRect cur_limits = ImPlot::GetPlotLimits();
-        if (!use_manual_limits) {
+
+        if (ImPlot::IsPlotHovered()) {
+            ImGuiIO& io = ImGui::GetIO();
+            ImPlotPoint mouse = ImPlot::GetPlotMousePos();
+            if (io.MouseWheel != 0.0f) {
+                double zoom = io.MouseWheel > 0 ? 0.9 : 1.1;
+                manual_limits.X.Min = mouse.x - (mouse.x - cur_limits.X.Min) * zoom;
+                manual_limits.X.Max = mouse.x + (cur_limits.X.Max - mouse.x) * zoom;
+                manual_limits.Y.Min = mouse.y - (mouse.y - cur_limits.Y.Min) * zoom;
+                manual_limits.Y.Max = mouse.y + (cur_limits.Y.Max - mouse.y) * zoom;
+                apply_manual_limits = true;
+            }
+            if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+                ImVec2 drag = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
+                ImPlotPoint p0 = ImPlot::PixelsToPlot(ImVec2(0,0));
+                ImPlotPoint p1 = ImPlot::PixelsToPlot(drag);
+                double dx = p0.x - p1.x;
+                double dy = p0.y - p1.y;
+                manual_limits.X.Min += dx;
+                manual_limits.X.Max += dx;
+                manual_limits.Y.Min += dy;
+                manual_limits.Y.Max += dy;
+                ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
+                apply_manual_limits = true;
+            }
+        }
+
+        if (!apply_manual_limits) {
             manual_limits = cur_limits;
         }
 
