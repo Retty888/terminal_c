@@ -32,6 +32,9 @@ using namespace Core;
 
 int App::run() {
   // Init GLFW
+  auto level = Config::load_min_log_level("config.json");
+  Logger::instance().set_min_level(level);
+  Logger::instance().enable_console_output(true);
   Logger::instance().set_file("terminal.log");
   Logger::instance().info("Application started");
 
