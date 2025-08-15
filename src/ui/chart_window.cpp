@@ -109,7 +109,9 @@ void DrawChartWindow(
             times.data(), opens.data(), closes.data(), lows.data(), highs.data(),
             (int)candles.size(),
             true,
-            0.25f
+            0.25f,
+            ImVec4(1,1,1,1),
+            ImVec4(0.1f,0.1f,0.1f,1)
         );
 
         ImPlotRect cur_limits = ImPlot::GetPlotLimits();
