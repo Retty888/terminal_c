@@ -202,8 +202,8 @@ void DrawChartWindow(
     ImPlot::SetupLegend(ImPlotLocation_South, ImPlotLegendFlags_Outside);
     Plot::PlotCandlestick("Candles", times.data(), opens.data(), closes.data(),
                           lows.data(), highs.data(), (int)candles.size(), true,
-                          0.25f, ImVec4(1, 1, 1, 1),
-                          ImVec4(0.3f, 0.3f, 0.3f, 1));
+                          0.25f, ImVec4(0.149f, 0.651f, 0.604f, 1.0f),
+                          ImVec4(0.937f, 0.325f, 0.314f, 1.0f));
 
     ImPlotRect cur_limits = ImPlot::GetPlotLimits();
 
