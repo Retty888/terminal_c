@@ -35,6 +35,8 @@ long long interval_to_ms(const std::string &interval) {
     return 0;
   }
   switch (unit) {
+  case 's':
+    return value * 1000LL;
   case 'm':
     return value * 60LL * 1000LL;
   case 'h':

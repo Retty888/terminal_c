@@ -33,6 +33,34 @@
 
 using namespace Core;
 
+namespace {
+std::chrono::milliseconds interval_to_duration(const std::string &interval) {
+  if (interval.empty())
+    return std::chrono::milliseconds(0);
+  char unit = interval.back();
+  long long value = 0;
+  try {
+    value = std::stoll(interval.substr(0, interval.size() - 1));
+  } catch (...) {
+    return std::chrono::milliseconds(0);
+  }
+  switch (unit) {
+  case 's':
+    return std::chrono::milliseconds(value * 1000LL);
+  case 'm':
+    return std::chrono::milliseconds(value * 60LL * 1000LL);
+  case 'h':
+    return std::chrono::milliseconds(value * 60LL * 60LL * 1000LL);
+  case 'd':
+    return std::chrono::milliseconds(value * 24LL * 60LL * 60LL * 1000LL);
+  case 'w':
+    return std::chrono::milliseconds(value * 7LL * 24LL * 60LL * 60LL * 1000LL);
+  default:
+    return std::chrono::milliseconds(0);
+  }
+}
+} // namespace
+
 void App::add_status(const std::string &msg) {
   std::lock_guard<std::mutex> lock(status_mutex_);
   status_.log.push_back(msg);
@@ -81,7 +109,7 @@ int App::run() {
   // Load config
   std::vector<std::string> pair_names =
       data_service_.load_selected_pairs("config.json");
-  std::vector<std::string> intervals = {"1m", "5m", "15m", "1h", "4h", "1d"};
+  std::vector<std::string> intervals = {"1m", "3m", "5m", "15m", "1h", "4h", "1d", "15s", "5s"};
   if (pair_names.empty()) {
     auto stored = CandleManager::list_stored_data();
     std::set<std::string> pairs_found;
@@ -132,7 +160,11 @@ int App::run() {
 
   std::map<std::string, std::map<std::string, std::vector<Candle>>> all_candles;
   std::mutex candles_mutex; // protects access to all_candles
-  std::map<std::string, std::future<Core::KlinesResult>> pending_fetches;
+  struct PendingFetch {
+    std::string interval;
+    std::future<Core::KlinesResult> future;
+  };
+  std::map<std::string, PendingFetch> pending_fetches;
   journal_service_.load("journal.json");
   Core::BacktestResult last_result;
 
@@ -187,28 +219,29 @@ int App::run() {
 
     static auto last_fetch = std::chrono::steady_clock::now();
     auto now = std::chrono::steady_clock::now();
-    if (now - last_fetch >= std::chrono::minutes(1)) {
+    auto period = interval_to_duration(active_interval);
+    if (period.count() > 0 && now - last_fetch >= period) {
       for (const auto &item : pairs) {
         const auto &pair = item.name;
         if (pending_fetches.find(pair) == pending_fetches.end()) {
-          pending_fetches[pair] =
-              data_service_.fetch_klines_async(pair, "1m", 1);
+          pending_fetches[pair] = {active_interval,
+                                  data_service_.fetch_klines_async(pair, active_interval, 1)};
           add_status("Updating " + pair);
         }
       }
       last_fetch = now;
     }
     for (auto it = pending_fetches.begin(); it != pending_fetches.end();) {
-      if (it->second.wait_for(std::chrono::seconds(0)) ==
+      if (it->second.future.wait_for(std::chrono::seconds(0)) ==
           std::future_status::ready) {
-        auto latest = it->second.get();
+        auto latest = it->second.future.get();
         if (latest.error == FetchError::None && !latest.candles.empty()) {
           std::lock_guard<std::mutex> lock(candles_mutex);
-          auto &vec = all_candles[it->first]["1m"];
+          auto &vec = all_candles[it->first][it->second.interval];
           if (vec.empty() ||
               latest.candles.back().open_time > vec.back().open_time) {
             vec.push_back(latest.candles.back());
-            data_service_.append_candles(it->first, "1m",
+            data_service_.append_candles(it->first, it->second.interval,
                                          {latest.candles.back()});
           }
           add_status("Updated " + it->first);
