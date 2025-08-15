@@ -3,6 +3,7 @@
 #include "imgui.h"
 #include "implot.h"
 #include "plot/candlestick.h"
+#include "signal.h"
 
 #include <algorithm>
 #include <cmath>
@@ -47,6 +48,9 @@ bool adding_rect = false;
 bool measure_mode = false;
 bool has_measure = false;
 ImPlotPoint measure_start, measure_end;
+bool line_anchor_set = false;
+bool rect_anchor_set = false;
+bool measure_anchor_set = false;
 
 float DistancePointToSegment(const ImVec2 &p, const ImVec2 &v,
                              const ImVec2 &w) {
@@ -151,15 +155,18 @@ void DrawChartWindow(
   ImGui::SameLine();
   if (ImGui::Button("Add Line")) {
     adding_line = true;
+    line_anchor_set = false;
   }
   ImGui::SameLine();
   if (ImGui::Button("Add Rect")) {
     adding_rect = true;
+    rect_anchor_set = false;
   }
   ImGui::SameLine();
   if (ImGui::Button("Measure")) {
     measure_mode = true;
     has_measure = false;
+    measure_anchor_set = false;
   }
   ImGui::SameLine();
   if (ImGui::Button("Undo")) {
@@ -186,7 +193,17 @@ void DrawChartWindow(
     lines.clear();
     rects.clear();
     shape_order.clear();
+    line_anchor_set = rect_anchor_set = measure_anchor_set = false;
+    measure_mode = false;
+    has_measure = false;
   }
+
+  if (adding_line)
+    ImGui::Text("Line: click first point, then click again to finish");
+  else if (adding_rect)
+    ImGui::Text("Rect: click first corner, then click again to finish");
+  else if (measure_mode)
+    ImGui::Text("Measure: click start point and click again to end");
 
   if (apply_manual_limits) {
     ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max,
@@ -204,6 +221,19 @@ void DrawChartWindow(
                           lows.data(), highs.data(), (int)candles.size(), true,
                           0.25f, ImVec4(0.149f, 0.651f, 0.604f, 1.0f),
                           ImVec4(0.937f, 0.325f, 0.314f, 1.0f));
+
+    const int sma_period = 7;
+    std::vector<double> sma_times, sma_vals;
+    if (candles.size() >= (size_t)sma_period) {
+      for (size_t i = sma_period - 1; i < candles.size(); ++i) {
+        sma_times.push_back(times[i]);
+        sma_vals.push_back(
+            Signal::simple_moving_average(candles, i, sma_period));
+      }
+      ImPlot::SetNextLineStyle(ImVec4(1.0f, 0.8f, 0.0f, 1.0f));
+      ImPlot::PlotLine("SMA7", sma_times.data(), sma_vals.data(),
+                       sma_vals.size());
+    }
 
     ImPlotRect cur_limits = ImPlot::GetPlotLimits();
 
@@ -235,43 +265,54 @@ void DrawChartWindow(
       }
 
       if (adding_line) {
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-          lines.push_back({mouse, mouse});
-        } else if (ImGui::IsMouseDown(ImGuiMouseButton_Left) &&
-                   !lines.empty()) {
+        if (!line_anchor_set) {
+          if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            lines.push_back({mouse, mouse});
+            line_anchor_set = true;
+          }
+        } else {
           lines.back().p2 = mouse;
-        } else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) &&
-                   !lines.empty()) {
-          lines.back().p2 = mouse;
-          shape_order.push_back({ShapeType::Line, lines.size() - 1});
-          adding_line = false;
+          if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            lines.back().p2 = mouse;
+            shape_order.push_back({ShapeType::Line, lines.size() - 1});
+            adding_line = false;
+            line_anchor_set = false;
+          }
         }
       }
 
       if (adding_rect) {
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-          rects.push_back({mouse, mouse});
-        } else if (ImGui::IsMouseDown(ImGuiMouseButton_Left) &&
-                   !rects.empty()) {
+        if (!rect_anchor_set) {
+          if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            rects.push_back({mouse, mouse});
+            rect_anchor_set = true;
+          }
+        } else {
           rects.back().p2 = mouse;
-        } else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) &&
-                   !rects.empty()) {
-          rects.back().p2 = mouse;
-          shape_order.push_back({ShapeType::Rect, rects.size() - 1});
-          adding_rect = false;
+          if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            rects.back().p2 = mouse;
+            shape_order.push_back({ShapeType::Rect, rects.size() - 1});
+            adding_rect = false;
+            rect_anchor_set = false;
+          }
         }
       }
 
       if (measure_mode) {
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-          measure_start = mouse;
+        if (!measure_anchor_set) {
+          if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            measure_start = mouse;
+            measure_end = mouse;
+            has_measure = true;
+            measure_anchor_set = true;
+          }
+        } else {
           measure_end = mouse;
-          has_measure = true;
-        } else if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-          measure_end = mouse;
-        } else if (ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-          measure_end = mouse;
-          measure_mode = false;
+          if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            measure_end = mouse;
+            measure_mode = false;
+            measure_anchor_set = false;
+          }
         }
       }
 
