@@ -10,12 +10,13 @@
 struct SignalEntry {
     double time;
     double price;
-    double short_sma;
-    double long_sma;
+    double value1;
+    double value2;
     int type;
 };
 
 void DrawSignalsWindow(
+    std::string& strategy,
     int& short_period,
     int& long_period,
     bool& show_on_chart,

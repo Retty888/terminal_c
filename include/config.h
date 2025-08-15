@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <map>
 
 // Configuration file, can be expanded later
 
@@ -18,6 +19,7 @@ struct SignalConfig {
     std::string type{"sma_crossover"};
     std::size_t short_period{0};
     std::size_t long_period{0};
+    std::map<std::string, double> params{};
 };
 
 SignalConfig load_signal_config(const std::string& filename);

@@ -12,6 +12,7 @@
 using namespace Core;
 
 void DrawSignalsWindow(
+    std::string& strategy,
     int& short_period,
     int& long_period,
     bool& show_on_chart,
@@ -25,16 +26,38 @@ void DrawSignalsWindow(
     const std::string& selected_interval,
     AppStatus& status) {
     ImGui::Begin("Signals");
-    ImGui::InputInt("Short SMA", &short_period);
-    ImGui::InputInt("Long SMA", &long_period);
-    if (long_period <= short_period) {
-        long_period = short_period + 1;
+    static const char* strategies[] = {"sma_crossover", "ema", "rsi"};
+    int strategy_idx = 0;
+    if (strategy == "ema") strategy_idx = 1;
+    else if (strategy == "rsi") strategy_idx = 2;
+    ImGui::Combo("Strategy", &strategy_idx, strategies, IM_ARRAYSIZE(strategies));
+    strategy = strategies[strategy_idx];
+
+    static double oversold = 30.0;
+    static double overbought = 70.0;
+
+    if (strategy == "sma_crossover") {
+        ImGui::InputInt("Short SMA", &short_period);
+        ImGui::InputInt("Long SMA", &long_period);
+        if (long_period <= short_period) {
+            long_period = short_period + 1;
+        }
+    } else if (strategy == "ema") {
+        ImGui::InputInt("EMA Period", &short_period);
+    } else if (strategy == "rsi") {
+        ImGui::InputInt("RSI Period", &short_period);
+        ImGui::InputDouble("Oversold", &oversold);
+        ImGui::InputDouble("Overbought", &overbought);
     }
     ImGui::Checkbox("Show on Chart", &show_on_chart);
+    bool request = ImGui::Button("Request signals");
 
     struct SignalsCache {
+        std::string strategy;
         int short_period = 0;
         int long_period = 0;
+        double oversold = 30.0;
+        double overbought = 70.0;
         std::string active_pair;
         std::string selected_interval;
         long long last_candle_time = 0;
@@ -50,8 +73,9 @@ void DrawSignalsWindow(
     const auto& sig_candles = all_candles.at(active_pair).at(selected_interval);
     long long latest_time = sig_candles.empty() ? 0 : sig_candles.back().open_time;
 
-    bool need_recalc = !cache.initialized || cache.short_period != short_period ||
-                       cache.long_period != long_period ||
+    bool need_recalc = request || !cache.initialized || cache.short_period != short_period ||
+                       cache.long_period != long_period || cache.strategy != strategy ||
+                       cache.oversold != oversold || cache.overbought != overbought ||
                        cache.active_pair != active_pair ||
                        cache.selected_interval != selected_interval ||
                        cache.last_candle_time != latest_time;
@@ -60,8 +84,11 @@ void DrawSignalsWindow(
         status.signal_message = "Computing signals";
         status.log.push_back("Computing signals for " + active_pair + " " + selected_interval);
         if (status.log.size() > 50) status.log.erase(status.log.begin());
+        cache.strategy = strategy;
         cache.short_period = short_period;
         cache.long_period = long_period;
+        cache.oversold = oversold;
+        cache.overbought = overbought;
         cache.active_pair = active_pair;
         cache.selected_interval = selected_interval;
         cache.last_candle_time = latest_time;
@@ -72,20 +99,56 @@ void DrawSignalsWindow(
         cache.sell_times.clear();
         cache.sell_prices.clear();
 
-        for (std::size_t i = static_cast<std::size_t>(long_period); i < sig_candles.size(); ++i) {
-            int sig = Signal::sma_crossover_signal(sig_candles, i, short_period, long_period);
-            if (sig != 0) {
-                double t = static_cast<double>(sig_candles[i].open_time) / 1000.0;
-                double price = sig_candles[i].close;
-                double short_sma = Signal::simple_moving_average(sig_candles, i, short_period);
-                double long_sma = Signal::simple_moving_average(sig_candles, i, long_period);
-                cache.entries.push_back({t, price, short_sma, long_sma, sig});
-                if (sig > 0) {
-                    cache.buy_times.push_back(t);
-                    cache.buy_prices.push_back(price);
-                } else {
-                    cache.sell_times.push_back(t);
-                    cache.sell_prices.push_back(price);
+        if (strategy == "sma_crossover") {
+            for (std::size_t i = static_cast<std::size_t>(long_period); i < sig_candles.size(); ++i) {
+                int sig = Signal::sma_crossover_signal(sig_candles, i, short_period, long_period);
+                if (sig != 0) {
+                    double t = static_cast<double>(sig_candles[i].open_time) / 1000.0;
+                    double price = sig_candles[i].close;
+                    double short_sma = Signal::simple_moving_average(sig_candles, i, short_period);
+                    double long_sma = Signal::simple_moving_average(sig_candles, i, long_period);
+                    cache.entries.push_back({t, price, short_sma, long_sma, sig});
+                    if (sig > 0) {
+                        cache.buy_times.push_back(t);
+                        cache.buy_prices.push_back(price);
+                    } else {
+                        cache.sell_times.push_back(t);
+                        cache.sell_prices.push_back(price);
+                    }
+                }
+            }
+        } else if (strategy == "ema") {
+            for (std::size_t i = static_cast<std::size_t>(short_period); i < sig_candles.size(); ++i) {
+                int sig = Signal::ema_signal(sig_candles, i, static_cast<std::size_t>(short_period));
+                if (sig != 0) {
+                    double t = static_cast<double>(sig_candles[i].open_time) / 1000.0;
+                    double price = sig_candles[i].close;
+                    double ema = Signal::exponential_moving_average(sig_candles, i, static_cast<std::size_t>(short_period));
+                    cache.entries.push_back({t, price, ema, 0.0, sig});
+                    if (sig > 0) {
+                        cache.buy_times.push_back(t);
+                        cache.buy_prices.push_back(price);
+                    } else {
+                        cache.sell_times.push_back(t);
+                        cache.sell_prices.push_back(price);
+                    }
+                }
+            }
+        } else if (strategy == "rsi") {
+            for (std::size_t i = static_cast<std::size_t>(short_period); i < sig_candles.size(); ++i) {
+                int sig = Signal::rsi_signal(sig_candles, i, static_cast<std::size_t>(short_period), oversold, overbought);
+                if (sig != 0) {
+                    double t = static_cast<double>(sig_candles[i].open_time) / 1000.0;
+                    double price = sig_candles[i].close;
+                    double rsi = Signal::relative_strength_index(sig_candles, i, static_cast<std::size_t>(short_period));
+                    cache.entries.push_back({t, price, rsi, 0.0, sig});
+                    if (sig > 0) {
+                        cache.buy_times.push_back(t);
+                        cache.buy_prices.push_back(price);
+                    } else {
+                        cache.sell_times.push_back(t);
+                        cache.sell_prices.push_back(price);
+                    }
                 }
             }
         }
@@ -102,8 +165,20 @@ void DrawSignalsWindow(
 
     if (ImGui::BeginTable("SignalsTable", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
         ImGui::TableSetupColumn("Time");
-        ImGui::TableSetupColumn("Short SMA");
-        ImGui::TableSetupColumn("Long SMA");
+        const char* col1 = "Value1";
+        const char* col2 = "Value2";
+        if (strategy == "sma_crossover") {
+            col1 = "Short SMA";
+            col2 = "Long SMA";
+        } else if (strategy == "ema") {
+            col1 = "EMA";
+            col2 = "";
+        } else if (strategy == "rsi") {
+            col1 = "RSI";
+            col2 = "";
+        }
+        ImGui::TableSetupColumn(col1);
+        ImGui::TableSetupColumn(col2[0] ? col2 : " ");
         ImGui::TableSetupColumn("Signal");
         ImGui::TableHeadersRow();
         int rows = static_cast<int>(signal_entries.size());
@@ -120,9 +195,12 @@ void DrawSignalsWindow(
                 ImGui::Text("%lld", static_cast<long long>(signal_entries[i].time));
             }
             ImGui::TableSetColumnIndex(1);
-            ImGui::Text("%.2f", signal_entries[i].short_sma);
+            ImGui::Text("%.2f", signal_entries[i].value1);
             ImGui::TableSetColumnIndex(2);
-            ImGui::Text("%.2f", signal_entries[i].long_sma);
+            if (col2[0])
+                ImGui::Text("%.2f", signal_entries[i].value2);
+            else
+                ImGui::Text("-");
             ImGui::TableSetColumnIndex(3);
             ImGui::Text("%s", signal_entries[i].type > 0 ? "Buy" : "Sell");
         }

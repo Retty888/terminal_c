@@ -16,5 +16,27 @@ namespace Signal {
                                        std::size_t short_period,
                                        std::size_t long_period);
 
+// Calculates exponential moving average of candle close prices.
+[[nodiscard]] double exponential_moving_average(const std::vector<Core::Candle>& candles,
+                                               std::size_t index,
+                                               std::size_t period);
+
+// Generates signal based on price crossing EMA.
+[[nodiscard]] int ema_signal(const std::vector<Core::Candle>& candles,
+                             std::size_t index,
+                             std::size_t period);
+
+// Calculates Relative Strength Index.
+[[nodiscard]] double relative_strength_index(const std::vector<Core::Candle>& candles,
+                                             std::size_t index,
+                                             std::size_t period);
+
+// Generates signal based on RSI thresholds.
+[[nodiscard]] int rsi_signal(const std::vector<Core::Candle>& candles,
+                             std::size_t index,
+                             std::size_t period,
+                             double oversold,
+                             double overbought);
+
 } // namespace Signal
 

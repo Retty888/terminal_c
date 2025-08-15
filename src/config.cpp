@@ -102,6 +102,13 @@ SignalConfig load_signal_config(const std::string& filename) {
                 if (s.contains("long_period") && s["long_period"].is_number_unsigned()) {
                     cfg.long_period = s["long_period"].get<std::size_t>();
                 }
+                if (s.contains("params") && s["params"].is_object()) {
+                    for (auto it = s["params"].begin(); it != s["params"].end(); ++it) {
+                        if (it.value().is_number()) {
+                            cfg.params[it.key()] = it.value().get<double>();
+                        }
+                    }
+                }
             }
         } catch (const std::exception& e) {
             std::cerr << "Failed to parse config.json: " << e.what() << std::endl;

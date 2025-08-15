@@ -55,3 +55,15 @@ TEST(ConfigTest, LoadSignalConfig) {
     std::filesystem::remove(tmp);
 }
 
+TEST(SignalIndicators, CalculatesEmaAndRsi) {
+    std::vector<Core::Candle> candles;
+    double closes[] = {1,2,3,4,5};
+    for (int i = 0; i < 5; ++i) {
+        candles.emplace_back(i,0,0,0,closes[i],0,0,0,0,0,0,0);
+    }
+    double ema = Signal::exponential_moving_average(candles,4,3);
+    EXPECT_NEAR(ema, 4.25, 1e-2);
+    double rsi = Signal::relative_strength_index(candles,4,3);
+    EXPECT_NEAR(rsi, 100.0, 1e-6);
+}
+
