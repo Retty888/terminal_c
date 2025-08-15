@@ -8,39 +8,98 @@
 #include <array>
 #include <nlohmann/json.hpp>
 #include "logger.h"
+#ifdef _WIN32
+#include <windows.h>
+#elif __APPLE__
+#include <mach-o/dyld.h>
+#else
+#include <unistd.h>
+#include <limits.h>
+#endif
 
 namespace Core {
 
 namespace {
 
+std::filesystem::path executable_dir() {
+#ifdef _WIN32
+    wchar_t buffer[MAX_PATH];
+    DWORD len = GetModuleFileNameW(nullptr, buffer, MAX_PATH);
+    return std::filesystem::path(buffer, buffer + len).parent_path();
+#elif __APPLE__
+    char path[1024];
+    uint32_t size = sizeof(path);
+    if (_NSGetExecutablePath(path, &size) == 0)
+        return std::filesystem::path(path).parent_path();
+    return std::filesystem::current_path();
+#else
+    char result[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+    if (count != -1)
+        return std::filesystem::path(std::string(result, count)).parent_path();
+    return std::filesystem::current_path();
+#endif
+}
+
+std::filesystem::path resolve_config_path() {
+    if (const char* env_cfg = std::getenv("CANDLE_CONFIG_PATH")) {
+        return std::filesystem::path(env_cfg);
+    }
+    auto exe_dir = executable_dir();
+    std::array<std::filesystem::path,3> candidates = {
+        exe_dir / "config.json",
+        exe_dir.parent_path() / "config.json",
+        std::filesystem::current_path() / "config.json"
+    };
+    for (const auto& c : candidates) {
+        if (std::filesystem::exists(c)) return c;
+    }
+    return candidates[0];
+}
+
 std::filesystem::path resolve_data_dir() {
     if (const char* env_dir = std::getenv("CANDLE_DATA_DIR")) {
-        return std::filesystem::path(env_dir);
+        std::filesystem::path dir(env_dir);
+        std::filesystem::create_directories(dir);
+        return dir;
     }
 
-    std::ifstream cfg("config.json");
-    if (cfg.is_open()) {
+    auto cfg_path = resolve_config_path();
+    nlohmann::json j;
+    std::filesystem::path dir;
+
+    if (std::ifstream cfg(cfg_path); cfg.is_open()) {
         try {
-            nlohmann::json j;
             cfg >> j;
             if (j.contains("data_dir") && j["data_dir"].is_string()) {
-                return std::filesystem::path(j["data_dir"].get<std::string>());
+                dir = j["data_dir"].get<std::string>();
             }
         } catch (const std::exception& e) {
-            std::cerr << "Failed to parse config.json: " << e.what() << std::endl;
+            std::cerr << "Failed to parse " << cfg_path << ": " << e.what() << std::endl;
         }
     }
 
-    const char* home = nullptr;
+    if (dir.empty()) {
+        const char* home = nullptr;
 #ifdef _WIN32
-    home = std::getenv("USERPROFILE");
+        home = std::getenv("USERPROFILE");
 #else
-    home = std::getenv("HOME");
+        home = std::getenv("HOME");
 #endif
-    if (home) {
-        return std::filesystem::path(home) / "candle_data";
+        if (home) {
+            dir = std::filesystem::path(home) / "candle_data";
+        } else {
+            dir = std::filesystem::current_path() / "candle_data";
+        }
+        j["data_dir"] = dir.string();
+        std::ofstream out(cfg_path);
+        if (out.is_open()) {
+            out << j.dump(4);
+        }
     }
-    return std::filesystem::current_path() / "candle_data";
+
+    std::filesystem::create_directories(dir);
+    return dir;
 }
 
 std::filesystem::path data_dir = resolve_data_dir();
