@@ -84,4 +84,31 @@ size_t load_candles_limit(const std::string& filename) {
     return 5000;
 }
 
+SignalConfig load_signal_config(const std::string& filename) {
+    std::ifstream in(filename);
+    SignalConfig cfg;
+    if (in.is_open()) {
+        try {
+            nlohmann::json j;
+            in >> j;
+            if (j.contains("signal") && j["signal"].is_object()) {
+                const auto& s = j["signal"];
+                if (s.contains("type") && s["type"].is_string()) {
+                    cfg.type = s["type"].get<std::string>();
+                }
+                if (s.contains("short_period") && s["short_period"].is_number_unsigned()) {
+                    cfg.short_period = s["short_period"].get<std::size_t>();
+                }
+                if (s.contains("long_period") && s["long_period"].is_number_unsigned()) {
+                    cfg.long_period = s["long_period"].get<std::size_t>();
+                }
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to parse config.json: " << e.what() << std::endl;
+        }
+    }
+    return cfg;
 }
+
+} // namespace Config
+
