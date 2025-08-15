@@ -23,7 +23,8 @@ void Logger::set_file(const std::string &filename, std::size_t max_size) {
   if (fs::exists(filename)) {
     auto size = fs::file_size(filename);
     auto last = fs::last_write_time(filename);
-    auto last_sys = decltype(last)::clock::to_sys(last);
+    auto last_sys =
+        std::chrono::clock_cast<std::chrono::system_clock>(last);
     auto now = std::chrono::system_clock::now();
     auto today = std::chrono::time_point_cast<std::chrono::days>(now);
     auto file_day =
