@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(BUILD_TRADING_TERMINAL "Build the TradingTerminal application" ON)
 
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(GTest CONFIG REQUIRED)
 
 if(BUILD_TRADING_TERMINAL)
     # Find all necessary packages using vcpkg
@@ -71,6 +72,7 @@ add_executable(test_backtester
 target_include_directories(test_backtester PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+target_link_libraries(test_backtester PRIVATE GTest::gtest_main)
 
 add_test(NAME test_backtester COMMAND test_backtester)
 
@@ -78,27 +80,19 @@ add_executable(test_candle_manager
     tests/test_candle_manager.cpp
     src/core/candle_manager.cpp
     src/candle.cpp
+    src/logger.cpp
 )
 
 target_include_directories(test_candle_manager PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-
-target_link_libraries(test_candle_manager PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(test_candle_manager PRIVATE
+    GTest::gtest_main
+    nlohmann_json::nlohmann_json
+)
 
 add_test(NAME test_candle_manager COMMAND test_candle_manager)
 
-add_executable(test_journal
-    tests/test_journal.cpp
-    src/journal.cpp
-)
-
-target_include_directories(test_journal PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-target_link_libraries(test_journal PRIVATE nlohmann_json::nlohmann_json)
-
-add_test(NAME test_journal COMMAND test_journal)
 
 add_executable(test_signal
     tests/test_signal.cpp
@@ -109,5 +103,11 @@ add_executable(test_signal
 target_include_directories(test_signal PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+target_link_libraries(test_signal PRIVATE GTest::gtest_main)
 
 add_test(NAME test_signal COMMAND test_signal)
+
+add_custom_target(ctest
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+    DEPENDS test_backtester test_candle_manager test_signal
+)
