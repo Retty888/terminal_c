@@ -33,6 +33,7 @@ if(BUILD_TRADING_TERMINAL)
         src/journal.cpp
         src/services/data_service.cpp
         src/services/journal_service.cpp
+        src/services/signal_bot.cpp
         src/ui/control_panel.cpp
         src/ui/signals_window.cpp
         src/ui/analytics_window.cpp
@@ -104,14 +105,18 @@ add_executable(test_signal
     tests/test_signal.cpp
     src/signal.cpp
     src/candle.cpp
+    src/services/signal_bot.cpp
+    src/config.cpp
 )
 
 target_include_directories(test_signal PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 target_link_libraries(test_signal PRIVATE
     GTest::gtest_main
+    nlohmann_json::nlohmann_json
 )
 
 add_test(NAME test_signal COMMAND test_signal)
