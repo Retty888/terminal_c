@@ -149,7 +149,7 @@ void DrawChartWindow(
     }
 
     ImPlotFlags plot_flags = ImPlotFlags_Crosshairs;
-    if (ImPlot::BeginPlot(("Candles - " + active_pair).c_str(), ImVec2(-1,0), plot_flags)) {
+    if (ImPlot::BeginPlot(("Candles - " + active_pair).c_str(), ImGui::GetContentRegionAvail(), plot_flags)) {
         ImPlot::SetupAxes("Time", "Price");
         ImPlot::SetupLegend(ImPlotLocation_South, ImPlotLegendFlags_Outside);
         Plot::PlotCandlestick(
