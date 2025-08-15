@@ -6,7 +6,6 @@
 #include "imgui.h"
 
 #include <algorithm>
-#include <cctype>
 #include <ctime>
 #include <numeric>
 
@@ -48,57 +47,7 @@ void DrawControlPanel(
   ImGui::Begin("Control Panel");
 
   ImGui::Text("Select pairs to load:");
-  static char new_symbol[32] = "";
   static std::string load_error;
-
-  auto try_add_symbol = [&](const std::string &input) {
-    std::string symbol(input);
-    symbol.erase(std::remove_if(symbol.begin(), symbol.end(),
-                                [](unsigned char c) {
-                                  return std::isspace(c) || c == '-';
-                                }),
-                 symbol.end());
-    std::transform(symbol.begin(), symbol.end(), symbol.begin(), ::toupper);
-    bool valid = !symbol.empty() &&
-                 std::all_of(symbol.begin(), symbol.end(),
-                             [](unsigned char c) { return std::isalnum(c); });
-    if (valid &&
-        std::none_of(pairs.begin(), pairs.end(),
-                     [&](const PairItem &p) { return p.name == symbol; })) {
-      pairs.push_back({symbol, true});
-      save_pairs();
-      if (std::find(selected_pairs.begin(), selected_pairs.end(), symbol) ==
-          selected_pairs.end()) {
-        selected_pairs.push_back(symbol);
-        Config::save_selected_pairs("config.json", selected_pairs);
-      }
-      bool failed = false;
-      for (const auto &interval : intervals) {
-        auto candles = CandleManager::load_candles(symbol, interval);
-        if (candles.empty()) {
-          auto fetched = DataFetcher::fetch_klines(symbol, interval, EXPECTED_CANDLES);
-          if (fetched.error == FetchError::None &&
-              !fetched.candles.empty()) {
-            candles = fetched.candles;
-            CandleManager::save_candles(symbol, interval, candles);
-          }
-        }
-        if (candles.empty()) {
-          failed = true;
-        } else {
-          all_candles[symbol][interval] = candles;
-        }
-      }
-      load_error = failed ? "Failed to load " + symbol : "";
-    }
-  };
-
-  ImGui::InputText("##new_symbol", new_symbol, IM_ARRAYSIZE(new_symbol));
-  ImGui::SameLine();
-  if (ImGui::Button("Load Symbol")) {
-    try_add_symbol(new_symbol);
-    new_symbol[0] = '\0';
-  }
 
   ImGui::Separator();
   ImGui::Text("Load from exchange:");
@@ -118,8 +67,37 @@ void DrawControlPanel(
   }
   ImGui::SameLine();
   if (ImGui::Button("Load Selected")) {
-    if (!exchange_pairs.empty())
-      try_add_symbol(exchange_pairs[selected_idx]);
+    if (!exchange_pairs.empty()) {
+      std::string symbol = exchange_pairs[selected_idx];
+      if (std::none_of(pairs.begin(), pairs.end(),
+                       [&](const PairItem &p) { return p.name == symbol; })) {
+        pairs.push_back({symbol, true});
+        save_pairs();
+        if (std::find(selected_pairs.begin(), selected_pairs.end(), symbol) ==
+            selected_pairs.end()) {
+          selected_pairs.push_back(symbol);
+          Config::save_selected_pairs("config.json", selected_pairs);
+        }
+        bool failed = false;
+        for (const auto &interval : intervals) {
+          auto candles = CandleManager::load_candles(symbol, interval);
+          if (candles.empty()) {
+            auto fetched =
+                DataFetcher::fetch_klines(symbol, interval, EXPECTED_CANDLES);
+            if (fetched.error == FetchError::None && !fetched.candles.empty()) {
+              candles = fetched.candles;
+              CandleManager::save_candles(symbol, interval, candles);
+            }
+          }
+          if (candles.empty()) {
+            failed = true;
+          } else {
+            all_candles[symbol][interval] = candles;
+          }
+        }
+        load_error = failed ? "Failed to load " + symbol : "";
+      }
+    }
   }
 
   if (!load_error.empty()) {
@@ -161,11 +139,11 @@ void DrawControlPanel(
       long long min_t = 0;
       long long max_t = 0;
       if (!candles.empty()) {
-        auto [min_it, max_it] = std::minmax_element(
-            candles.begin(), candles.end(),
-            [](const Candle &a, const Candle &b) {
-              return a.open_time < b.open_time;
-            });
+        auto [min_it, max_it] =
+            std::minmax_element(candles.begin(), candles.end(),
+                                [](const Candle &a, const Candle &b) {
+                                  return a.open_time < b.open_time;
+                                });
         min_t = min_it->open_time;
         max_t = max_it->open_time;
       } else {
@@ -190,8 +168,8 @@ void DrawControlPanel(
       emoji = EMOJI_MED;
       color = COLOR_MED;
     }
-    std::string label = sel_start + "–" + sel_end + " (" +
-                        std::to_string(sel_count) + ")";
+    std::string label =
+        sel_start + "–" + sel_end + " (" + std::to_string(sel_count) + ")";
     ImGui::SameLine();
     ImGui::Text("%s %s", emoji, label.c_str());
     ImGui::SameLine();
@@ -245,9 +223,9 @@ void DrawControlPanel(
       if (all_candles[pair][active_interval].empty()) {
         auto candles = CandleManager::load_candles(pair, active_interval);
         if (candles.empty()) {
-          auto fetched = DataFetcher::fetch_klines(pair, active_interval, EXPECTED_CANDLES);
-          if (fetched.error == FetchError::None &&
-              !fetched.candles.empty()) {
+          auto fetched = DataFetcher::fetch_klines(pair, active_interval,
+                                                   EXPECTED_CANDLES);
+          if (fetched.error == FetchError::None && !fetched.candles.empty()) {
             candles = fetched.candles;
             CandleManager::save_candles(pair, active_interval, candles);
           }
@@ -265,9 +243,9 @@ void DrawControlPanel(
       if (all_candles[active_pair][interval].empty()) {
         auto candles = CandleManager::load_candles(active_pair, interval);
         if (candles.empty()) {
-          auto fetched = DataFetcher::fetch_klines(active_pair, interval, EXPECTED_CANDLES);
-          if (fetched.error == FetchError::None &&
-              !fetched.candles.empty()) {
+          auto fetched = DataFetcher::fetch_klines(active_pair, interval,
+                                                   EXPECTED_CANDLES);
+          if (fetched.error == FetchError::None && !fetched.candles.empty()) {
             candles = fetched.candles;
             CandleManager::save_candles(active_pair, interval, candles);
           }
