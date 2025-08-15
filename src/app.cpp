@@ -254,9 +254,9 @@ int App::run() {
     }
     ImGui::End();
 
-    DrawChartWindow(all_candles, active_pair, active_interval, show_on_chart,
-                    buy_times, buy_prices, sell_times, sell_prices,
-                    journal_service_.journal(), last_result);
+    DrawChartWindow(all_candles, active_pair, active_interval, selected_pairs,
+                    intervals, show_on_chart, buy_times, buy_prices, sell_times,
+                    sell_prices, journal_service_.journal(), last_result);
 
     ImGui::Render();
     int display_w, display_h;
