@@ -1,6 +1,7 @@
 #include "core/backtester.h"
 #include <cassert>
 #include <vector>
+#include <cmath>
 
 // Mock strategy generating predetermined signals
 class MockStrategy : public Core::IStrategy {
@@ -55,6 +56,13 @@ int main() {
         assert(result.equity_curve[i] == expected_equity[i]);
     }
 
+    // Verify additional metrics
+    assert(result.max_drawdown == 1.0);
+    double expected_sharpe = 3 * std::sqrt(5.0) / std::sqrt(26.0);
+    assert(std::abs(result.sharpe_ratio - expected_sharpe) < 1e-9);
+    assert(result.avg_win == 1.5);
+    assert(result.avg_loss == 0.0);
+
     // Scenario: open position at the end should be closed automatically
     {
         std::vector<Candle> candles2;
@@ -87,6 +95,13 @@ int main() {
         for (size_t i = 0; i < expected_equity2.size(); ++i) {
             assert(result2.equity_curve[i] == expected_equity2[i]);
         }
+
+        // Additional metrics
+        assert(result2.max_drawdown == 1.0);
+        double expected_sharpe2 = std::sqrt(2.0) / 3.0;
+        assert(std::abs(result2.sharpe_ratio - expected_sharpe2) < 1e-9);
+        assert(result2.avg_win == 1.0);
+        assert(result2.avg_loss == 0.0);
     }
 
     return 0;

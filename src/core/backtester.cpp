@@ -1,4 +1,6 @@
 #include "backtester.h"
+#include <algorithm>
+#include <cmath>
 #include <numeric>
 
 namespace Core {
@@ -60,6 +62,59 @@ BacktestResult Backtester::run() {
     if (!result.trades.empty()) {
         result.win_rate = static_cast<double>(wins) / result.trades.size();
     }
+
+    // Calculate average win and loss
+    double win_sum = 0.0;
+    double loss_sum = 0.0;
+    size_t win_count = 0;
+    size_t loss_count = 0;
+    for (const auto& t : result.trades) {
+        if (t.pnl > 0) {
+            win_sum += t.pnl;
+            ++win_count;
+        } else if (t.pnl < 0) {
+            loss_sum += -t.pnl;
+            ++loss_count;
+        }
+    }
+    if (win_count > 0) {
+        result.avg_win = win_sum / static_cast<double>(win_count);
+    }
+    if (loss_count > 0) {
+        result.avg_loss = loss_sum / static_cast<double>(loss_count);
+    }
+
+    // Calculate max drawdown
+    double peak = result.equity_curve.empty() ? 0.0 : result.equity_curve[0];
+    double max_dd = 0.0;
+    for (double equity : result.equity_curve) {
+        peak = std::max(peak, equity);
+        max_dd = std::max(max_dd, peak - equity);
+    }
+    result.max_drawdown = max_dd;
+
+    // Calculate Sharpe ratio
+    if (result.equity_curve.size() > 1) {
+        std::vector<double> returns;
+        returns.reserve(result.equity_curve.size() - 1);
+        for (size_t i = 1; i < result.equity_curve.size(); ++i) {
+            returns.push_back(result.equity_curve[i] - result.equity_curve[i - 1]);
+        }
+        double mean = std::accumulate(returns.begin(), returns.end(), 0.0) /
+                      static_cast<double>(returns.size());
+        double sq_sum = 0.0;
+        for (double r : returns) {
+            double diff = r - mean;
+            sq_sum += diff * diff;
+        }
+        double variance = sq_sum / static_cast<double>(returns.size());
+        double stddev = std::sqrt(variance);
+        if (stddev != 0.0) {
+            result.sharpe_ratio = (mean / stddev) *
+                                  std::sqrt(static_cast<double>(returns.size()));
+        }
+    }
+
     return result;
 }
 
