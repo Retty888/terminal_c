@@ -27,6 +27,7 @@
 #include "ui/control_panel.h"
 #include "ui/journal_window.h"
 #include "ui/signals_window.h"
+#include "ui/tradingview_style.h"
 
 using namespace Core;
 
@@ -61,6 +62,7 @@ int App::run() {
   ImGuiIO &io = ImGui::GetIO();
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   ImGui::StyleColorsDark();
+  ApplyTradingViewStyle();
 
   // Setup Platform/Renderer bindings
   ImGui_ImplGlfw_InitForOpenGL(window, true);
@@ -90,9 +92,8 @@ int App::run() {
 
   auto exchange_pairs_res = data_service_.fetch_all_symbols();
   std::vector<std::string> exchange_pairs =
-      exchange_pairs_res.error == FetchError::None
-          ? exchange_pairs_res.symbols
-          : std::vector<std::string>{};
+      exchange_pairs_res.error == FetchError::None ? exchange_pairs_res.symbols
+                                                   : std::vector<std::string>{};
 
   // Prepare candle storage by pair and interval
   const std::vector<std::string> intervals = {"1m", "5m", "15m",
@@ -124,9 +125,9 @@ int App::run() {
       auto candles = data_service_.load_candles(pair, interval);
       if (candles.empty()) {
         all_candles[pair][interval] = {};
-        initial_fetches.push_back({
-            pair, interval,
-            data_service_.fetch_klines_async(pair, interval, candles_limit)});
+        initial_fetches.push_back(
+            {pair, interval,
+             data_service_.fetch_klines_async(pair, interval, candles_limit)});
       } else {
         all_candles[pair][interval] = candles;
         ++completed_initial_fetches;
@@ -280,4 +281,3 @@ int App::run() {
 
   return 0;
 }
-
