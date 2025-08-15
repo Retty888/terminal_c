@@ -3,6 +3,7 @@
 #include "config.h"
 #include "core/backtester.h"
 #include "core/candle.h"
+#include "core/candle_manager.h"
 #include "imgui.h"
 #include "implot.h"
 #include "logger.h"
@@ -15,6 +16,7 @@
 #include <map>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -71,6 +73,23 @@ int App::run() {
   // Load config
   std::vector<std::string> pair_names =
       data_service_.load_selected_pairs("config.json");
+  std::vector<std::string> intervals = {"1m", "5m", "15m", "1h", "4h", "1d"};
+  if (pair_names.empty()) {
+    auto stored = CandleManager::list_stored_data();
+    std::set<std::string> pairs_found;
+    std::set<std::string> intervals_found;
+    for (const auto &entry : stored) {
+      auto lp = entry.rfind(" (");
+      auto rp = entry.rfind(')');
+      if (lp != std::string::npos && rp != std::string::npos && lp < rp) {
+        pairs_found.insert(entry.substr(0, lp));
+        intervals_found.insert(entry.substr(lp + 2, rp - lp - 2));
+      }
+    }
+    pair_names.assign(pairs_found.begin(), pairs_found.end());
+    if (!intervals_found.empty())
+      intervals.assign(intervals_found.begin(), intervals_found.end());
+  }
   if (pair_names.empty())
     pair_names.push_back("BTCUSDT");
   int candles_limit = Config::load_candles_limit("config.json");
@@ -88,7 +107,7 @@ int App::run() {
 
   std::vector<std::string> selected_pairs = pair_names;
   std::string active_pair = selected_pairs[0];
-  std::string active_interval = "1m";
+  std::string active_interval = intervals.empty() ? "1m" : intervals[0];
 
   auto exchange_pairs_res = data_service_.fetch_all_symbols();
   std::vector<std::string> exchange_pairs =
@@ -96,9 +115,7 @@ int App::run() {
                                                    : std::vector<std::string>{};
 
   // Prepare candle storage by pair and interval
-  const std::vector<std::string> intervals = {"1m", "5m", "15m",
-                                              "1h", "4h", "1d"};
-  std::string selected_interval = "1m";
+  std::string selected_interval = intervals.empty() ? "1m" : intervals[0];
   int short_period = 9;
   int long_period = 21;
   bool show_on_chart = false;
@@ -213,9 +230,9 @@ int App::run() {
       ImGui::End();
     }
 
-      DrawControlPanel(pairs, selected_pairs, active_pair, intervals,
-                       selected_interval, all_candles, save_pairs,
-                       exchange_pairs);
+    DrawControlPanel(pairs, selected_pairs, active_pair, intervals,
+                     selected_interval, all_candles, save_pairs,
+                     exchange_pairs);
 
     DrawSignalsWindow(short_period, long_period, show_on_chart, signal_entries,
                       buy_times, buy_prices, sell_times, sell_prices,
