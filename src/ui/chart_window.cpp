@@ -673,14 +673,12 @@ void DrawChartWindow(
     size_t start = slow_period + signal_period - 2;
     if (candles.size() >= start + 1) {
       for (size_t i = start; i < candles.size(); ++i) {
-        double macd_line =
-            Signal::macd(candles, i, fast_period, slow_period);
-        double signal_line = Signal::macd_signal(
-            candles, i, fast_period, slow_period, signal_period);
+        auto res =
+            Signal::macd(candles, i, fast_period, slow_period, signal_period);
         macd_t.push_back(times[i]);
-        macd_vals.push_back(macd_line);
-        signal_vals.push_back(signal_line);
-        hist_vals.push_back(macd_line - signal_line);
+        macd_vals.push_back(res.macd);
+        signal_vals.push_back(res.signal);
+        hist_vals.push_back(res.histogram);
       }
     }
     double ymin = -1.0, ymax = 1.0;
