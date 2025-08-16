@@ -14,6 +14,7 @@ std::vector<std::string> load_selected_pairs(const std::string& filename);
 void save_selected_pairs(const std::string& filename, const std::vector<std::string>& pairs);
 LogLevel load_min_log_level(const std::string& filename);
 size_t load_candles_limit(const std::string& filename);
+bool load_streaming_enabled(const std::string& filename);
 
 struct SignalConfig {
     std::string type{"sma_crossover"};

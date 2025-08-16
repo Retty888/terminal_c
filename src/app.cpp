@@ -4,6 +4,7 @@
 #include "core/backtester.h"
 #include "core/candle.h"
 #include "core/candle_manager.h"
+#include "core/kline_stream.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "implot.h"
@@ -13,8 +14,10 @@
 
 #include <algorithm>
 #include <chrono>
+#include <atomic>
 #include <future>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <set>
@@ -143,6 +146,7 @@ int App::run() {
   intervals.erase(std::unique(intervals.begin(), intervals.end()),
                   intervals.end());
   int candles_limit = Config::load_candles_limit("config.json");
+  bool streaming_enabled = Config::load_streaming_enabled("config.json");
   std::vector<PairItem> pairs;
   for (const auto &name : pair_names) {
     pairs.push_back({name, true});
@@ -177,6 +181,8 @@ int App::run() {
 
   std::map<std::string, std::map<std::string, std::vector<Candle>>> all_candles;
   std::mutex candles_mutex; // protects access to all_candles
+  std::map<std::string, std::unique_ptr<KlineStream>> streams;
+  std::atomic<bool> stream_failed{false};
   struct PendingFetch {
     std::string interval;
     std::future<Core::KlinesResult> future;
@@ -213,7 +219,26 @@ int App::run() {
       }
     }
   }
-  long long next_fetch_time = 0;
+  std::atomic<long long> next_fetch_time{0};
+  if (streaming_enabled) {
+    for (const auto &p : pairs) {
+      std::string pair = p.name;
+      auto stream = std::make_unique<KlineStream>(pair, active_interval);
+      stream->start(
+          [&, pair](const Candle &c) {
+            std::lock_guard<std::mutex> lock(candles_mutex);
+            auto &vec = all_candles[pair][active_interval];
+            if (vec.empty() || c.open_time > vec.back().open_time)
+              vec.push_back(c);
+          },
+          [&, pair]() {
+            stream_failed = true;
+            next_fetch_time.store(0);
+            add_status("Stream failed for " + pair + ", switching to HTTP");
+          });
+      streams[pair] = std::move(stream);
+    }
+  }
   const auto fetch_backoff = std::chrono::seconds(5);
 
   // Main loop
@@ -252,21 +277,22 @@ int App::run() {
     auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                       std::chrono::system_clock::now().time_since_epoch())
                       .count();
-    if (period.count() > 0) {
-      if (next_fetch_time == 0) {
+    bool use_http = (!streaming_enabled || stream_failed.load());
+    if (use_http && period.count() > 0) {
+      if (next_fetch_time.load() == 0) {
         std::lock_guard<std::mutex> lock(candles_mutex);
         auto pair_it = all_candles.find(active_pair);
         if (pair_it != all_candles.end()) {
           auto interval_it = pair_it->second.find(active_interval);
           if (interval_it != pair_it->second.end() &&
               !interval_it->second.empty())
-            next_fetch_time =
-                interval_it->second.back().open_time + period.count();
+            next_fetch_time.store(
+                interval_it->second.back().open_time + period.count());
         }
-        if (next_fetch_time == 0)
-          next_fetch_time = now_ms + period.count();
+        if (next_fetch_time.load() == 0)
+          next_fetch_time.store(now_ms + period.count());
       }
-      if (now_ms >= next_fetch_time) {
+      if (now_ms >= next_fetch_time.load()) {
         for (const auto &item : pairs) {
           const auto &pair = item.name;
           if (pending_fetches.find(pair) == pending_fetches.end()) {
@@ -276,9 +302,10 @@ int App::run() {
             add_status("Updating " + pair);
           }
         }
-        next_fetch_time = now_ms + period.count();
+        next_fetch_time.store(now_ms + period.count());
       }
     }
+    if (use_http) {
     for (auto it = pending_fetches.begin(); it != pending_fetches.end();) {
       if (it->second.future.wait_for(std::chrono::seconds(0)) ==
           std::future_status::ready) {
@@ -297,16 +324,18 @@ int App::run() {
                                          {latest.candles.back()});
             auto p = interval_to_duration(it->second.interval);
             long long boundary = vec.back().open_time + p.count();
-            if (next_fetch_time == 0 || boundary < next_fetch_time)
-              next_fetch_time = boundary;
+            auto nft = next_fetch_time.load();
+            if (nft == 0 || boundary < nft)
+              next_fetch_time.store(boundary);
           } else {
             long long retry =
                 result_now +
                 std::chrono::duration_cast<std::chrono::milliseconds>(
                     fetch_backoff)
                     .count();
-            if (next_fetch_time == 0 || retry < next_fetch_time)
-              next_fetch_time = retry;
+            auto nft2 = next_fetch_time.load();
+            if (nft2 == 0 || retry < nft2)
+              next_fetch_time.store(retry);
           }
           add_status("Updated " + it->first);
         } else {
@@ -317,13 +346,15 @@ int App::run() {
               std::chrono::duration_cast<std::chrono::milliseconds>(
                   fetch_backoff)
                   .count();
-          if (next_fetch_time == 0 || retry < next_fetch_time)
-            next_fetch_time = retry;
+          auto nft3 = next_fetch_time.load();
+          if (nft3 == 0 || retry < nft3)
+            next_fetch_time.store(retry);
         }
         it = pending_fetches.erase(it);
       } else {
         ++it;
       }
+    }
     }
 
     for (auto it = initial_fetches.begin(); it != initial_fetches.end();) {
