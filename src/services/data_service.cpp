@@ -43,6 +43,8 @@ Core::KlinesResult DataService::fetch_klines_alt(
   return Core::DataFetcher::fetch_klines_alt(symbol, interval, limit,
                                             max_retries, retry_delay,
                                             request_pause);
+                                             max_retries, retry_delay,
+                                             request_pause);
 }
 
 std::future<Core::KlinesResult>
