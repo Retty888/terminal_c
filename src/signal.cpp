@@ -76,9 +76,9 @@ int ema_signal(const std::vector<Core::Candle>& candles,
     return 0;
 }
 
-double relative_strength_index(const std::vector<Core::Candle>& candles,
-                               std::size_t index,
-                               std::size_t period) {
+  double relative_strength_index(const std::vector<Core::Candle>& candles,
+                                 std::size_t index,
+                                 std::size_t period) {
     if (period == 0 || index >= candles.size() || index < period) {
         return 0.0;
     }
@@ -113,99 +113,74 @@ int rsi_signal(const std::vector<Core::Candle>& candles,
     if (rsi > overbought) {
         return -1;
     }
-    return 0;
-}
+      return 0;
+  }
 
-double macd(const std::vector<Core::Candle>& candles,
-            std::size_t index,
-            std::size_t fast_period,
-            std::size_t slow_period) {
-    if (fast_period == 0 || slow_period == 0 || fast_period >= slow_period) {
-        return 0.0;
-    }
-    if (index >= candles.size() || index + 1 < slow_period) {
-        return 0.0;
-    }
-    double fast = exponential_moving_average(candles, index, fast_period);
-    double slow = exponential_moving_average(candles, index, slow_period);
-    return fast - slow;
-}
-
-double macd_signal(const std::vector<Core::Candle>& candles,
+  // Calculates the MACD line (EMA(fast) - EMA(slow)).
+  double macd_line(const std::vector<Core::Candle>& candles,
                    std::size_t index,
                    std::size_t fast_period,
-                   std::size_t slow_period,
-                   std::size_t signal_period) {
-    if (signal_period == 0 || fast_period == 0 || slow_period == 0 ||
-        fast_period >= slow_period) {
-        return 0.0;
-    }
-    if (index >= candles.size() ||
-        index + 1 < slow_period + signal_period - 1) {
-        return 0.0;
-    }
+                   std::size_t slow_period) {
+      if (fast_period == 0 || slow_period == 0 || fast_period >= slow_period) {
+          return 0.0;
+      }
+      if (index >= candles.size() || index + 1 < slow_period) {
+          return 0.0;
+      }
+      double fast = exponential_moving_average(candles, index, fast_period);
+      double slow = exponential_moving_average(candles, index, slow_period);
+      return fast - slow;
+  }
 
-    std::vector<double> macd_vals;
-    macd_vals.reserve(index - (slow_period - 1) + 1);
-    for (std::size_t i = slow_period - 1; i <= index; ++i) {
-        macd_vals.push_back(macd(candles, i, fast_period, slow_period));
-    }
+  // Calculates the signal line of MACD (EMA of MACD values).
+  double macd_signal_line(const std::vector<Core::Candle>& candles,
+                          std::size_t index,
+                          std::size_t fast_period,
+                          std::size_t slow_period,
+                          std::size_t signal_period) {
+      if (signal_period == 0 || fast_period == 0 || slow_period == 0 ||
+          fast_period >= slow_period) {
+          return 0.0;
+      }
+      if (index >= candles.size() ||
+          index + 1 < slow_period + signal_period - 1) {
+          return 0.0;
+      }
 
-    const double k = 2.0 / (static_cast<double>(signal_period) + 1.0);
-    double ema = 0.0;
-    if (macd_vals.size() >= signal_period) {
-        double sum = 0.0;
-        for (std::size_t i = 0; i < signal_period; ++i) {
-            sum += macd_vals[i];
-        }
-        ema = sum / static_cast<double>(signal_period);
-        for (std::size_t i = signal_period; i < macd_vals.size(); ++i) {
-            ema = (macd_vals[i] - ema) * k + ema;
-        }
-    }
-    return ema;
-}
+      std::size_t start = index + 1 - signal_period;
+      std::vector<double> macd_vals;
+      macd_vals.reserve(signal_period);
+      for (std::size_t i = start; i <= index; ++i) {
+          macd_vals.push_back(macd_line(candles, i, fast_period, slow_period));
+      }
 
-double macd_histogram(const std::vector<Core::Candle>& candles,
-                      std::size_t index,
-                      std::size_t fast_period,
-                      std::size_t slow_period,
-                      std::size_t signal_period) {
-    double macd_line = macd(candles, index, fast_period, slow_period);
-    double signal_line =
-        macd_signal(candles, index, fast_period, slow_period, signal_period);
-    return macd_line - signal_line;
-MACDResult macd(const std::vector<Core::Candle>& candles,
-                std::size_t index,
+      const double k = 2.0 / (static_cast<double>(signal_period) + 1.0);
+      double signal = macd_vals.front();
+      for (std::size_t i = 1; i < macd_vals.size(); ++i) {
+          signal = (macd_vals[i] - signal) * k + signal;
+      }
+      return signal;
+  }
 
-                std::size_t fast_period,
-                std::size_t slow_period,
-                std::size_t signal_period) {
-    if (fast_period == 0 || slow_period == 0 || signal_period == 0 ||
-        fast_period >= slow_period) {
-        return {0.0, 0.0, 0.0};
-    }
-    if (index >= candles.size() ||
-        index + 1 < slow_period + signal_period) {
-        return {0.0, 0.0, 0.0};
-    }
-    std::size_t start = index + 1 - signal_period;
-    std::vector<double> macd_vals;
-    macd_vals.reserve(signal_period);
-    for (std::size_t i = start; i <= index; ++i) {
-        double fast = exponential_moving_average(candles, i, fast_period);
-        double slow = exponential_moving_average(candles, i, slow_period);
-        macd_vals.push_back(fast - slow);
-    }
-    double k = 2.0 / (static_cast<double>(signal_period) + 1.0);
-    double signal = macd_vals.front();
-    for (std::size_t i = 1; i < macd_vals.size(); ++i) {
-        signal = (macd_vals[i] - signal) * k + signal;
-    }
-    double macd_val = macd_vals.back();
-    double hist = macd_val - signal;
-    return {macd_val, signal, hist};
-}
+  MACDResult macd(const std::vector<Core::Candle>& candles,
+                  std::size_t index,
+                  std::size_t fast_period,
+                  std::size_t slow_period,
+                  std::size_t signal_period) {
+      if (fast_period == 0 || slow_period == 0 || signal_period == 0 ||
+          fast_period >= slow_period) {
+          return {0.0, 0.0, 0.0};
+      }
+      if (index >= candles.size() ||
+          index + 1 < slow_period + signal_period - 1) {
+          return {0.0, 0.0, 0.0};
+      }
+
+      double macd_val = macd_line(candles, index, fast_period, slow_period);
+      double signal = macd_signal_line(candles, index, fast_period, slow_period, signal_period);
+      double histogram = macd_val - signal;
+      return {macd_val, signal, histogram};
+  }
 
 int macd_signal(const std::vector<Core::Candle>& candles,
                 std::size_t index,
@@ -224,34 +199,6 @@ int macd_signal(const std::vector<Core::Candle>& candles,
         return -1;
     }
     return 0;
-                std::size_t short_period,
-                std::size_t long_period,
-                std::size_t signal_period) {
-    if (short_period == 0 || long_period == 0 || signal_period == 0 ||
-        short_period >= long_period) {
-        return {0.0, 0.0, 0.0};
-    }
-    if (index >= candles.size() ||
-        index + 1 < long_period + signal_period - 1) {
-        return {0.0, 0.0, 0.0};
-    }
-    std::vector<double> macd_vals;
-    for (std::size_t i = long_period - 1; i <= index; ++i) {
-        double ema_short = exponential_moving_average(candles, i, short_period);
-        double ema_long = exponential_moving_average(candles, i, long_period);
-        macd_vals.push_back(ema_short - ema_long);
-    }
-    const double k = 2.0 / (static_cast<double>(signal_period) + 1.0);
-    double signal = std::accumulate(macd_vals.begin(),
-                                    macd_vals.begin() + static_cast<long>(signal_period),
-                                    0.0) /
-                    static_cast<double>(signal_period);
-    for (std::size_t i = signal_period; i < macd_vals.size(); ++i) {
-        signal = (macd_vals[i] - signal) * k + signal;
-    }
-    double macd_line = macd_vals.back();
-    double histogram = macd_line - signal;
-    return {macd_line, signal, histogram};
 }
 
 } // namespace Signal

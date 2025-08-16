@@ -38,25 +38,6 @@ namespace Signal {
                              double oversold,
                              double overbought);
 
-// Calculates the MACD line (EMA(fast) - EMA(slow)).
-[[nodiscard]] double macd(const std::vector<Core::Candle>& candles,
-                          std::size_t index,
-                          std::size_t fast_period,
-                          std::size_t slow_period);
-
-// Calculates the signal line of MACD (EMA of MACD values).
-[[nodiscard]] double macd_signal(const std::vector<Core::Candle>& candles,
-                                std::size_t index,
-                                std::size_t fast_period,
-                                std::size_t slow_period,
-                                std::size_t signal_period);
-
-// Calculates the MACD histogram (MACD - signal).
-[[nodiscard]] double macd_histogram(const std::vector<Core::Candle>& candles,
-                                   std::size_t index,
-                                   std::size_t fast_period,
-                                   std::size_t slow_period,
-                                   std::size_t signal_period);
 struct MACDResult {
     double macd;
     double signal;
@@ -76,13 +57,6 @@ struct MACDResult {
                               std::size_t fast_period,
                               std::size_t slow_period,
                               std::size_t signal_period);
-=======
-// Calculates Moving Average Convergence Divergence.
-[[nodiscard]] MACDResult macd(const std::vector<Core::Candle>& candles,
-                             std::size_t index,
-                             std::size_t short_period,
-                             std::size_t long_period,
-                             std::size_t signal_period);
 
 } // namespace Signal
 
