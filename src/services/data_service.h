@@ -39,6 +39,7 @@ public:
       std::chrono::milliseconds retry_delay = std::chrono::milliseconds(1000),
       std::chrono::milliseconds request_pause =
           std::chrono::milliseconds(1100)) const;
+  // Direct access to the alternative kline API.
   Core::KlinesResult fetch_klines_alt(
       const std::string &symbol, const std::string &interval, int limit,
       int max_retries = 3,

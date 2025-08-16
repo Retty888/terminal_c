@@ -55,6 +55,9 @@ public:
                std::chrono::milliseconds request_pause =
                    std::chrono::milliseconds(1100));
 
+  // Alternative API for fetching klines. Used as a fallback when the main
+  // endpoint is unavailable or for special intervals not supported by the
+  // primary exchange.
   // Fetches kline data from an alternative API. Used as a fallback when the
   // primary exchange fails or for unsupported intervals (e.g. 5s/15s).
   static KlinesResult
