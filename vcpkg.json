@@ -8,6 +8,7 @@
     "nlohmann-json",
     "arrow",
     "glfw3",
-    "opengl"
+    "opengl",
+    "gtest"
   ]
 }
