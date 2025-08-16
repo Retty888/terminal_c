@@ -15,6 +15,8 @@ void DrawSignalsWindow(
     std::string& strategy,
     int& short_period,
     int& long_period,
+    double& oversold,
+    double& overbought,
     bool& show_on_chart,
     std::vector<SignalEntry>& signal_entries,
     std::vector<double>& buy_times,
@@ -32,9 +34,6 @@ void DrawSignalsWindow(
     else if (strategy == "rsi") strategy_idx = 2;
     ImGui::Combo("Strategy", &strategy_idx, strategies, IM_ARRAYSIZE(strategies));
     strategy = strategies[strategy_idx];
-
-    static double oversold = 30.0;
-    static double overbought = 70.0;
 
     if (strategy == "sma_crossover") {
         ImGui::InputInt("Short SMA", &short_period);

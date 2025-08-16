@@ -30,6 +30,7 @@
 #include "ui/journal_window.h"
 #include "ui/signals_window.h"
 #include "ui/tradingview_style.h"
+#include "services/signal_bot.h"
 
 using namespace Core;
 
@@ -155,6 +156,8 @@ int App::run() {
   std::string strategy = "sma_crossover";
   int short_period = 9;
   int long_period = 21;
+  double oversold = 30.0;
+  double overbought = 70.0;
   bool show_on_chart = false;
   std::vector<SignalEntry> signal_entries;
   std::vector<double> buy_times, buy_prices, sell_times, sell_prices;
@@ -168,6 +171,7 @@ int App::run() {
   std::map<std::string, PendingFetch> pending_fetches;
   journal_service_.load("journal.json");
   Core::BacktestResult last_result;
+  Config::SignalConfig last_signal_cfg;
 
   struct FetchTask {
     std::string pair;
@@ -291,9 +295,10 @@ int App::run() {
                      selected_interval, all_candles, save_pairs,
                      exchange_pairs, status_);
 
-    DrawSignalsWindow(strategy, short_period, long_period, show_on_chart, signal_entries,
-                      buy_times, buy_prices, sell_times, sell_prices,
-                      all_candles, active_pair, selected_interval, status_);
+    DrawSignalsWindow(strategy, short_period, long_period, oversold, overbought,
+                      show_on_chart, signal_entries, buy_times, buy_prices,
+                      sell_times, sell_prices, all_candles, active_pair,
+                      selected_interval, status_);
 
     DrawAnalyticsWindow(all_candles, active_pair, selected_interval);
 
@@ -301,33 +306,57 @@ int App::run() {
 
     // Backtest Window
     ImGui::Begin("Backtest");
-    static int short_p = 9;
-    static int long_p = 21;
-    ImGui::InputInt("Short SMA", &short_p);
-    ImGui::InputInt("Long SMA", &long_p);
+    ImGui::Text("Strategy: %s", strategy.c_str());
+    if (strategy == "sma_crossover") {
+      ImGui::Text("Short SMA: %d", short_period);
+      ImGui::Text("Long SMA: %d", long_period);
+    } else if (strategy == "ema") {
+      ImGui::Text("EMA Period: %d", short_period);
+    } else if (strategy == "rsi") {
+      ImGui::Text("RSI Period: %d", short_period);
+      ImGui::Text("Oversold: %.2f", oversold);
+      ImGui::Text("Overbought: %.2f", overbought);
+    }
     if (ImGui::Button("Run Backtest")) {
       status_.analysis_message = "Running backtest";
       add_status("Backtest started");
-      struct Strat : Core::IStrategy {
-        int s, l;
-        Strat(int sp, int lp) : s(sp), l(lp) {}
-        int generate_signal(const std::vector<Candle> &candles,
-                            size_t index) override {
-          return Signal::sma_crossover_signal(candles, index, s, l);
-        }
-      } strat(short_p, long_p);
+      Config::SignalConfig cfg;
+      cfg.type = strategy;
+      cfg.short_period = static_cast<std::size_t>(short_period);
+      cfg.long_period = static_cast<std::size_t>(long_period);
+      if (strategy == "rsi") {
+        cfg.params["oversold"] = oversold;
+        cfg.params["overbought"] = overbought;
+      }
+      SignalBot bot(cfg);
       auto pair_it = all_candles.find(active_pair);
       if (pair_it != all_candles.end()) {
         auto interval_it = pair_it->second.find(active_interval);
         if (interval_it != pair_it->second.end()) {
-          Core::Backtester bt(interval_it->second, strat);
+          Core::Backtester bt(interval_it->second, bot);
           last_result = bt.run();
+          last_signal_cfg = cfg;
         }
       }
       status_.analysis_message = "Backtest done";
       add_status("Backtest finished");
     }
     if (!last_result.equity_curve.empty()) {
+      ImGui::Text("Strategy: %s", last_signal_cfg.type.c_str());
+      if (last_signal_cfg.type == "sma_crossover") {
+        ImGui::Text("Short SMA: %zu", last_signal_cfg.short_period);
+        ImGui::Text("Long SMA: %zu", last_signal_cfg.long_period);
+      } else if (last_signal_cfg.type == "ema") {
+        ImGui::Text("EMA Period: %zu", last_signal_cfg.short_period);
+      } else if (last_signal_cfg.type == "rsi") {
+        ImGui::Text("RSI Period: %zu", last_signal_cfg.short_period);
+        auto it_os = last_signal_cfg.params.find("oversold");
+        if (it_os != last_signal_cfg.params.end())
+          ImGui::Text("Oversold: %.2f", it_os->second);
+        auto it_ob = last_signal_cfg.params.find("overbought");
+        if (it_ob != last_signal_cfg.params.end())
+          ImGui::Text("Overbought: %.2f", it_ob->second);
+      }
       ImGui::Text("Total PnL: %.2f", last_result.total_pnl);
       ImGui::Text("Win rate: %.2f%%", last_result.win_rate * 100.0);
       ImGui::Text("Max Drawdown: %.2f", last_result.max_drawdown);
