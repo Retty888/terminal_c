@@ -1,6 +1,10 @@
 #include "ui/analytics_window.h"
 
 #include "imgui.h"
+#include "implot.h"
+
+#include <algorithm>
+#include <vector>
 
 using namespace Core;
 
@@ -11,9 +15,64 @@ void DrawAnalyticsWindow(
     ImGui::Begin("Analytics");
     const auto& ana_candles = all_candles.at(active_pair).at(selected_interval);
     if (!ana_candles.empty()) {
-        ImGui::Text("Data points: %d", (int)ana_candles.size());
-        ImGui::Text("Last open: %.2f", ana_candles.back().open);
-        ImGui::Text("Last close: %.2f", ana_candles.back().close);
+        double min_price = ana_candles.front().low;
+        double max_price = ana_candles.front().high;
+        double sum_volume = 0.0;
+        double sum_close = 0.0;
+        for (const auto& c : ana_candles) {
+            min_price = std::min(min_price, c.low);
+            max_price = std::max(max_price, c.high);
+            sum_volume += c.volume;
+            sum_close += c.close;
+        }
+        double avg_volume = sum_volume / ana_candles.size();
+        double avg_close = sum_close / ana_candles.size();
+        double change = ana_candles.back().close - ana_candles.front().close;
+        double change_pct = ana_candles.front().close != 0.0
+                                ? change / ana_candles.front().close * 100.0
+                                : 0.0;
+
+        std::vector<double> closes(ana_candles.size());
+        std::vector<double> idx(ana_candles.size());
+        std::vector<double> volumes(ana_candles.size());
+        for (size_t i = 0; i < ana_candles.size(); ++i) {
+            closes[i] = ana_candles[i].close;
+            volumes[i] = ana_candles[i].volume;
+            idx[i] = static_cast<double>(i);
+        }
+
+        if (ImGui::BeginTabBar("##analytics_tabs")) {
+            if (ImGui::BeginTabItem("Price")) {
+                ImGui::Text("Data points: %d", (int)ana_candles.size());
+                ImGui::Text("Min price: %.2f", min_price);
+                ImGui::Text("Max price: %.2f", max_price);
+                ImGui::Text("Avg close: %.2f", avg_close);
+                ImGui::Text("Change: %.2f (%.2f%%)", change, change_pct);
+                if (ana_candles.size() > 1 &&
+                    ImPlot::BeginPlot("##price_plot", ImVec2(-1, 150),
+                                      ImPlotFlags_NoTitle | ImPlotFlags_NoLegend |
+                                          ImPlotFlags_NoMenus)) {
+                    ImPlot::PlotLine("Price", idx.data(), closes.data(),
+                                     (int)closes.size());
+                    ImPlot::EndPlot();
+                }
+                ImGui::EndTabItem();
+            }
+
+            if (ImGui::BeginTabItem("Volume")) {
+                ImGui::Text("Avg volume: %.2f", avg_volume);
+                if (ana_candles.size() >= 5 &&
+                    ImPlot::BeginPlot("##volume_hist", ImVec2(-1, 150),
+                                      ImPlotFlags_NoTitle | ImPlotFlags_NoLegend |
+                                          ImPlotFlags_NoMenus)) {
+                    ImPlot::PlotHistogram("Volume", volumes.data(),
+                                          (int)volumes.size(), 20);
+                    ImPlot::EndPlot();
+                }
+                ImGui::EndTabItem();
+            }
+            ImGui::EndTabBar();
+        }
     } else {
         ImGui::Text("No data");
     }
