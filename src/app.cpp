@@ -247,6 +247,19 @@ int App::run() {
   std::string last_active_pair = active_pair;
   std::string last_active_interval = active_interval;
 
+  auto cancel_pair = [&](const std::string &pair) {
+    pending_fetches.erase(pair);
+    fetch_queue.erase(
+        std::remove_if(fetch_queue.begin(), fetch_queue.end(),
+                       [&](const FetchTask &t) { return t.pair == pair; }),
+        fetch_queue.end());
+    auto it = streams.find(pair);
+    if (it != streams.end()) {
+      it->second->stop();
+      streams.erase(it);
+    }
+  };
+
   // Main loop
   while (!glfwWindowShouldClose(window)) {
     glfwPollEvents();
@@ -432,7 +445,7 @@ int App::run() {
 
     DrawControlPanel(pairs, selected_pairs, active_pair, intervals,
                      selected_interval, all_candles, save_pairs, exchange_pairs,
-                     status_);
+                     status_, cancel_pair);
 
     DrawSignalsWindow(strategy, short_period, long_period, oversold, overbought,
                       show_on_chart, signal_entries, buy_times, buy_prices,

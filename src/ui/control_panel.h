@@ -22,5 +22,6 @@ void DrawControlPanel(
     std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>& all_candles,
     const std::function<void()>& save_pairs,
     const std::vector<std::string>& exchange_pairs,
-    const AppStatus& status);
+    const AppStatus& status,
+    const std::function<void(const std::string&)>& cancel_pair);
 
