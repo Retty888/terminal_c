@@ -16,9 +16,9 @@ void DataService::save_selected_pairs(
 
 Core::SymbolsResult DataService::fetch_all_symbols(
     int max_retries, std::chrono::milliseconds retry_delay,
-    std::chrono::milliseconds request_pause) const {
+    std::chrono::milliseconds request_pause, std::size_t top_n) const {
   return Core::DataFetcher::fetch_all_symbols(max_retries, retry_delay,
-                                             request_pause);
+                                             request_pause, top_n);
 }
 
 Core::IntervalsResult DataService::fetch_intervals(

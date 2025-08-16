@@ -501,6 +501,9 @@ int App::run() {
     glfwSwapBuffers(window);
   }
 
+  // Save selected pairs before exiting
+  save_pairs();
+
   // Cleanup
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();

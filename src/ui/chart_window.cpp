@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <map>
 #include <string>
+#include <cctype>
 
 using namespace Core;
 
@@ -79,8 +80,21 @@ void DrawChartWindow(
     const Core::BacktestResult &last_result) {
   ImGui::Begin("Chart");
 
+  static char pair_filter[64] = "";
+  ImGui::InputText("##pair_filter", pair_filter, IM_ARRAYSIZE(pair_filter));
+  std::string filter_str = pair_filter;
+  std::transform(filter_str.begin(), filter_str.end(), filter_str.begin(),
+                 ::tolower);
+  std::vector<std::string> filtered_pairs;
+  for (const auto &p : pair_list) {
+    std::string lower = p;
+    std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+    if (filter_str.empty() || lower.find(filter_str) != std::string::npos)
+      filtered_pairs.push_back(p);
+  }
+
   if (ImGui::BeginCombo("Pair", active_pair.c_str())) {
-    for (const auto &p : pair_list) {
+    for (const auto &p : filtered_pairs) {
       bool sel = (p == active_pair);
       if (ImGui::Selectable(p.c_str(), sel))
         active_pair = p;

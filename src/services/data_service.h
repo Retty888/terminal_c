@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <chrono>
+#include <cstddef>
 
 #include "core/candle.h"
 #include "core/data_fetcher.h"
@@ -25,7 +26,8 @@ public:
       int max_retries = 3,
       std::chrono::milliseconds retry_delay = std::chrono::milliseconds(1000),
       std::chrono::milliseconds request_pause =
-          std::chrono::milliseconds(1100)) const;
+          std::chrono::milliseconds(1100),
+      std::size_t top_n = 100) const;
   Core::IntervalsResult fetch_intervals(
       int max_retries = 3,
       std::chrono::milliseconds retry_delay = std::chrono::milliseconds(1000),
