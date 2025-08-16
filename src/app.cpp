@@ -16,6 +16,7 @@
 #include <chrono>
 #include <atomic>
 #include <future>
+#include <deque>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -196,28 +197,30 @@ int App::run() {
     std::string pair;
     std::string interval;
     std::future<Core::KlinesResult> future;
+    std::chrono::steady_clock::time_point start;
   };
-  std::vector<FetchTask> initial_fetches;
-  const int total_initial_fetches = selected_pairs.size() * intervals.size();
-  int completed_initial_fetches = 0;
+  std::deque<FetchTask> fetch_queue;
+  std::size_t total_fetches = 0;
+  std::size_t completed_fetches = 0;
 
   for (const auto &pair : selected_pairs) {
     for (const auto &interval : intervals) {
-      auto candles = data_service_.load_candles(pair, interval);
-      all_candles[pair][interval] = candles;
-      int missing = candles_limit - static_cast<int>(candles.size());
-      if (missing > 0) {
-        initial_fetches.push_back(
-            {pair, interval,
-             data_service_.fetch_klines_async(pair, interval, missing)});
-        add_status("Fetching " + pair + " " + interval);
-      } else {
-        ++completed_initial_fetches;
-        status_.candle_progress =
-            static_cast<float>(completed_initial_fetches) /
-            static_cast<float>(total_initial_fetches);
-      }
+      all_candles[pair][interval] =
+          data_service_.load_candles(pair, interval);
     }
+  }
+  auto &initial = all_candles[active_pair][active_interval];
+  int missing = candles_limit - static_cast<int>(initial.size());
+  if (missing > 0) {
+    fetch_queue.push_back({
+        active_pair,
+        active_interval,
+        data_service_.fetch_klines_async(active_pair, active_interval, missing),
+        std::chrono::steady_clock::now()});
+    total_fetches = 1;
+    add_status("Fetching " + active_pair + " " + active_interval);
+  } else {
+    status_.candle_progress = 1.0f;
   }
   std::atomic<long long> next_fetch_time{0};
   if (streaming_enabled) {
@@ -240,6 +243,9 @@ int App::run() {
     }
   }
   const auto fetch_backoff = std::chrono::seconds(5);
+  const auto request_timeout = std::chrono::seconds(10);
+  std::string last_active_pair = active_pair;
+  std::string last_active_interval = active_interval;
 
   // Main loop
   while (!glfwWindowShouldClose(window)) {
@@ -357,15 +363,14 @@ int App::run() {
     }
     }
 
-    for (auto it = initial_fetches.begin(); it != initial_fetches.end();) {
-      if (it->future.wait_for(std::chrono::seconds(0)) ==
-          std::future_status::ready) {
+    for (auto it = fetch_queue.begin(); it != fetch_queue.end();) {
+      auto status = it->future.wait_for(std::chrono::seconds(0));
+      if (status == std::future_status::ready) {
         auto fetched = it->future.get();
         if (fetched.error == FetchError::None && !fetched.candles.empty()) {
           std::lock_guard<std::mutex> lock(candles_mutex);
           auto &vec = all_candles[it->pair][it->interval];
-          bool had_candles = !vec.empty();
-          long long last_time = had_candles ? vec.back().open_time : 0;
+          long long last_time = vec.empty() ? 0 : vec.back().open_time;
           std::vector<Candle> new_candles;
           for (const auto &c : fetched.candles) {
             if (c.open_time > last_time) {
@@ -374,33 +379,54 @@ int App::run() {
             }
           }
           if (!new_candles.empty()) {
-            if (had_candles)
+            if (last_time > 0)
               data_service_.append_candles(it->pair, it->interval, new_candles);
             else
               data_service_.save_candles(it->pair, it->interval, vec);
           }
           add_status("Loaded " + it->pair + " " + it->interval);
+          ++completed_fetches;
+          it = fetch_queue.erase(it);
         } else {
           status_.error_message =
-              "Failed to fetch " + it->pair + " " + it->interval;
+              "Failed to fetch " + it->pair + " " + it->interval + ", retrying";
           add_status(status_.error_message);
+          int miss = candles_limit -
+                     static_cast<int>(all_candles[it->pair][it->interval].size());
+          if (miss <= 0)
+            miss = candles_limit;
+          it->future = data_service_.fetch_klines_async(it->pair, it->interval, miss);
+          it->start = std::chrono::steady_clock::now();
+          ++it;
         }
-        ++completed_initial_fetches;
-        status_.candle_progress =
-            static_cast<float>(completed_initial_fetches) /
-            static_cast<float>(total_initial_fetches);
-        it = initial_fetches.erase(it);
       } else {
+        if (std::chrono::steady_clock::now() - it->start > request_timeout) {
+          status_.error_message =
+              "Timeout fetching " + it->pair + " " + it->interval + ", retrying";
+          add_status(status_.error_message);
+          int miss = candles_limit -
+                     static_cast<int>(all_candles[it->pair][it->interval].size());
+          if (miss <= 0)
+            miss = candles_limit;
+          it->future =
+              data_service_.fetch_klines_async(it->pair, it->interval, miss);
+          it->start = std::chrono::steady_clock::now();
+        }
         ++it;
       }
     }
-
-    if (completed_initial_fetches < total_initial_fetches) {
-      ImGui::Begin("Loading data", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-      float progress = static_cast<float>(completed_initial_fetches) /
-                       static_cast<float>(total_initial_fetches);
+    status_.candle_progress = total_fetches > 0
+                                  ? static_cast<float>(completed_fetches) /
+                                        static_cast<float>(total_fetches)
+                                  : 1.0f;
+    if (completed_fetches < total_fetches) {
+      ImGui::Begin("Status", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+      float progress = total_fetches
+                           ? static_cast<float>(completed_fetches) /
+                                 static_cast<float>(total_fetches)
+                           : 1.0f;
       ImGui::ProgressBar(progress, ImVec2(0.0f, 0.0f));
-      ImGui::Text("%d / %d", completed_initial_fetches, total_initial_fetches);
+      ImGui::Text("%zu / %zu", completed_fetches, total_fetches);
       ImGui::End();
     }
 
@@ -490,6 +516,30 @@ int App::run() {
     DrawChartWindow(all_candles, active_pair, active_interval, selected_pairs,
                     intervals, show_on_chart, buy_times, buy_prices, sell_times,
                     sell_prices, journal_service_.journal(), last_result);
+
+    if (active_pair != last_active_pair ||
+        active_interval != last_active_interval) {
+      last_active_pair = active_pair;
+      last_active_interval = active_interval;
+      auto &candles = all_candles[active_pair][active_interval];
+      if (candles.empty())
+        candles = data_service_.load_candles(active_pair, active_interval);
+      int miss = candles_limit - static_cast<int>(candles.size());
+      bool exists = std::any_of(fetch_queue.begin(), fetch_queue.end(),
+                                [&](const FetchTask &t) {
+                                  return t.pair == active_pair &&
+                                         t.interval == active_interval;
+                                });
+      if (miss > 0 && !exists) {
+        fetch_queue.push_back({active_pair, active_interval,
+                               data_service_.fetch_klines_async(active_pair,
+                                                                active_interval,
+                                                                miss),
+                               std::chrono::steady_clock::now()});
+        ++total_fetches;
+        add_status("Fetching " + active_pair + " " + active_interval);
+      }
+    }
 
     ImGui::Render();
     int display_w, display_h;
