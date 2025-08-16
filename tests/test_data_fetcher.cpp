@@ -24,6 +24,18 @@ TEST(DataFetcherTest, LatestCandleNoLag) {
     EXPECT_EQ(res.candles[0].close_time, expected_open + interval_ms - 1);
 }
 
+TEST(DataFetcherTest, AltApiLatestCandle) {
+    using namespace Core;
+    auto res = DataFetcher::fetch_klines_alt(
+        "BTCUSDT", "1m", 1, 1,
+        std::chrono::milliseconds(0),
+        std::chrono::milliseconds(0));
+    if (res.error != FetchError::None) {
+        GTEST_SKIP() << "Network error";
+    }
+    ASSERT_EQ(res.candles.size(), 1u);
+}
+
 TEST(DataFetcherTest, AsyncLatestCandleNoLag) {
     using namespace Core;
     long long interval_ms = 60LL * 1000LL; // 1 minute

@@ -50,18 +50,15 @@ long long interval_to_ms(const std::string &interval) {
     return 0;
   }
 }
-} // namespace
 
-namespace Core {
-
-KlinesResult DataFetcher::fetch_klines(
-    const std::string &symbol, const std::string &interval, int limit,
-    int max_retries, std::chrono::milliseconds retry_delay,
+Core::KlinesResult fetch_klines_from_api(
+    const std::string &prefix, const std::string &symbol,
+    const std::string &interval, int limit, int max_retries,
+    std::chrono::milliseconds retry_delay,
     std::chrono::milliseconds request_pause) {
   const std::string base_url =
-      "https://api.binance.com/api/v3/klines?symbol=" + symbol +
-      "&interval=" + interval;
-  std::vector<Candle> all_candles;
+      prefix + symbol + "&interval=" + interval;
+  std::vector<Core::Candle> all_candles;
   long long interval_ms = interval_to_ms(interval);
   auto now = std::chrono::system_clock::now();
   long long current_ms =
@@ -88,12 +85,12 @@ KlinesResult DataFetcher::fetch_klines(
           std::this_thread::sleep_for(retry_delay);
           continue;
         }
-        return {FetchError::NetworkError, 0, r.error.message, {}};
+        return {Core::FetchError::NetworkError, 0, r.error.message, {}};
       }
       http_status = r.status_code;
       if (r.status_code == 200) {
         try {
-          std::vector<Candle> candles;
+          std::vector<Core::Candle> candles;
           auto json_data = nlohmann::json::parse(r.text);
           for (const auto &kline : json_data) {
             candles.emplace_back(
@@ -110,7 +107,7 @@ KlinesResult DataFetcher::fetch_klines(
                 std::stod(kline[11].get<std::string>()));
           }
           if (candles.empty()) {
-            return {FetchError::None, http_status, "", all_candles};
+            return {Core::FetchError::None, http_status, "", all_candles};
           }
           all_candles.insert(all_candles.begin(), candles.begin(),
                              candles.end());
@@ -120,7 +117,7 @@ KlinesResult DataFetcher::fetch_klines(
         } catch (const std::exception &e) {
           Logger::instance().error(std::string("Error processing kline data: ") +
                                    e.what());
-          return {FetchError::ParseError, http_status, e.what(), {}};
+          return {Core::FetchError::ParseError, http_status, e.what(), {}};
         }
       }
       Logger::instance().error("HTTP Request failed with status code: " +
@@ -128,14 +125,45 @@ KlinesResult DataFetcher::fetch_klines(
       if (attempt < max_retries - 1) {
         std::this_thread::sleep_for(retry_delay);
       } else {
-        return {FetchError::HttpError, r.status_code, r.error.message, {}};
+        return {Core::FetchError::HttpError, r.status_code, r.error.message, {}};
       }
     }
     if (!success) {
-      return {FetchError::HttpError, http_status, "Max retries exceeded", {}};
+      return {Core::FetchError::HttpError, http_status, "Max retries exceeded",
+              {}};
     }
   }
-  return {FetchError::None, http_status, "", all_candles};
+  return {Core::FetchError::None, http_status, "", all_candles};
+}
+} // namespace
+
+namespace Core {
+
+KlinesResult DataFetcher::fetch_klines(
+    const std::string &symbol, const std::string &interval, int limit,
+    int max_retries, std::chrono::milliseconds retry_delay,
+    std::chrono::milliseconds request_pause) {
+  if (interval == "5s" || interval == "15s") {
+    return fetch_klines_alt(symbol, interval, limit, max_retries, retry_delay,
+                            request_pause);
+  }
+  auto res = fetch_klines_from_api(
+      "https://api.binance.com/api/v3/klines?symbol=", symbol, interval, limit,
+      max_retries, retry_delay, request_pause);
+  if (res.error != FetchError::None) {
+    return fetch_klines_alt(symbol, interval, limit, max_retries, retry_delay,
+                            request_pause);
+  }
+  return res;
+}
+
+KlinesResult DataFetcher::fetch_klines_alt(
+    const std::string &symbol, const std::string &interval, int limit,
+    int max_retries, std::chrono::milliseconds retry_delay,
+    std::chrono::milliseconds request_pause) {
+  return fetch_klines_from_api(
+      "https://api.binance.us/api/v3/klines?symbol=", symbol, interval, limit,
+      max_retries, retry_delay, request_pause);
 }
 
 std::future<KlinesResult> DataFetcher::fetch_klines_async(
