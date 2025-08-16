@@ -235,10 +235,6 @@ void DrawChartWindow(
 
   ImPlotFlags plot_flags = ImPlotFlags_Crosshairs;
   ImPlotSubplotFlags subplot_flags = ImPlotSubplotFlags_LinkAllX;
-  int rows = 2 + (show_rsi ? 1 : 0) + (show_macd ? 1 : 0);
-  if (ImPlot::BeginSubplots("##price_volume", rows, 1,
-  int subplot_count = 2 + (show_rsi ? 1 : 0) + (show_macd ? 1 : 0);
-  if (ImPlot::BeginSubplots("##price_volume", subplot_count, 1,
   int subplot_rows = 2;
   if (show_rsi)
     ++subplot_rows;
