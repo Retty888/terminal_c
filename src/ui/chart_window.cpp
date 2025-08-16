@@ -65,39 +65,6 @@ float DistancePointToSegment(const ImVec2 &p, const ImVec2 &v,
                    (p.y - proj.y) * (p.y - proj.y));
 }
 
-void DrawExternalIndicator(const std::vector<Candle> &candles,
-                           const std::vector<double> &times,
-                           const ImPlotRect &limits) {
-  const int period = 21;
-  std::vector<double> ema_times, ema_vals;
-  if (candles.size() >= (size_t)period) {
-    for (size_t i = period - 1; i < candles.size(); ++i) {
-      ema_times.push_back(times[i]);
-      ema_vals.push_back(
-          Signal::exponential_moving_average(candles, i, period));
-    }
-  }
-  double ymin = 0.0, ymax = 0.0;
-  if (!ema_vals.empty()) {
-    auto [min_it, max_it] =
-        std::minmax_element(ema_vals.begin(), ema_vals.end());
-    ymin = *min_it;
-    ymax = *max_it;
-  }
-  ImGui::Begin("External Indicator");
-  ImPlot::SetNextAxesLimits(limits.X.Min, limits.X.Max, ymin, ymax,
-                            ImGuiCond_Always);
-  if (ImPlot::BeginPlot("EMA21 (TV)", ImVec2(-1, -1),
-                        ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
-    ImPlot::SetupAxes("Time", "Value");
-    if (!ema_vals.empty())
-      ImPlot::PlotLine("EMA21 (TV)", ema_times.data(), ema_vals.data(),
-                       static_cast<int>(ema_vals.size()));
-    ImPlot::EndPlot();
-  }
-  ImGui::End();
-}
-
 } // namespace
 
 void DrawChartWindow(
@@ -318,16 +285,30 @@ void DrawChartWindow(
         ImPlot::PlotLine(label, ma_times.data(), ma_vals.data(), ma_vals.size());
       }
     };
-    if (show_sma7)
-      plot_sma(7, "SMA7", ImVec4(1.0f, 0.8f, 0.0f, 1.0f));
-    if (show_sma21)
-      plot_sma(21, "SMA21", ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
-    if (show_sma50)
-      plot_sma(50, "SMA50", ImVec4(0.5f, 0.0f, 1.0f, 1.0f));
-    if (show_ema21)
-      plot_ema(21, "EMA21", ImVec4(1.0f, 0.0f, 0.5f, 1.0f));
+      if (show_sma7)
+        plot_sma(7, "SMA7", ImVec4(1.0f, 0.8f, 0.0f, 1.0f));
+      if (show_sma21)
+        plot_sma(21, "SMA21", ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
+      if (show_sma50)
+        plot_sma(50, "SMA50", ImVec4(0.5f, 0.0f, 1.0f, 1.0f));
+      if (show_ema21)
+        plot_ema(21, "EMA21", ImVec4(1.0f, 0.0f, 0.5f, 1.0f));
+      if (show_external_indicator) {
+        const int period = 21;
+        if (candles.size() >= static_cast<std::size_t>(period)) {
+          std::vector<double> ema_times, ema_vals;
+          for (std::size_t i = period - 1; i < candles.size(); ++i) {
+            ema_times.push_back(times[i]);
+            ema_vals.push_back(
+                Signal::exponential_moving_average(candles, i, period));
+          }
+          ImPlot::SetNextLineStyle(ImVec4(0.0f, 0.5f, 1.0f, 1.0f));
+          ImPlot::PlotLine("EMA21 (TV)", ema_times.data(), ema_vals.data(),
+                           static_cast<int>(ema_vals.size()));
+        }
+      }
 
-    ImPlotRect cur_limits = ImPlot::GetPlotLimits();
+      ImPlotRect cur_limits = ImPlot::GetPlotLimits();
 
     if (ImPlot::IsPlotHovered()) {
       ImGuiIO &io = ImGui::GetIO();
@@ -738,8 +719,6 @@ void DrawChartWindow(
     }
   }
   ImPlot::EndSubplots();
-  }
-  ImGui::End();
-  if (show_external_indicator)
-    DrawExternalIndicator(candles, times, manual_limits);
+}
+ImGui::End();
 }
