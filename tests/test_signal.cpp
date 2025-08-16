@@ -77,5 +77,12 @@ TEST(SignalIndicators, CalculatesMacd) {
     EXPECT_NEAR(res.macd, -0.3194444444, 1e-6);
     EXPECT_NEAR(res.signal, -0.2546296296, 1e-6);
     EXPECT_NEAR(res.histogram, -0.0648148148, 1e-6);
+    for (int i = 1; i <= 50; ++i) {
+        candles.emplace_back(i,0,0,0,i,0,0,0,0,0,0,0);
+    }
+    auto m = Signal::macd(candles, 49, 12, 26, 9);
+    EXPECT_NEAR(m.macd, 5.1017391484568435, 1e-6);
+    EXPECT_NEAR(m.signal, 5.107024691973398, 1e-6);
+    EXPECT_NEAR(m.histogram, -0.005285543516554192, 1e-6);
 }
 
