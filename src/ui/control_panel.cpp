@@ -6,9 +6,10 @@
 #include "imgui.h"
 
 #include <algorithm>
+#include <cctype>
+#include <cfloat>
 #include <ctime>
 #include <numeric>
-#include <cfloat>
 
 using namespace Core;
 
@@ -41,10 +42,10 @@ void DrawControlPanel(
     std::vector<PairItem> &pairs, std::vector<std::string> &selected_pairs,
     std::string &active_pair, const std::vector<std::string> &intervals,
     std::string &selected_interval,
-    std::map<std::string, std::map<std::string, std::vector<Candle>>> &all_candles,
+    std::map<std::string, std::map<std::string, std::vector<Candle>>>
+        &all_candles,
     const std::function<void()> &save_pairs,
-    const std::vector<std::string> &exchange_pairs,
-    const AppStatus &status) {
+    const std::vector<std::string> &exchange_pairs, const AppStatus &status) {
   ImGui::Begin("Control Panel");
 
   ImGui::Text("Select pairs to load:");
@@ -53,12 +54,25 @@ void DrawControlPanel(
   ImGui::Separator();
   ImGui::Text("Load from exchange:");
   static int selected_idx = 0;
+  std::vector<std::string> sorted_pairs = exchange_pairs;
+  std::sort(sorted_pairs.begin(), sorted_pairs.end());
+  if (selected_idx >= static_cast<int>(sorted_pairs.size()))
+    selected_idx = 0;
+  static char pair_filter[64] = "";
+  ImGui::InputText("##pair_filter", pair_filter, IM_ARRAYSIZE(pair_filter));
+  std::string filter_str = pair_filter;
+  std::transform(filter_str.begin(), filter_str.end(), filter_str.begin(),
+                 ::tolower);
   std::string current =
-      exchange_pairs.empty() ? std::string() : exchange_pairs[selected_idx];
+      sorted_pairs.empty() ? std::string() : sorted_pairs[selected_idx];
   if (ImGui::BeginCombo("##exchange_combo", current.c_str())) {
-    for (int i = 0; i < (int)exchange_pairs.size(); ++i) {
+    for (int i = 0; i < (int)sorted_pairs.size(); ++i) {
+      std::string item = sorted_pairs[i];
+      std::transform(item.begin(), item.end(), item.begin(), ::tolower);
+      if (!filter_str.empty() && item.find(filter_str) == std::string::npos)
+        continue;
       bool is_selected = (selected_idx == i);
-      if (ImGui::Selectable(exchange_pairs[i].c_str(), is_selected)) {
+      if (ImGui::Selectable(sorted_pairs[i].c_str(), is_selected)) {
         selected_idx = i;
       }
       if (is_selected)
@@ -68,8 +82,8 @@ void DrawControlPanel(
   }
   ImGui::SameLine();
   if (ImGui::Button("Load Selected")) {
-    if (!exchange_pairs.empty()) {
-      std::string symbol = exchange_pairs[selected_idx];
+    if (!sorted_pairs.empty()) {
+      std::string symbol = sorted_pairs[selected_idx];
       if (std::none_of(pairs.begin(), pairs.end(),
                        [&](const PairItem &p) { return p.name == symbol; })) {
         pairs.push_back({symbol, true});
@@ -84,8 +98,7 @@ void DrawControlPanel(
           auto candles = CandleManager::load_candles(symbol, interval);
           if (candles.size() < EXPECTED_CANDLES) {
             int missing = EXPECTED_CANDLES - static_cast<int>(candles.size());
-            auto fetched =
-                DataFetcher::fetch_klines(symbol, interval, missing);
+            auto fetched = DataFetcher::fetch_klines(symbol, interval, missing);
             if (fetched.error == FetchError::None && !fetched.candles.empty()) {
               CandleManager::append_candles(symbol, interval, fetched.candles);
               long long last_time =
