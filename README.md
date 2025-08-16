@@ -1,4 +1,4 @@
-# terminal_c
+# terminal-c
 
 Standalone C++ trading terminal using ImGui and other dependencies. The project relies on packages provided by `vcpkg` and `find_package` in CMake.
 
