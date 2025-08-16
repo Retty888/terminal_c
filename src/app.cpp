@@ -25,13 +25,13 @@
 #include "imgui_impl_opengl3.h"
 #include <GLFW/glfw3.h>
 
+#include "services/signal_bot.h"
 #include "ui/analytics_window.h"
 #include "ui/chart_window.h"
 #include "ui/control_panel.h"
 #include "ui/journal_window.h"
 #include "ui/signals_window.h"
 #include "ui/tradingview_style.h"
-#include "services/signal_bot.h"
 
 using namespace Core;
 
@@ -111,11 +111,11 @@ int App::run() {
   // Load config
   std::vector<std::string> pair_names =
       data_service_.load_selected_pairs("config.json");
-  std::vector<std::string> intervals = {"1m", "3m", "5m", "15m", "1h", "4h", "1d", "15s", "5s"};
+  std::vector<std::string> intervals = {"1m", "3m", "5m",  "15m", "1h",
+                                        "4h", "1d", "15s", "5s"};
   auto exchange_interval_res = data_service_.fetch_intervals();
   if (exchange_interval_res.error == FetchError::None) {
-    intervals.insert(intervals.end(),
-                     exchange_interval_res.intervals.begin(),
+    intervals.insert(intervals.end(), exchange_interval_res.intervals.begin(),
                      exchange_interval_res.intervals.end());
   }
   if (pair_names.empty()) {
@@ -136,10 +136,10 @@ int App::run() {
   }
   if (pair_names.empty())
     pair_names.push_back("BTCUSDT");
-  std::sort(intervals.begin(), intervals.end(), [](const std::string &a,
-                                                   const std::string &b) {
-    return interval_to_duration(a) < interval_to_duration(b);
-  });
+  std::sort(intervals.begin(), intervals.end(),
+            [](const std::string &a, const std::string &b) {
+              return interval_to_duration(a) < interval_to_duration(b);
+            });
   intervals.erase(std::unique(intervals.begin(), intervals.end()),
                   intervals.end());
   int candles_limit = Config::load_candles_limit("config.json");
@@ -201,9 +201,9 @@ int App::run() {
       all_candles[pair][interval] = candles;
       int missing = candles_limit - static_cast<int>(candles.size());
       if (missing > 0) {
-        initial_fetches.push_back({
-            pair, interval,
-            data_service_.fetch_klines_async(pair, interval, missing)});
+        initial_fetches.push_back(
+            {pair, interval,
+             data_service_.fetch_klines_async(pair, interval, missing)});
         add_status("Fetching " + pair + " " + interval);
       } else {
         ++completed_initial_fetches;
@@ -213,6 +213,8 @@ int App::run() {
       }
     }
   }
+  long long next_fetch_time = 0;
+  const auto fetch_backoff = std::chrono::seconds(5);
 
   // Main loop
   while (!glfwWindowShouldClose(window)) {
@@ -246,24 +248,45 @@ int App::run() {
     }
     ImGui::DockSpaceOverViewport(dockspace_id, ImGui::GetMainViewport());
 
-    static auto last_fetch = std::chrono::steady_clock::now();
-    auto now = std::chrono::steady_clock::now();
     auto period = interval_to_duration(active_interval);
-    if (period.count() > 0 && now - last_fetch >= period) {
-      for (const auto &item : pairs) {
-        const auto &pair = item.name;
-        if (pending_fetches.find(pair) == pending_fetches.end()) {
-          pending_fetches[pair] = {active_interval,
-                                  data_service_.fetch_klines_async(pair, active_interval, 1)};
-          add_status("Updating " + pair);
+    auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                      std::chrono::system_clock::now().time_since_epoch())
+                      .count();
+    if (period.count() > 0) {
+      if (next_fetch_time == 0) {
+        std::lock_guard<std::mutex> lock(candles_mutex);
+        auto pair_it = all_candles.find(active_pair);
+        if (pair_it != all_candles.end()) {
+          auto interval_it = pair_it->second.find(active_interval);
+          if (interval_it != pair_it->second.end() &&
+              !interval_it->second.empty())
+            next_fetch_time =
+                interval_it->second.back().open_time + period.count();
         }
+        if (next_fetch_time == 0)
+          next_fetch_time = now_ms + period.count();
       }
-      last_fetch = now;
+      if (now_ms >= next_fetch_time) {
+        for (const auto &item : pairs) {
+          const auto &pair = item.name;
+          if (pending_fetches.find(pair) == pending_fetches.end()) {
+            pending_fetches[pair] = {
+                active_interval,
+                data_service_.fetch_klines_async(pair, active_interval, 1)};
+            add_status("Updating " + pair);
+          }
+        }
+        next_fetch_time = now_ms + period.count();
+      }
     }
     for (auto it = pending_fetches.begin(); it != pending_fetches.end();) {
       if (it->second.future.wait_for(std::chrono::seconds(0)) ==
           std::future_status::ready) {
         auto latest = it->second.future.get();
+        auto result_now =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch())
+                .count();
         if (latest.error == FetchError::None && !latest.candles.empty()) {
           std::lock_guard<std::mutex> lock(candles_mutex);
           auto &vec = all_candles[it->first][it->second.interval];
@@ -272,11 +295,30 @@ int App::run() {
             vec.push_back(latest.candles.back());
             data_service_.append_candles(it->first, it->second.interval,
                                          {latest.candles.back()});
+            auto p = interval_to_duration(it->second.interval);
+            long long boundary = vec.back().open_time + p.count();
+            if (next_fetch_time == 0 || boundary < next_fetch_time)
+              next_fetch_time = boundary;
+          } else {
+            long long retry =
+                result_now +
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    fetch_backoff)
+                    .count();
+            if (next_fetch_time == 0 || retry < next_fetch_time)
+              next_fetch_time = retry;
           }
           add_status("Updated " + it->first);
         } else {
           status_.error_message = "Update failed for " + it->first;
           add_status(status_.error_message);
+          long long retry =
+              result_now +
+              std::chrono::duration_cast<std::chrono::milliseconds>(
+                  fetch_backoff)
+                  .count();
+          if (next_fetch_time == 0 || retry < next_fetch_time)
+            next_fetch_time = retry;
         }
         it = pending_fetches.erase(it);
       } else {
@@ -313,8 +355,9 @@ int App::run() {
           add_status(status_.error_message);
         }
         ++completed_initial_fetches;
-        status_.candle_progress = static_cast<float>(completed_initial_fetches) /
-                                  static_cast<float>(total_initial_fetches);
+        status_.candle_progress =
+            static_cast<float>(completed_initial_fetches) /
+            static_cast<float>(total_initial_fetches);
         it = initial_fetches.erase(it);
       } else {
         ++it;
@@ -331,8 +374,8 @@ int App::run() {
     }
 
     DrawControlPanel(pairs, selected_pairs, active_pair, intervals,
-                     selected_interval, all_candles, save_pairs,
-                     exchange_pairs, status_);
+                     selected_interval, all_candles, save_pairs, exchange_pairs,
+                     status_);
 
     DrawSignalsWindow(strategy, short_period, long_period, oversold, overbought,
                       show_on_chart, signal_entries, buy_times, buy_prices,
