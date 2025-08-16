@@ -45,7 +45,8 @@ void DrawControlPanel(
     std::map<std::string, std::map<std::string, std::vector<Candle>>>
         &all_candles,
     const std::function<void()> &save_pairs,
-    const std::vector<std::string> &exchange_pairs, const AppStatus &status) {
+    const std::vector<std::string> &exchange_pairs, const AppStatus &status,
+    const std::function<void(const std::string &)> &cancel_pair) {
   ImGui::Begin("Control Panel");
 
   ImGui::Text("Select pairs to load:");
@@ -224,6 +225,12 @@ void DrawControlPanel(
         active_pair =
             new_active != pairs.end() ? new_active->name : std::string();
       }
+      selected_pairs.erase(std::remove(selected_pairs.begin(),
+                                       selected_pairs.end(), removed),
+                           selected_pairs.end());
+      Config::save_selected_pairs("config.json", selected_pairs);
+      if (cancel_pair)
+        cancel_pair(removed);
       save_pairs();
     } else {
       ++it;
