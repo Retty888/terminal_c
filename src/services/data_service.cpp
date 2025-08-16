@@ -36,6 +36,15 @@ Core::KlinesResult DataService::fetch_klines(
                                         retry_delay, request_pause);
 }
 
+Core::KlinesResult DataService::fetch_klines_alt(
+    const std::string &symbol, const std::string &interval, int limit,
+    int max_retries, std::chrono::milliseconds retry_delay,
+    std::chrono::milliseconds request_pause) const {
+  return Core::DataFetcher::fetch_klines_alt(symbol, interval, limit,
+                                             max_retries, retry_delay,
+                                             request_pause);
+}
+
 std::future<Core::KlinesResult>
 DataService::fetch_klines_async(const std::string &symbol,
                                 const std::string &interval, int limit,
