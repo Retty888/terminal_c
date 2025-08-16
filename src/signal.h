@@ -38,5 +38,25 @@ namespace Signal {
                              double oversold,
                              double overbought);
 
+struct MACDResult {
+    double macd;
+    double signal;
+    double histogram;
+};
+
+// Calculates Moving Average Convergence Divergence (MACD).
+[[nodiscard]] MACDResult macd(const std::vector<Core::Candle>& candles,
+                              std::size_t index,
+                              std::size_t fast_period,
+                              std::size_t slow_period,
+                              std::size_t signal_period);
+
+// Generates signal based on MACD line crossing the signal line.
+[[nodiscard]] int macd_signal(const std::vector<Core::Candle>& candles,
+                              std::size_t index,
+                              std::size_t fast_period,
+                              std::size_t slow_period,
+                              std::size_t signal_period);
+
 } // namespace Signal
 
