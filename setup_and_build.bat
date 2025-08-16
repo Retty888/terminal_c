@@ -22,8 +22,14 @@ if exist "%VCPKG_PATH%" (
 
 set TOOLCHAIN_FILE=%VCPKG_PATH%\scripts\buildsystems\vcpkg.cmake
 
-echo Installing required packages...
-"%VCPKG_PATH%\vcpkg.exe" install imgui[core,docking-experimental,glfw-binding,opengl3-binding] implot cpr nlohmann-json arrow glfw3 opengl --recurse
+REM Install dependencies using manifest if available
+if exist "%SCRIPT_DIR%vcpkg.json" (
+    echo Installing packages from manifest...
+    "%VCPKG_PATH%\vcpkg.exe" install --recurse
+) else (
+    echo Installing required packages...
+    "%VCPKG_PATH%\vcpkg.exe" install imgui[core,docking-experimental,glfw-binding,opengl3-binding] implot cpr nlohmann-json arrow glfw3 opengl --recurse
+)
 if %errorlevel% neq 0 (
     echo Dependency installation failed!
     pause
