@@ -64,15 +64,16 @@ KlinesResult DataFetcher::fetch_klines(
   std::vector<Candle> all_candles;
   long long interval_ms = interval_to_ms(interval);
   auto now = std::chrono::system_clock::now();
-  long long end_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-                           now.time_since_epoch())
-                           .count();
+  long long current_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch())
+          .count();
+  long long end_time = current_ms / interval_ms * interval_ms - 1;
   int http_status = 0;
 
   while (static_cast<int>(all_candles.size()) < limit) {
     int batch_limit =
         std::min(1000, limit - static_cast<int>(all_candles.size()));
-    long long start_time = end_time - interval_ms * batch_limit;
+    long long start_time = end_time - interval_ms * batch_limit + 1;
     std::string url = base_url + "&startTime=" + std::to_string(start_time) +
                       "&endTime=" + std::to_string(end_time) + "&limit=" +
                       std::to_string(batch_limit);

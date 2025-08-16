@@ -10,6 +10,7 @@ option(BUILD_TRADING_TERMINAL "Build the TradingTerminal application" ON)
 
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
+find_package(cpr CONFIG REQUIRED)
 
 if(BUILD_TRADING_TERMINAL)
     # Find all necessary packages using vcpkg
@@ -121,8 +122,27 @@ target_link_libraries(test_signal PRIVATE
 
 add_test(NAME test_signal COMMAND test_signal)
 
+add_executable(test_data_fetcher
+    tests/test_data_fetcher.cpp
+    src/core/data_fetcher.cpp
+    src/candle.cpp
+    src/logger.cpp
+)
+
+target_include_directories(test_data_fetcher PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(test_data_fetcher PRIVATE
+    GTest::gtest_main
+    cpr::cpr
+    nlohmann_json::nlohmann_json
+)
+
+add_test(NAME test_data_fetcher COMMAND test_data_fetcher)
+
 add_custom_target(ctest
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_backtester test_candle_manager test_signal
+    DEPENDS test_backtester test_candle_manager test_signal test_data_fetcher
 )
 
