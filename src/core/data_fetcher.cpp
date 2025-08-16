@@ -151,7 +151,7 @@ std::future<KlinesResult> DataFetcher::fetch_klines_async(
 
 SymbolsResult DataFetcher::fetch_all_symbols(
     int max_retries, std::chrono::milliseconds retry_delay,
-    std::chrono::milliseconds request_pause) {
+    std::chrono::milliseconds request_pause, std::size_t top_n) {
   const std::string url = "https://api.binance.com/api/v3/exchangeInfo";
   for (int attempt = 0; attempt < max_retries; ++attempt) {
     throttle(request_pause);
@@ -170,6 +170,46 @@ SymbolsResult DataFetcher::fetch_all_symbols(
         auto json_data = nlohmann::json::parse(r.text);
         for (const auto &item : json_data["symbols"]) {
           symbols.push_back(item["symbol"].get<std::string>());
+        }
+
+        // Fetch 24h ticker statistics to sort by volume
+        const std::string ticker_url =
+            "https://api.binance.com/api/v3/ticker/24hr";
+        throttle(request_pause);
+        cpr::Response t = cpr::Get(cpr::Url{ticker_url});
+        if (t.error.code == cpr::ErrorCode::OK && t.status_code == 200) {
+          try {
+            auto tickers = nlohmann::json::parse(t.text);
+            std::vector<std::pair<std::string, double>> vols;
+            vols.reserve(tickers.size());
+            for (const auto &tk : tickers) {
+              if (!tk.contains("symbol") || !tk.contains("quoteVolume"))
+                continue;
+              double vol = 0.0;
+              try {
+                vol = std::stod(tk["quoteVolume"].get<std::string>());
+              } catch (...) {
+                continue;
+              }
+              vols.emplace_back(tk["symbol"].get<std::string>(), vol);
+            }
+            std::sort(vols.begin(), vols.end(),
+                      [](const auto &a, const auto &b) {
+                        return a.second > b.second;
+                      });
+            std::vector<std::string> top_symbols;
+            for (size_t i = 0; i < std::min(top_n, vols.size()); ++i) {
+              top_symbols.push_back(vols[i].first);
+            }
+            return {FetchError::None, r.status_code, "", top_symbols};
+          } catch (const std::exception &e) {
+            Logger::instance().error(std::string("Error processing ticker data: ") +
+                                    e.what());
+            // fall through to return unsorted symbols
+          }
+        } else {
+          Logger::instance().error("Ticker request failed: " +
+                                   t.error.message);
         }
         return {FetchError::None, r.status_code, "", symbols};
       } catch (const std::exception &e) {

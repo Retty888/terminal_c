@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <chrono>
+#include <cstddef>
 
 namespace Core {
 
@@ -73,7 +74,8 @@ public:
                     std::chrono::milliseconds retry_delay =
                         std::chrono::milliseconds(1000),
                     std::chrono::milliseconds request_pause =
-                        std::chrono::milliseconds(1100));
+                        std::chrono::milliseconds(1100),
+                    std::size_t top_n = 100);
 
   static IntervalsResult
   fetch_all_intervals(int max_retries = 3,
