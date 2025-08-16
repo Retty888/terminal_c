@@ -1,0 +1,13 @@
+{
+  "name": "terminal_c",
+  "version": "0.1.0",
+  "dependencies": [
+    { "name": "imgui", "features": [ "docking-experimental", "glfw-binding", "opengl3-binding" ] },
+    "implot",
+    "cpr",
+    "nlohmann-json",
+    "arrow",
+    "glfw3",
+    "opengl"
+  ]
+}
