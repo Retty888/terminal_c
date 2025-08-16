@@ -21,6 +21,13 @@ Core::SymbolsResult DataService::fetch_all_symbols(
                                              request_pause);
 }
 
+Core::IntervalsResult DataService::fetch_intervals(
+    int max_retries, std::chrono::milliseconds retry_delay,
+    std::chrono::milliseconds request_pause) const {
+  return Core::DataFetcher::fetch_all_intervals(max_retries, retry_delay,
+                                               request_pause);
+}
+
 Core::KlinesResult DataService::fetch_klines(
     const std::string &symbol, const std::string &interval, int limit,
     int max_retries, std::chrono::milliseconds retry_delay,
