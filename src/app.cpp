@@ -5,6 +5,7 @@
 #include "core/candle.h"
 #include "core/candle_manager.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "implot.h"
 #include "logger.h"
 #include "plot/candlestick.h"
