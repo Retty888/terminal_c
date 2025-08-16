@@ -22,6 +22,7 @@ struct CandleDataCache {
   std::vector<double> highs;
   std::vector<double> lows;
   std::vector<double> closes;
+  std::vector<double> volumes;
   std::uint64_t last_time = 0;
 };
 
@@ -62,6 +63,39 @@ float DistancePointToSegment(const ImVec2 &p, const ImVec2 &v,
   ImVec2 proj{v.x + t * (w.x - v.x), v.y + t * (w.y - v.y)};
   return std::sqrt((p.x - proj.x) * (p.x - proj.x) +
                    (p.y - proj.y) * (p.y - proj.y));
+}
+
+void DrawExternalIndicator(const std::vector<Candle> &candles,
+                           const std::vector<double> &times,
+                           const ImPlotRect &limits) {
+  const int period = 21;
+  std::vector<double> ema_times, ema_vals;
+  if (candles.size() >= (size_t)period) {
+    for (size_t i = period - 1; i < candles.size(); ++i) {
+      ema_times.push_back(times[i]);
+      ema_vals.push_back(
+          Signal::exponential_moving_average(candles, i, period));
+    }
+  }
+  double ymin = 0.0, ymax = 0.0;
+  if (!ema_vals.empty()) {
+    auto [min_it, max_it] =
+        std::minmax_element(ema_vals.begin(), ema_vals.end());
+    ymin = *min_it;
+    ymax = *max_it;
+  }
+  ImGui::Begin("External Indicator");
+  ImPlot::SetNextAxesLimits(limits.X.Min, limits.X.Max, ymin, ymax,
+                            ImGuiCond_Always);
+  if (ImPlot::BeginPlot("EMA21 (TV)", ImVec2(-1, -1),
+                        ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
+    ImPlot::SetupAxes("Time", "Value");
+    if (!ema_vals.empty())
+      ImPlot::PlotLine("EMA21 (TV)", ema_times.data(), ema_vals.data(),
+                       static_cast<int>(ema_vals.size()));
+    ImPlot::EndPlot();
+  }
+  ImGui::End();
 }
 
 } // namespace
@@ -109,6 +143,7 @@ void DrawChartWindow(
     cached.highs.resize(candles.size());
     cached.lows.resize(candles.size());
     cached.closes.resize(candles.size());
+    cached.volumes.resize(candles.size());
     for (size_t i = 0; i < candles.size(); ++i) {
       const auto &c = candles[i];
       cached.times[i] = static_cast<double>(c.open_time) / 1000.0;
@@ -116,6 +151,7 @@ void DrawChartWindow(
       cached.highs[i] = c.high;
       cached.lows[i] = c.low;
       cached.closes[i] = c.close;
+      cached.volumes[i] = c.volume;
     }
     cached.last_time = candles.back().open_time;
   } else if (candles.empty()) {
@@ -124,6 +160,7 @@ void DrawChartWindow(
     cached.highs.clear();
     cached.lows.clear();
     cached.closes.clear();
+    cached.volumes.clear();
     cached.last_time = 0;
   }
 
@@ -132,6 +169,13 @@ void DrawChartWindow(
   const auto &highs = cached.highs;
   const auto &lows = cached.lows;
   const auto &closes = cached.closes;
+  const auto &volumes = cached.volumes;
+
+  static bool show_sma7 = true;
+  static bool show_sma21 = false;
+  static bool show_sma50 = false;
+  static bool show_ema21 = false;
+  static bool show_external_indicator = false;
 
   static ImPlotRect manual_limits;
   static bool apply_manual_limits = false;
@@ -198,6 +242,17 @@ void DrawChartWindow(
     has_measure = false;
   }
 
+  ImGui::Separator();
+  ImGui::Checkbox("SMA7", &show_sma7);
+  ImGui::SameLine();
+  ImGui::Checkbox("SMA21", &show_sma21);
+  ImGui::SameLine();
+  ImGui::Checkbox("SMA50", &show_sma50);
+  ImGui::SameLine();
+  ImGui::Checkbox("EMA21", &show_ema21);
+  ImGui::SameLine();
+  ImGui::Checkbox("Ext EMA", &show_external_indicator);
+
   if (adding_line)
     ImGui::Text("Line: click first point, then click again to finish");
   else if (adding_rect)
@@ -222,18 +277,38 @@ void DrawChartWindow(
                           0.25f, ImVec4(0.149f, 0.651f, 0.604f, 1.0f),
                           ImVec4(0.937f, 0.325f, 0.314f, 1.0f));
 
-    const int sma_period = 7;
-    std::vector<double> sma_times, sma_vals;
-    if (candles.size() >= (size_t)sma_period) {
-      for (size_t i = sma_period - 1; i < candles.size(); ++i) {
-        sma_times.push_back(times[i]);
-        sma_vals.push_back(
-            Signal::simple_moving_average(candles, i, sma_period));
+    auto plot_sma = [&](int period, const char *label, const ImVec4 &color) {
+      if (candles.size() >= (size_t)period) {
+        std::vector<double> ma_times, ma_vals;
+        for (size_t i = period - 1; i < candles.size(); ++i) {
+          ma_times.push_back(times[i]);
+          ma_vals.push_back(
+              Signal::simple_moving_average(candles, i, period));
+        }
+        ImPlot::SetNextLineStyle(color);
+        ImPlot::PlotLine(label, ma_times.data(), ma_vals.data(), ma_vals.size());
       }
-      ImPlot::SetNextLineStyle(ImVec4(1.0f, 0.8f, 0.0f, 1.0f));
-      ImPlot::PlotLine("SMA7", sma_times.data(), sma_vals.data(),
-                       sma_vals.size());
-    }
+    };
+    auto plot_ema = [&](int period, const char *label, const ImVec4 &color) {
+      if (candles.size() >= (size_t)period) {
+        std::vector<double> ma_times, ma_vals;
+        for (size_t i = period - 1; i < candles.size(); ++i) {
+          ma_times.push_back(times[i]);
+          ma_vals.push_back(
+              Signal::exponential_moving_average(candles, i, period));
+        }
+        ImPlot::SetNextLineStyle(color);
+        ImPlot::PlotLine(label, ma_times.data(), ma_vals.data(), ma_vals.size());
+      }
+    };
+    if (show_sma7)
+      plot_sma(7, "SMA7", ImVec4(1.0f, 0.8f, 0.0f, 1.0f));
+    if (show_sma21)
+      plot_sma(21, "SMA21", ImVec4(0.0f, 1.0f, 0.0f, 1.0f));
+    if (show_sma50)
+      plot_sma(50, "SMA50", ImVec4(0.5f, 0.0f, 1.0f, 1.0f));
+    if (show_ema21)
+      plot_ema(21, "EMA21", ImVec4(1.0f, 0.0f, 0.5f, 1.0f));
 
     ImPlotRect cur_limits = ImPlot::GetPlotLimits();
 
@@ -482,5 +557,21 @@ void DrawChartWindow(
 
     ImPlot::EndPlot();
   }
+  if (!times.empty() && !volumes.empty()) {
+    double max_vol =
+        *std::max_element(volumes.begin(), volumes.end());
+    ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max, 0.0,
+                              max_vol * 1.1, ImGuiCond_Always);
+    if (ImPlot::BeginPlot("Volume", ImVec2(-1, 150),
+                          ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
+      ImPlot::SetupAxes("Time", "Volume");
+      double bar_width = times.size() > 1 ? (times[1] - times[0]) * 0.5 : 0.5;
+      ImPlot::PlotBars("Volume", times.data(), volumes.data(),
+                       static_cast<int>(volumes.size()), bar_width);
+      ImPlot::EndPlot();
+    }
+  }
   ImGui::End();
+  if (show_external_indicator)
+    DrawExternalIndicator(candles, times, manual_limits);
 }
