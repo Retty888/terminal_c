@@ -268,6 +268,8 @@ void DrawChartWindow(
     if (ImPlot::BeginPlot(("Candles - " + active_pair).c_str(), ImVec2(-1, -1),
                           plot_flags)) {
       ImPlot::SetupAxes("Time", "Price");
+      ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
+      ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
       ImPlot::SetupLegend(ImPlotLocation_South, ImPlotLegendFlags_Outside);
       Plot::PlotCandlestick("Candles", times.data(), opens.data(),
                             closes.data(), lows.data(), highs.data(),
@@ -461,6 +463,12 @@ void DrawChartWindow(
       ImPlotPoint mouse = ImPlot::GetPlotMousePos();
       cursor_x = mouse.x;
       cursor_y = mouse.y;
+      ImPlotTime t = ImPlotTime::FromSeconds(cursor_x);
+      char time_buf[32];
+      ImPlot::FormatTime(t, "%H:%M:%S", time_buf, sizeof(time_buf));
+      ImGui::BeginTooltip();
+      ImGui::Text("Time: %s\nPrice: %.2f", time_buf, cursor_y);
+      ImGui::EndTooltip();
     }
 
     double vx[2] = {cursor_x, cursor_x};
@@ -584,6 +592,8 @@ void DrawChartWindow(
     if (ImPlot::BeginPlot("RSI", ImVec2(-1, -1),
                           ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
       ImPlot::SetupAxes("Time", "RSI");
+      ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
+      ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
       if (!rsi_vals.empty()) {
         ImPlot::PlotLine("RSI", rsi_times.data(), rsi_vals.data(),
                          static_cast<int>(rsi_vals.size()));
@@ -622,6 +632,8 @@ void DrawChartWindow(
     if (ImPlot::BeginPlot("MACD", ImVec2(-1, -1),
                           ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
       ImPlot::SetupAxes("Time", "MACD");
+      ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
+      ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
       if (!macd_vals.empty()) {
         ImPlot::PlotLine("MACD", macd_times.data(), macd_vals.data(),
                          static_cast<int>(macd_vals.size()));
@@ -642,6 +654,8 @@ void DrawChartWindow(
     if (ImPlot::BeginPlot("Volume", ImVec2(-1, -1),
                           ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
       ImPlot::SetupAxes("Time", "Volume");
+      ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
+      ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
       double bar_width = times.size() > 1 ? (times[1] - times[0]) * 0.5 : 0.5;
       ImPlot::PlotBars("Volume", times.data(), volumes.data(),
                        static_cast<int>(volumes.size()), bar_width);
@@ -651,6 +665,8 @@ void DrawChartWindow(
     if (ImPlot::BeginPlot("Volume", ImVec2(-1, -1),
                           ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
       ImPlot::SetupAxes("Time", "Volume");
+      ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
+      ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
       ImPlot::EndPlot();
     }
   }
@@ -670,6 +686,8 @@ void DrawChartWindow(
     if (ImPlot::BeginPlot("RSI", ImVec2(-1, -1),
                           ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
       ImPlot::SetupAxes("Time", "RSI");
+      ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
+      ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
       if (!rsi_vals.empty())
         ImPlot::PlotLine("RSI", rsi_times.data(), rsi_vals.data(),
                          rsi_vals.size());
@@ -717,6 +735,8 @@ void DrawChartWindow(
     if (ImPlot::BeginPlot("MACD", ImVec2(-1, -1),
                           ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
       ImPlot::SetupAxes("Time", "MACD");
+      ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
+      ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
       if (!macd_vals.empty())
         ImPlot::PlotLine("MACD", macd_t.data(), macd_vals.data(),
                          macd_vals.size());
@@ -748,6 +768,8 @@ void DrawChartWindow(
     if (ImPlot::BeginPlot("RSI", ImVec2(-1, -1),
                           ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
       ImPlot::SetupAxes("Time", "RSI");
+      ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
+      ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
       if (!rsi_vals.empty())
         ImPlot::PlotLine("RSI", rsi_times.data(), rsi_vals.data(),
                          static_cast<int>(rsi_vals.size()));
@@ -797,6 +819,8 @@ void DrawChartWindow(
     if (ImPlot::BeginPlot("MACD", ImVec2(-1, -1),
                           ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
       ImPlot::SetupAxes("Time", "MACD");
+      ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
+      ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
       if (!macd_vals.empty()) {
         ImPlot::PlotLine("MACD", macd_times.data(), macd_vals.data(),
                          static_cast<int>(macd_vals.size()));
