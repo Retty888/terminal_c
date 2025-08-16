@@ -116,5 +116,66 @@ int rsi_signal(const std::vector<Core::Candle>& candles,
     return 0;
 }
 
+double macd(const std::vector<Core::Candle>& candles,
+            std::size_t index,
+            std::size_t fast_period,
+            std::size_t slow_period) {
+    if (fast_period == 0 || slow_period == 0 || fast_period >= slow_period) {
+        return 0.0;
+    }
+    if (index >= candles.size() || index + 1 < slow_period) {
+        return 0.0;
+    }
+    double fast = exponential_moving_average(candles, index, fast_period);
+    double slow = exponential_moving_average(candles, index, slow_period);
+    return fast - slow;
+}
+
+double macd_signal(const std::vector<Core::Candle>& candles,
+                   std::size_t index,
+                   std::size_t fast_period,
+                   std::size_t slow_period,
+                   std::size_t signal_period) {
+    if (signal_period == 0 || fast_period == 0 || slow_period == 0 ||
+        fast_period >= slow_period) {
+        return 0.0;
+    }
+    if (index >= candles.size() ||
+        index + 1 < slow_period + signal_period - 1) {
+        return 0.0;
+    }
+
+    std::vector<double> macd_vals;
+    macd_vals.reserve(index - (slow_period - 1) + 1);
+    for (std::size_t i = slow_period - 1; i <= index; ++i) {
+        macd_vals.push_back(macd(candles, i, fast_period, slow_period));
+    }
+
+    const double k = 2.0 / (static_cast<double>(signal_period) + 1.0);
+    double ema = 0.0;
+    if (macd_vals.size() >= signal_period) {
+        double sum = 0.0;
+        for (std::size_t i = 0; i < signal_period; ++i) {
+            sum += macd_vals[i];
+        }
+        ema = sum / static_cast<double>(signal_period);
+        for (std::size_t i = signal_period; i < macd_vals.size(); ++i) {
+            ema = (macd_vals[i] - ema) * k + ema;
+        }
+    }
+    return ema;
+}
+
+double macd_histogram(const std::vector<Core::Candle>& candles,
+                      std::size_t index,
+                      std::size_t fast_period,
+                      std::size_t slow_period,
+                      std::size_t signal_period) {
+    double macd_line = macd(candles, index, fast_period, slow_period);
+    double signal_line =
+        macd_signal(candles, index, fast_period, slow_period, signal_period);
+    return macd_line - signal_line;
+}
+
 } // namespace Signal
 

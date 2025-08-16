@@ -176,6 +176,8 @@ void DrawChartWindow(
   static bool show_sma50 = false;
   static bool show_ema21 = false;
   static bool show_external_indicator = false;
+  static bool show_rsi = false;
+  static bool show_macd = false;
 
   static ImPlotRect manual_limits;
   static bool apply_manual_limits = false;
@@ -252,6 +254,10 @@ void DrawChartWindow(
   ImGui::Checkbox("EMA21", &show_ema21);
   ImGui::SameLine();
   ImGui::Checkbox("Ext EMA", &show_external_indicator);
+  ImGui::SameLine();
+  ImGui::Checkbox("RSI", &show_rsi);
+  ImGui::SameLine();
+  ImGui::Checkbox("MACD", &show_macd);
 
   if (adding_line)
     ImGui::Text("Line: click first point, then click again to finish");
@@ -262,7 +268,8 @@ void DrawChartWindow(
 
   ImPlotFlags plot_flags = ImPlotFlags_Crosshairs;
   ImPlotSubplotFlags subplot_flags = ImPlotSubplotFlags_LinkAllX;
-  if (ImPlot::BeginSubplots("##price_volume", 2, 1,
+  int rows = 2 + (show_rsi ? 1 : 0) + (show_macd ? 1 : 0);
+  if (ImPlot::BeginSubplots("##price_volume", rows, 1,
                             ImGui::GetContentRegionAvail(), subplot_flags)) {
     if (apply_manual_limits) {
       ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max,
@@ -562,8 +569,7 @@ void DrawChartWindow(
     ImPlot::EndPlot();
   }
   if (!times.empty() && !volumes.empty()) {
-    double max_vol =
-        *std::max_element(volumes.begin(), volumes.end());
+    double max_vol = *std::max_element(volumes.begin(), volumes.end());
     ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max, 0.0,
                               max_vol * 1.1, ImGuiCond_Always);
     if (ImPlot::BeginPlot("Volume", ImVec2(-1, -1),
@@ -574,11 +580,94 @@ void DrawChartWindow(
                        static_cast<int>(volumes.size()), bar_width);
       ImPlot::EndPlot();
     }
-  } else if (ImPlot::BeginPlot("Volume", ImVec2(-1, -1),
-                                ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
-    ImPlot::SetupAxes("Time", "Volume");
-    ImPlot::EndPlot();
+  } else {
+    if (ImPlot::BeginPlot("Volume", ImVec2(-1, -1),
+                          ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
+      ImPlot::SetupAxes("Time", "Volume");
+      ImPlot::EndPlot();
+    }
   }
+
+  if (show_rsi) {
+    const int rsi_period = 14;
+    std::vector<double> rsi_times, rsi_vals;
+    if (candles.size() >= (size_t)rsi_period) {
+      for (size_t i = rsi_period; i < candles.size(); ++i) {
+        rsi_times.push_back(times[i]);
+        rsi_vals.push_back(
+            Signal::relative_strength_index(candles, i, rsi_period));
+      }
+    }
+    ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max, 0.0,
+                              100.0, ImGuiCond_Always);
+    if (ImPlot::BeginPlot("RSI", ImVec2(-1, -1),
+                          ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
+      ImPlot::SetupAxes("Time", "RSI");
+      if (!rsi_vals.empty())
+        ImPlot::PlotLine("RSI", rsi_times.data(), rsi_vals.data(),
+                         rsi_vals.size());
+      ImPlot::EndPlot();
+    }
+  }
+
+  if (show_macd) {
+    const int fast_period = 12;
+    const int slow_period = 26;
+    const int signal_period = 9;
+    std::vector<double> macd_t, macd_vals, signal_vals, hist_vals;
+    size_t start = slow_period + signal_period - 2;
+    if (candles.size() >= start + 1) {
+      for (size_t i = start; i < candles.size(); ++i) {
+        double macd_line =
+            Signal::macd(candles, i, fast_period, slow_period);
+        double signal_line = Signal::macd_signal(
+            candles, i, fast_period, slow_period, signal_period);
+        macd_t.push_back(times[i]);
+        macd_vals.push_back(macd_line);
+        signal_vals.push_back(signal_line);
+        hist_vals.push_back(macd_line - signal_line);
+      }
+    }
+    double ymin = -1.0, ymax = 1.0;
+    if (!macd_vals.empty()) {
+      auto [min_it, max_it] =
+          std::minmax_element(macd_vals.begin(), macd_vals.end());
+      ymin = *min_it;
+      ymax = *max_it;
+      if (!signal_vals.empty()) {
+        auto [smin, smax] =
+            std::minmax_element(signal_vals.begin(), signal_vals.end());
+        ymin = std::min(ymin, *smin);
+        ymax = std::max(ymax, *smax);
+      }
+      if (!hist_vals.empty()) {
+        auto [hmin, hmax] =
+            std::minmax_element(hist_vals.begin(), hist_vals.end());
+        ymin = std::min(ymin, *hmin);
+        ymax = std::max(ymax, *hmax);
+      }
+    }
+    ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max, ymin,
+                              ymax, ImGuiCond_Always);
+    if (ImPlot::BeginPlot("MACD", ImVec2(-1, -1),
+                          ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
+      ImPlot::SetupAxes("Time", "MACD");
+      if (!macd_vals.empty())
+        ImPlot::PlotLine("MACD", macd_t.data(), macd_vals.data(),
+                         macd_vals.size());
+      if (!signal_vals.empty())
+        ImPlot::PlotLine("Signal", macd_t.data(), signal_vals.data(),
+                         signal_vals.size());
+      if (!hist_vals.empty()) {
+        double bar_width =
+            macd_t.size() > 1 ? (macd_t[1] - macd_t[0]) * 0.5 : 0.5;
+        ImPlot::PlotBars("Histogram", macd_t.data(), hist_vals.data(),
+                         hist_vals.size(), bar_width);
+      }
+      ImPlot::EndPlot();
+    }
+  }
+
   ImPlot::EndSubplots();
   }
   ImGui::End();
