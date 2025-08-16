@@ -260,22 +260,26 @@ void DrawChartWindow(
   else if (measure_mode)
     ImGui::Text("Measure: click start point and click again to end");
 
-  if (apply_manual_limits) {
-    ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max,
-                              manual_limits.Y.Min, manual_limits.Y.Max,
-                              ImGuiCond_Always);
-    apply_manual_limits = false;
-  }
-
   ImPlotFlags plot_flags = ImPlotFlags_Crosshairs;
-  if (ImPlot::BeginPlot(("Candles - " + active_pair).c_str(),
-                        ImGui::GetContentRegionAvail(), plot_flags)) {
-    ImPlot::SetupAxes("Time", "Price");
-    ImPlot::SetupLegend(ImPlotLocation_South, ImPlotLegendFlags_Outside);
-    Plot::PlotCandlestick("Candles", times.data(), opens.data(), closes.data(),
-                          lows.data(), highs.data(), (int)candles.size(), true,
-                          0.25f, ImVec4(0.149f, 0.651f, 0.604f, 1.0f),
-                          ImVec4(0.937f, 0.325f, 0.314f, 1.0f));
+  ImPlotSubplotFlags subplot_flags = ImPlotSubplotFlags_LinkAllX;
+  if (ImPlot::BeginSubplots("##price_volume", 2, 1,
+                            ImGui::GetContentRegionAvail(), subplot_flags)) {
+    if (apply_manual_limits) {
+      ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max,
+                                manual_limits.Y.Min, manual_limits.Y.Max,
+                                ImGuiCond_Always);
+      apply_manual_limits = false;
+    }
+
+    if (ImPlot::BeginPlot(("Candles - " + active_pair).c_str(), ImVec2(-1, -1),
+                          plot_flags)) {
+      ImPlot::SetupAxes("Time", "Price");
+      ImPlot::SetupLegend(ImPlotLocation_South, ImPlotLegendFlags_Outside);
+      Plot::PlotCandlestick("Candles", times.data(), opens.data(),
+                            closes.data(), lows.data(), highs.data(),
+                            (int)candles.size(), true, 0.25f,
+                            ImVec4(0.149f, 0.651f, 0.604f, 1.0f),
+                            ImVec4(0.937f, 0.325f, 0.314f, 1.0f));
 
     auto plot_sma = [&](int period, const char *label, const ImVec4 &color) {
       if (candles.size() >= (size_t)period) {
@@ -562,7 +566,7 @@ void DrawChartWindow(
         *std::max_element(volumes.begin(), volumes.end());
     ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max, 0.0,
                               max_vol * 1.1, ImGuiCond_Always);
-    if (ImPlot::BeginPlot("Volume", ImVec2(-1, 150),
+    if (ImPlot::BeginPlot("Volume", ImVec2(-1, -1),
                           ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
       ImPlot::SetupAxes("Time", "Volume");
       double bar_width = times.size() > 1 ? (times[1] - times[0]) * 0.5 : 0.5;
@@ -570,6 +574,12 @@ void DrawChartWindow(
                        static_cast<int>(volumes.size()), bar_width);
       ImPlot::EndPlot();
     }
+  } else if (ImPlot::BeginPlot("Volume", ImVec2(-1, -1),
+                                ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
+    ImPlot::SetupAxes("Time", "Volume");
+    ImPlot::EndPlot();
+  }
+  ImPlot::EndSubplots();
   }
   ImGui::End();
   if (show_external_indicator)
