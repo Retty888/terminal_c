@@ -67,3 +67,14 @@ TEST(SignalIndicators, CalculatesEmaAndRsi) {
     EXPECT_NEAR(rsi, 100.0, 1e-6);
 }
 
+TEST(SignalIndicators, CalculatesMacd) {
+    std::vector<Core::Candle> candles;
+    for (int i = 1; i <= 50; ++i) {
+        candles.emplace_back(i,0,0,0,i,0,0,0,0,0,0,0);
+    }
+    auto m = Signal::macd(candles, 49, 12, 26, 9);
+    EXPECT_NEAR(m.macd, 5.1017391484568435, 1e-6);
+    EXPECT_NEAR(m.signal, 5.107024691973398, 1e-6);
+    EXPECT_NEAR(m.histogram, -0.005285543516554192, 1e-6);
+}
+
