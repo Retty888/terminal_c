@@ -111,6 +111,12 @@ int App::run() {
   std::vector<std::string> pair_names =
       data_service_.load_selected_pairs("config.json");
   std::vector<std::string> intervals = {"1m", "3m", "5m", "15m", "1h", "4h", "1d", "15s", "5s"};
+  auto exchange_interval_res = data_service_.fetch_intervals();
+  if (exchange_interval_res.error == FetchError::None) {
+    intervals.insert(intervals.end(),
+                     exchange_interval_res.intervals.begin(),
+                     exchange_interval_res.intervals.end());
+  }
   if (pair_names.empty()) {
     auto stored = CandleManager::list_stored_data();
     std::set<std::string> pairs_found;
@@ -124,11 +130,17 @@ int App::run() {
       }
     }
     pair_names.assign(pairs_found.begin(), pairs_found.end());
-    if (!intervals_found.empty())
-      intervals.assign(intervals_found.begin(), intervals_found.end());
+    intervals.insert(intervals.end(), intervals_found.begin(),
+                     intervals_found.end());
   }
   if (pair_names.empty())
     pair_names.push_back("BTCUSDT");
+  std::sort(intervals.begin(), intervals.end(), [](const std::string &a,
+                                                   const std::string &b) {
+    return interval_to_duration(a) < interval_to_duration(b);
+  });
+  intervals.erase(std::unique(intervals.begin(), intervals.end()),
+                  intervals.end());
   int candles_limit = Config::load_candles_limit("config.json");
   std::vector<PairItem> pairs;
   for (const auto &name : pair_names) {

@@ -8,6 +8,7 @@
 #include <vector>
 #include <mutex>
 #include <algorithm>
+#include <set>
 
 namespace {
 std::mutex request_mutex;
@@ -172,6 +173,53 @@ SymbolsResult DataFetcher::fetch_all_symbols(
         return {FetchError::None, r.status_code, "", symbols};
       } catch (const std::exception &e) {
         Logger::instance().error(std::string("Error processing symbol list: ") +
+                                e.what());
+        return {FetchError::ParseError, r.status_code, e.what(), {}};
+      }
+    }
+    Logger::instance().error("HTTP Request failed with status code: " +
+                             std::to_string(r.status_code));
+    if (attempt < max_retries - 1) {
+      std::this_thread::sleep_for(retry_delay);
+    } else {
+      return {FetchError::HttpError, r.status_code, r.error.message, {}};
+    }
+  }
+  return {FetchError::HttpError, 0, "Max retries exceeded", {}};
+}
+
+IntervalsResult DataFetcher::fetch_all_intervals(
+    int max_retries, std::chrono::milliseconds retry_delay,
+    std::chrono::milliseconds request_pause) {
+  const std::string url = "https://api.binance.com/api/v3/exchangeInfo";
+  for (int attempt = 0; attempt < max_retries; ++attempt) {
+    throttle(request_pause);
+    cpr::Response r = cpr::Get(cpr::Url{url});
+    if (r.error.code != cpr::ErrorCode::OK) {
+      Logger::instance().error("Request error: " + r.error.message);
+      if (attempt < max_retries - 1) {
+        std::this_thread::sleep_for(retry_delay);
+        continue;
+      }
+      return {FetchError::NetworkError, 0, r.error.message, {}};
+    }
+    if (r.status_code == 200) {
+      try {
+        std::set<std::string> intervals;
+        auto json_data = nlohmann::json::parse(r.text);
+        if (json_data.contains("symbols")) {
+          for (const auto &item : json_data["symbols"]) {
+            if (item.contains("klineIntervals")) {
+              for (const auto &iv : item["klineIntervals"]) {
+                intervals.insert(iv.get<std::string>());
+              }
+            }
+          }
+        }
+        return {FetchError::None, r.status_code, "",
+                std::vector<std::string>(intervals.begin(), intervals.end())};
+      } catch (const std::exception &e) {
+        Logger::instance().error(std::string("Error processing interval list: ") +
                                 e.what());
         return {FetchError::ParseError, r.status_code, e.what(), {}};
       }

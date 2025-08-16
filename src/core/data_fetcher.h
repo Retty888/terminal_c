@@ -30,6 +30,13 @@ struct SymbolsResult {
   std::vector<std::string> symbols;
 };
 
+struct IntervalsResult {
+  FetchError error{FetchError::None};
+  int http_status{0};
+  std::string message;
+  std::vector<std::string> intervals;
+};
+
 class DataFetcher {
 public:
   // Fetches kline (candle) data from a specified API (e.g., Binance).
@@ -67,6 +74,13 @@ public:
                         std::chrono::milliseconds(1000),
                     std::chrono::milliseconds request_pause =
                         std::chrono::milliseconds(1100));
+
+  static IntervalsResult
+  fetch_all_intervals(int max_retries = 3,
+                      std::chrono::milliseconds retry_delay =
+                          std::chrono::milliseconds(1000),
+                      std::chrono::milliseconds request_pause =
+                          std::chrono::milliseconds(1100));
 };
 
 } // namespace Core
