@@ -84,6 +84,21 @@ size_t load_candles_limit(const std::string& filename) {
     return 5000;
 }
 
+bool load_streaming_enabled(const std::string& filename) {
+    std::ifstream in(filename);
+    if (in.is_open()) {
+        try {
+            nlohmann::json j; in >> j;
+            if (j.contains("enable_streaming") && j["enable_streaming"].is_boolean()) {
+                return j["enable_streaming"].get<bool>();
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to parse " << filename << ": " << e.what() << std::endl;
+        }
+    }
+    return false;
+}
+
 SignalConfig load_signal_config(const std::string& filename) {
     std::ifstream in(filename);
     SignalConfig cfg;

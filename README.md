@@ -7,6 +7,7 @@ Standalone C++ trading terminal using ImGui and other dependencies. The project 
 - `main.cpp` с ImGui интерфейсом
 - Поддержка нескольких торговых пар
 - Загрузка свечей с Binance API
+- Потоковое обновление свечей через WebSocket Binance
 - Импортированные библиотеки:
   - ImGui
   - ImPlot
@@ -41,4 +42,8 @@ Standalone C++ trading terminal using ImGui and other dependencies. The project 
 - **Add Line / Add Rect** – нажмите кнопку инструмента, затем кликните первую точку на графике и второй клик завершит фигуру. Правый клик удаляет ближайшую фигуру.
 - **Measure** – измерение между двумя точками: выберите инструмент, кликните старт и затем конечную точку.
 - **SMA7** – на график нанесена простая скользящая средняя с периодом 7 для дополнительного анализа.
+
+## Streaming
+
+Файл `config.json` содержит флаг `enable_streaming`. При значении `true` приложение подключается к `wss://stream.binance.com:9443/ws/{symbol}@kline_{interval}` и обновляет свечи в реальном времени. Если флаг выключен или потоковый канал отключается, используется обычный HTTP-поллинг.
 

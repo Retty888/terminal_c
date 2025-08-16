@@ -3,6 +3,7 @@
   "pairs": [],
   "log_level": "INFO",
   "candles_limit": 5000,
+  "enable_streaming": true,
   "signal": {
     "type": "sma_crossover",
     "short_period": 2,
