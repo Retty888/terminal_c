@@ -38,5 +38,18 @@ namespace Signal {
                              double oversold,
                              double overbought);
 
+struct MACDResult {
+    double macd;
+    double signal;
+    double histogram;
+};
+
+// Calculates Moving Average Convergence Divergence.
+[[nodiscard]] MACDResult macd(const std::vector<Core::Candle>& candles,
+                             std::size_t index,
+                             std::size_t short_period,
+                             std::size_t long_period,
+                             std::size_t signal_period);
+
 } // namespace Signal
 
