@@ -8,7 +8,7 @@ add_compile_definitions(NOMINMAX)
 
 option(BUILD_TRADING_TERMINAL "Build the TradingTerminal application" ON)
 
-find_package(GTest REQUIRED)
+find_package(GTest CONFIG REQUIRED)
 find_package(cpr CONFIG QUIET)
 if(NOT cpr_FOUND)
   message(WARNING "cpr not found, skipping targets that require it")
