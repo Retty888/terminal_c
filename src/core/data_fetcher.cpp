@@ -50,14 +50,16 @@ long long interval_to_ms(const std::string &interval) {
     return 0;
   }
 }
-} // namespace
+}
 
-namespace Core {
-
-KlinesResult DataFetcher::fetch_klines(
-    const std::string &symbol, const std::string &interval, int limit,
-    int max_retries, std::chrono::milliseconds retry_delay,
-    std::chrono::milliseconds request_pause) {
+using Core::Candle;
+using Core::FetchError;
+using Core::KlinesResult;
+KlinesResult fetch_klines_binance(const std::string &symbol,
+                                  const std::string &interval, int limit,
+                                  int max_retries,
+                                  std::chrono::milliseconds retry_delay,
+                                  std::chrono::milliseconds request_pause) {
   const std::string base_url =
       "https://api.binance.com/api/v3/klines?symbol=" + symbol +
       "&interval=" + interval;
@@ -136,6 +138,91 @@ KlinesResult DataFetcher::fetch_klines(
     }
   }
   return {FetchError::None, http_status, "", all_candles};
+}
+
+std::string to_gate_symbol(const std::string &symbol) {
+  if (symbol.size() < 6)
+    return symbol;
+  std::string base = symbol.substr(0, symbol.size() - 4);
+  std::string quote = symbol.substr(symbol.size() - 4);
+  return base + "_" + quote;
+}
+
+} // namespace
+
+namespace Core {
+
+KlinesResult DataFetcher::fetch_klines(
+    const std::string &symbol, const std::string &interval, int limit,
+    int max_retries, std::chrono::milliseconds retry_delay,
+    std::chrono::milliseconds request_pause) {
+  if (interval == "5s" || interval == "15s") {
+    return fetch_klines_alt(symbol, interval, limit, max_retries, retry_delay,
+                            request_pause);
+  }
+  auto res = fetch_klines_binance(symbol, interval, limit, max_retries,
+                                  retry_delay, request_pause);
+  if (res.error != FetchError::None) {
+    auto alt = fetch_klines_alt(symbol, interval, limit, max_retries,
+                                retry_delay, request_pause);
+    return alt;
+  }
+  return res;
+}
+
+KlinesResult DataFetcher::fetch_klines_alt(
+    const std::string &symbol, const std::string &interval, int limit,
+    int max_retries, std::chrono::milliseconds retry_delay,
+    std::chrono::milliseconds request_pause) {
+  std::string pair = to_gate_symbol(symbol);
+  std::string url = "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=" +
+                    pair + "&limit=" + std::to_string(limit) + "&interval=" +
+                    interval;
+  for (int attempt = 0; attempt < max_retries; ++attempt) {
+    throttle(request_pause);
+    cpr::Response r = cpr::Get(cpr::Url{url});
+    if (r.error.code != cpr::ErrorCode::OK) {
+      Logger::instance().error("Alt request error: " + r.error.message);
+      if (attempt < max_retries - 1) {
+        std::this_thread::sleep_for(retry_delay);
+        continue;
+      }
+      return {FetchError::NetworkError, 0, r.error.message, {}};
+    }
+    if (r.status_code == 200) {
+      try {
+        std::vector<Candle> candles;
+        auto json_data = nlohmann::json::parse(r.text);
+        long long interval_ms = interval_to_ms(interval);
+        for (const auto &kline : json_data) {
+          long long ts =
+              static_cast<long long>(std::stoll(kline[0].get<std::string>())) *
+              1000LL;
+          double volume = std::stod(kline[1].get<std::string>());
+          double close = std::stod(kline[2].get<std::string>());
+          double high = std::stod(kline[3].get<std::string>());
+          double low = std::stod(kline[4].get<std::string>());
+          double open = std::stod(kline[5].get<std::string>());
+          candles.emplace_back(ts, open, high, low, close, volume,
+                               ts + interval_ms - 1, 0.0, 0, 0.0, 0.0, 0.0);
+        }
+        std::reverse(candles.begin(), candles.end());
+        return {FetchError::None, r.status_code, "", candles};
+      } catch (const std::exception &e) {
+        Logger::instance().error(std::string("Alt kline parse error: ") +
+                                 e.what());
+        return {FetchError::ParseError, r.status_code, e.what(), {}};
+      }
+    }
+    Logger::instance().error("Alt HTTP Request failed with status code: " +
+                             std::to_string(r.status_code));
+    if (attempt < max_retries - 1) {
+      std::this_thread::sleep_for(retry_delay);
+    } else {
+      return {FetchError::HttpError, r.status_code, r.error.message, {}};
+    }
+  }
+  return {FetchError::HttpError, 0, "Max retries exceeded", {}};
 }
 
 std::future<KlinesResult> DataFetcher::fetch_klines_async(

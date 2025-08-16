@@ -55,6 +55,16 @@ public:
                std::chrono::milliseconds request_pause =
                    std::chrono::milliseconds(1100));
 
+  // Fetches kline data from an alternative API. Used as a fallback when the
+  // primary exchange fails or for unsupported intervals (e.g. 5s/15s).
+  static KlinesResult
+  fetch_klines_alt(const std::string &symbol, const std::string &interval,
+                   int limit = 500, int max_retries = 3,
+                   std::chrono::milliseconds retry_delay =
+                       std::chrono::milliseconds(1000),
+                   std::chrono::milliseconds request_pause =
+                       std::chrono::milliseconds(1100));
+
   // Asynchronously fetches kline data on a background thread.
   // Returns a future that becomes ready with the fetched candles once
   // the HTTP request completes. The function itself is thread-safe;
