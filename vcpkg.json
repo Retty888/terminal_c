@@ -1,5 +1,5 @@
 {
-  "name": "terminal_c",
+  "name": "terminal-c",
   "version": "0.1.0",
   "dependencies": [
     { "name": "imgui", "features": [ "docking-experimental", "glfw-binding", "opengl3-binding" ] },
