@@ -219,8 +219,31 @@ int App::run() {
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-    ImGui::DockSpaceOverViewport(ImGui::GetID("MainDock"),
-                                 ImGui::GetMainViewport());
+
+    ImGuiID dockspace_id = ImGui::GetID("MainDock");
+    static bool dock_init = false;
+    if (!dock_init) {
+      dock_init = true;
+      ImGui::DockBuilderRemoveNode(dockspace_id);
+      ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+
+      ImGuiID dock_top, dock_bottom;
+      ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Up, 0.3f, &dock_top,
+                                  &dock_bottom);
+      ImGuiID dock_top_left, dock_top_right;
+      ImGui::DockBuilderSplitNode(dock_top, ImGuiDir_Left, 0.5f, &dock_top_left,
+                                  &dock_top_right);
+
+      ImGui::DockBuilderDockWindow("Chart", dock_bottom);
+      ImGui::DockBuilderDockWindow("Control Panel", dock_top_left);
+      ImGui::DockBuilderDockWindow("Backtest", dock_top_right);
+      ImGui::DockBuilderDockWindow("Signals", dock_top_right);
+      ImGui::DockBuilderDockWindow("Journal", dock_top_right);
+      ImGui::DockBuilderDockWindow("Analytics", dock_top_right);
+
+      ImGui::DockBuilderFinish(dockspace_id);
+    }
+    ImGui::DockSpaceOverViewport(dockspace_id, ImGui::GetMainViewport());
 
     static auto last_fetch = std::chrono::steady_clock::now();
     auto now = std::chrono::steady_clock::now();
