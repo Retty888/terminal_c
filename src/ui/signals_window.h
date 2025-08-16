@@ -19,6 +19,8 @@ void DrawSignalsWindow(
     std::string& strategy,
     int& short_period,
     int& long_period,
+    double& oversold,
+    double& overbought,
     bool& show_on_chart,
     std::vector<SignalEntry>& signal_entries,
     std::vector<double>& buy_times,
