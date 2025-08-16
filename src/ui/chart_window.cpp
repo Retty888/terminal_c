@@ -249,13 +249,15 @@ void DrawChartWindow(
 
   ImPlotFlags plot_flags = ImPlotFlags_Crosshairs;
   ImPlotSubplotFlags subplot_flags = ImPlotSubplotFlags_LinkAllX;
-  int subplot_rows = 2;
+  std::vector<float> row_sizes = {3.f, 1.f};
   if (show_rsi)
-    ++subplot_rows;
+    row_sizes.push_back(2.f);
   if (show_macd)
-    ++subplot_rows;
+    row_sizes.push_back(2.f);
+  int subplot_rows = static_cast<int>(row_sizes.size());
   if (ImPlot::BeginSubplots("##price_volume", subplot_rows, 1,
-                            ImGui::GetContentRegionAvail(), subplot_flags)) {
+                            ImGui::GetContentRegionAvail(), subplot_flags,
+                            row_sizes.data())) {
     if (apply_manual_limits) {
       ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max,
                                 manual_limits.Y.Min, manual_limits.Y.Max,
