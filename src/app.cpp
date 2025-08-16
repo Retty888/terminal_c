@@ -185,26 +185,14 @@ int App::run() {
   for (const auto &pair : selected_pairs) {
     for (const auto &interval : intervals) {
       auto candles = data_service_.load_candles(pair, interval);
-      if (candles.size() < candles_limit) {
-        int missing = candles_limit - static_cast<int>(candles.size());
-        auto fetched = data_service_.fetch_klines(pair, interval, missing);
-        if (fetched.error == FetchError::None && !fetched.candles.empty()) {
-          data_service_.append_candles(pair, interval, fetched.candles);
-          long long last_time = candles.empty() ? 0 : candles.back().open_time;
-          for (const auto &c : fetched.candles) {
-            if (c.open_time > last_time)
-              candles.push_back(c);
-          }
-        }
-      }
-      if (candles.empty()) {
-        all_candles[pair][interval] = {};
-        initial_fetches.push_back(
-            {pair, interval,
-             data_service_.fetch_klines_async(pair, interval, candles_limit)});
+      all_candles[pair][interval] = candles;
+      int missing = candles_limit - static_cast<int>(candles.size());
+      if (missing > 0) {
+        initial_fetches.push_back({
+            pair, interval,
+            data_service_.fetch_klines_async(pair, interval, missing)});
         add_status("Fetching " + pair + " " + interval);
       } else {
-        all_candles[pair][interval] = candles;
         ++completed_initial_fetches;
         status_.candle_progress =
             static_cast<float>(completed_initial_fetches) /
@@ -266,11 +254,26 @@ int App::run() {
         auto fetched = it->future.get();
         if (fetched.error == FetchError::None && !fetched.candles.empty()) {
           std::lock_guard<std::mutex> lock(candles_mutex);
-          all_candles[it->pair][it->interval] = fetched.candles;
-          data_service_.save_candles(it->pair, it->interval, fetched.candles);
+          auto &vec = all_candles[it->pair][it->interval];
+          bool had_candles = !vec.empty();
+          long long last_time = had_candles ? vec.back().open_time : 0;
+          std::vector<Candle> new_candles;
+          for (const auto &c : fetched.candles) {
+            if (c.open_time > last_time) {
+              vec.push_back(c);
+              new_candles.push_back(c);
+            }
+          }
+          if (!new_candles.empty()) {
+            if (had_candles)
+              data_service_.append_candles(it->pair, it->interval, new_candles);
+            else
+              data_service_.save_candles(it->pair, it->interval, vec);
+          }
           add_status("Loaded " + it->pair + " " + it->interval);
         } else {
-          status_.error_message = "Failed to fetch " + it->pair + " " + it->interval;
+          status_.error_message =
+              "Failed to fetch " + it->pair + " " + it->interval;
           add_status(status_.error_message);
         }
         ++completed_initial_fetches;
