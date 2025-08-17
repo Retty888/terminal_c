@@ -14,23 +14,30 @@ public:
   void setUrl(const std::string &url) override { ws_.setUrl(url); }
   void setOnMessage(MessageCallback cb) override { msg_cb_ = std::move(cb); }
   void setOnError(ErrorCallback cb) override { err_cb_ = std::move(cb); }
+  void setOnClose(CloseCallback cb) override { close_cb_ = std::move(cb); }
   void start() override {
     ws_.setOnMessage([this](const ix::WebSocketMessagePtr &msg) {
       if (msg->type == ix::WebSocketMessageType::Message) {
         if (msg_cb_) msg_cb_(msg->str);
-      } else if (msg->type == ix::WebSocketMessageType::Error ||
-                 msg->type == ix::WebSocketMessageType::Close) {
+      } else if (msg->type == ix::WebSocketMessageType::Error) {
         if (err_cb_) err_cb_();
+        if (close_cb_) close_cb_();
+      } else if (msg->type == ix::WebSocketMessageType::Close) {
+        if (close_cb_) close_cb_();
       }
     });
     ws_.start();
   }
-  void stop() override { ws_.stop(); }
+  void stop() override {
+    ws_.stop();
+    if (close_cb_) close_cb_();
+  }
 
 private:
   ix::WebSocket ws_;
   MessageCallback msg_cb_;
   ErrorCallback err_cb_;
+  CloseCallback close_cb_;
 };
 #endif
 

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
 #include <nlohmann/json.hpp>
 #include <thread>
 
@@ -30,6 +31,10 @@ void KlineStream::start(CandleCallback cb, ErrorCallback err_cb) {
 
 void KlineStream::stop() {
   running_ = false;
+  {
+    std::lock_guard<std::mutex> lock(ws_mutex_);
+    if (ws_) ws_->stop();
+  }
   if (thread_.joinable()) thread_.join();
 }
 
@@ -38,8 +43,11 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb) {
   std::size_t attempt = 0;
 
   while (running_) {
-    auto ws = ws_factory_();
-    if (!ws) {
+    {
+      std::lock_guard<std::mutex> lock(ws_mutex_);
+      ws_ = ws_factory_();
+    }
+    if (!ws_) {
       Logger::instance().warn("WebSocket support not available; Kline streaming disabled");
       if (err_cb) err_cb();
       running_ = false;
@@ -47,8 +55,12 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb) {
     }
 
     std::atomic<bool> error{false};
-    ws->setUrl(url);
-    ws->setOnMessage([this, cb](const std::string &msg) {
+    std::mutex m;
+    std::condition_variable cv;
+    bool closed = false;
+
+    ws_->setUrl(url);
+    ws_->setOnMessage([this, cb](const std::string &msg) {
       try {
         auto j = nlohmann::json::parse(msg);
         if (j.contains("k")) {
@@ -76,21 +88,45 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb) {
         Logger::instance().error(std::string("Kline parse error: ") + e.what());
       }
     });
-    ws->setOnError([&]() { error = true; });
+    ws_->setOnError([&]() {
+      error = true;
+      std::lock_guard<std::mutex> lock(ws_mutex_);
+      if (ws_) ws_->stop();
+    });
+    ws_->setOnClose([&]() {
+      {
+        std::lock_guard<std::mutex> lk(m);
+        closed = true;
+      }
+      cv.notify_one();
+    });
 
-    ws->start();
-    while (running_ && !error) {
-      sleep_func_(std::chrono::milliseconds(100));
+    ws_->start();
+
+    {
+      std::unique_lock<std::mutex> lk(m);
+      cv.wait(lk, [&] { return closed; });
     }
-    ws->stop();
+
+    {
+      std::lock_guard<std::mutex> lock(ws_mutex_);
+      if (ws_) {
+        ws_->stop();
+        ws_.reset();
+      }
+    }
 
     if (!running_) break;
 
-    if (err_cb) err_cb();
+    if (error && err_cb) err_cb();
 
-    ++attempt;
-    auto delay = base_delay_ * (1 << std::min<std::size_t>(attempt - 1, 8));
-    sleep_func_(delay);
+    if (error) {
+      ++attempt;
+      auto delay = base_delay_ * (1 << std::min<std::size_t>(attempt - 1, 8));
+      sleep_func_(delay);
+    } else {
+      attempt = 0;
+    }
   }
 }
 

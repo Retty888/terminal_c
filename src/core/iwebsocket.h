@@ -10,10 +10,12 @@ class IWebSocket {
 public:
   using MessageCallback = std::function<void(const std::string&)>;
   using ErrorCallback = std::function<void()>;
+  using CloseCallback = std::function<void()>;
   virtual ~IWebSocket() = default;
   virtual void setUrl(const std::string &url) = 0;
   virtual void setOnMessage(MessageCallback cb) = 0;
   virtual void setOnError(ErrorCallback cb) = 0;
+  virtual void setOnClose(CloseCallback cb) = 0;
   virtual void start() = 0;
   virtual void stop() = 0;
 };

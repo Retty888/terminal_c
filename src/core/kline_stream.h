@@ -5,6 +5,8 @@
 #include <string>
 #include <thread>
 #include <chrono>
+#include <mutex>
+#include <memory>
 
 #include "candle.h"
 #include "candle_manager.h"
@@ -39,6 +41,8 @@ private:
   std::chrono::milliseconds base_delay_;
   std::thread thread_;
   std::atomic<bool> running_{false};
+  std::mutex ws_mutex_;
+  std::unique_ptr<IWebSocket> ws_;
 };
 } // namespace Core
 
