@@ -155,7 +155,7 @@ void App::load_config() {
     ctx.candles_limit = static_cast<int>(cfg->candles_limit);
     ctx.streaming_enabled = cfg->enable_streaming;
   } else {
-    Logger::instance().warning("Using default configuration");
+    Logger::instance().warn("Using default configuration");
     ctx.candles_limit = 5000;
     ctx.streaming_enabled = false;
   }
