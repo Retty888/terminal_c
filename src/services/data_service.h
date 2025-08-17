@@ -5,6 +5,7 @@
 #include <vector>
 #include <chrono>
 #include <cstddef>
+#include <filesystem>
 
 #include "core/candle.h"
 #include "core/data_fetcher.h"
@@ -16,6 +17,9 @@
 // on high level behaviour.
 class DataService {
 public:
+  DataService();
+  explicit DataService(const std::filesystem::path &data_dir);
+
   // Exchange data ---------------------------------------------------------
   Core::SymbolsResult fetch_all_symbols(
       int max_retries = 3,
@@ -55,5 +59,12 @@ public:
                     const std::vector<Core::Candle> &candles) const;
   void append_candles(const std::string &pair, const std::string &interval,
                       const std::vector<Core::Candle> &candles) const;
+  std::vector<std::string> list_stored_data() const;
+
+  Core::CandleManager &candle_manager() { return candle_manager_; }
+  const Core::CandleManager &candle_manager() const { return candle_manager_; }
+
+private:
+  Core::CandleManager candle_manager_;
 };
 
