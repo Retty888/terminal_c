@@ -223,7 +223,7 @@ int App::run() {
     status_.candle_progress = 1.0f;
   }
   std::atomic<long long> next_fetch_time{0};
-  if (streaming_enabled) {
+  if (streaming_enabled && active_interval != "5s" && active_interval != "15s") {
     for (const auto &p : pairs) {
       std::string pair = p.name;
       auto stream = std::make_unique<KlineStream>(pair, active_interval);
@@ -241,6 +241,8 @@ int App::run() {
           });
       streams[pair] = std::move(stream);
     }
+  } else {
+    streaming_enabled = false;
   }
   const auto fetch_backoff = std::chrono::seconds(5);
   const auto request_timeout = std::chrono::seconds(10);
@@ -274,19 +276,19 @@ int App::run() {
       ImGui::DockBuilderRemoveNode(dockspace_id);
       ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
 
-      ImGuiID dock_top, dock_bottom;
-      ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Up, 0.3f, &dock_top,
-                                  &dock_bottom);
-      ImGuiID dock_top_left, dock_top_right;
-      ImGui::DockBuilderSplitNode(dock_top, ImGuiDir_Left, 0.5f, &dock_top_left,
-                                  &dock_top_right);
+      ImGuiID dock_main_top, dock_bottom;
+      ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Down, 0.25f, &dock_bottom,
+                                  &dock_main_top);
+      ImGuiID dock_left, dock_right;
+      ImGui::DockBuilderSplitNode(dock_main_top, ImGuiDir_Left, 0.2f, &dock_left,
+                                  &dock_right);
 
-      ImGui::DockBuilderDockWindow("Chart", dock_bottom);
-      ImGui::DockBuilderDockWindow("Control Panel", dock_top_left);
-      ImGui::DockBuilderDockWindow("Backtest", dock_top_right);
-      ImGui::DockBuilderDockWindow("Signals", dock_top_right);
-      ImGui::DockBuilderDockWindow("Journal", dock_top_right);
-      ImGui::DockBuilderDockWindow("Analytics", dock_top_right);
+      ImGui::DockBuilderDockWindow("Control Panel", dock_left);
+      ImGui::DockBuilderDockWindow("Chart", dock_right);
+      ImGui::DockBuilderDockWindow("Journal", dock_bottom);
+      ImGui::DockBuilderDockWindow("Signals", dock_bottom);
+      ImGui::DockBuilderDockWindow("Backtest", dock_bottom);
+      ImGui::DockBuilderDockWindow("Analytics", dock_bottom);
 
       ImGui::DockBuilderFinish(dockspace_id);
     }

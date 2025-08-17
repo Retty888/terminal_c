@@ -53,6 +53,26 @@ long long interval_to_ms(const std::string &interval) {
   }
 }
 
+void fill_missing(std::vector<Core::Candle> &candles, long long interval_ms) {
+  if (candles.size() < 2 || interval_ms <= 0)
+    return;
+  std::vector<Core::Candle> filled;
+  filled.reserve(candles.size());
+  for (std::size_t i = 0; i + 1 < candles.size(); ++i) {
+    const auto &cur = candles[i];
+    const auto &next = candles[i + 1];
+    filled.push_back(cur);
+    long long expected = cur.open_time + interval_ms;
+    while (expected < next.open_time) {
+      filled.emplace_back(expected, cur.close, cur.close, cur.close, cur.close, 0.0,
+                         expected + interval_ms - 1, 0.0, 0, 0.0, 0.0, 0.0);
+      expected += interval_ms;
+    }
+  }
+  filled.push_back(candles.back());
+  candles = std::move(filled);
+}
+
 // Helper to fetch klines from Binance style endpoints.
 Core::KlinesResult fetch_klines_from_api(
     const std::string &prefix, const std::string &symbol,
@@ -115,6 +135,7 @@ Core::KlinesResult fetch_klines_from_api(
                 std::stod(kline[11].get<std::string>()));
           }
           if (candles.empty()) {
+            fill_missing(all_candles, interval_ms);
             return {FetchError::None, http_status, "", all_candles};
           }
           all_candles.insert(all_candles.begin(), candles.begin(),
@@ -140,6 +161,7 @@ Core::KlinesResult fetch_klines_from_api(
       return {FetchError::HttpError, http_status, "Max retries exceeded", {}};
     }
   }
+  fill_missing(all_candles, interval_ms);
   return {FetchError::None, http_status, "", all_candles};
 }
 
@@ -170,6 +192,7 @@ KlinesResult DataFetcher::fetch_klines(
     return fetch_klines_alt(symbol, interval, limit, max_retries, retry_delay,
                             request_pause);
   }
+  fill_missing(res.candles, interval_to_ms(interval));
   return res;
 }
 
@@ -212,6 +235,7 @@ KlinesResult DataFetcher::fetch_klines_alt(
                                  ts + interval_ms - 1, 0.0, 0, 0.0, 0.0, 0.0);
           }
           std::reverse(candles.begin(), candles.end());
+          fill_missing(candles, interval_ms);
           return {FetchError::None, r.status_code, "", candles};
         } catch (const std::exception &e) {
           Logger::instance().error(std::string("Alt kline parse error: ") +
