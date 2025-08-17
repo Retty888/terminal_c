@@ -1,6 +1,6 @@
 #include "app.h"
 
-#include "config.h"
+#include "config_manager.h"
 #include "core/backtester.h"
 #include "core/candle.h"
 #include "core/candle_manager.h"
@@ -122,7 +122,8 @@ void App::add_status(const std::string &msg) {
 }
 
 bool App::init_window() {
-  auto level = Config::load_min_log_level("config.json");
+  auto cfg = Config::ConfigManager::load("config.json");
+  auto level = cfg ? cfg->log_level : LogLevel::Info;
   Logger::instance().set_min_level(level);
   Logger::instance().enable_console_output(true);
   Logger::instance().set_file("terminal.log");
@@ -147,8 +148,17 @@ bool App::init_window() {
 void App::setup_imgui() { ui_manager_.setup(window_); }
 
 void App::load_config() {
-  std::vector<std::string> pair_names =
-      data_service_.load_selected_pairs("config.json");
+  auto cfg = Config::ConfigManager::load("config.json");
+  std::vector<std::string> pair_names;
+  if (cfg) {
+    pair_names = cfg->pairs;
+    ctx.candles_limit = static_cast<int>(cfg->candles_limit);
+    ctx.streaming_enabled = cfg->enable_streaming;
+  } else {
+    Logger::instance().warning("Using default configuration");
+    ctx.candles_limit = 5000;
+    ctx.streaming_enabled = false;
+  }
   ctx.intervals = {"1m", "3m", "5m",  "15m", "1h",
                    "4h", "1d", "15s", "5s"};
   auto exchange_interval_res = data_service_.fetch_intervals();
@@ -182,8 +192,6 @@ void App::load_config() {
   ctx.intervals.erase(
       std::unique(ctx.intervals.begin(), ctx.intervals.end()),
       ctx.intervals.end());
-  ctx.candles_limit = Config::load_candles_limit("config.json");
-  ctx.streaming_enabled = Config::load_streaming_enabled("config.json");
   for (const auto &name : pair_names) {
     ctx.pairs.push_back({name, true});
   }
@@ -191,7 +199,7 @@ void App::load_config() {
     std::vector<std::string> names;
     for (const auto &p : ctx.pairs)
       names.push_back(p.name);
-    data_service_.save_selected_pairs("config.json", names);
+    Config::ConfigManager::save_selected_pairs("config.json", names);
   };
   ctx.selected_pairs = pair_names;
   ctx.active_pair = ctx.selected_pairs[0];

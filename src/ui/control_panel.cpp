@@ -1,6 +1,6 @@
 #include "ui/control_panel.h"
 
-#include "config.h"
+#include "config_manager.h"
 #include "core/candle_manager.h"
 #include "core/data_fetcher.h"
 #include "imgui.h"
@@ -17,7 +17,10 @@
 using namespace Core;
 
 namespace {
-const size_t EXPECTED_CANDLES = Config::load_candles_limit("config.json");
+const size_t EXPECTED_CANDLES = [] {
+  auto cfg = Config::ConfigManager::load("config.json");
+  return cfg ? cfg->candles_limit : 5000u;
+}();
 constexpr size_t THRESHOLD_LOW = 100;
 constexpr size_t THRESHOLD_MED = 1000;
 
@@ -161,7 +164,7 @@ void DrawControlPanel(
         if (std::find(selected_pairs.begin(), selected_pairs.end(), symbol) ==
             selected_pairs.end()) {
           selected_pairs.push_back(symbol);
-          Config::save_selected_pairs("config.json", selected_pairs);
+          Config::ConfigManager::save_selected_pairs("config.json", selected_pairs);
         }
         bool failed = false;
         for (const auto &interval : intervals) {
@@ -316,7 +319,7 @@ void DrawControlPanel(
       selected_pairs.erase(std::remove(selected_pairs.begin(),
                                        selected_pairs.end(), removed),
                            selected_pairs.end());
-      Config::save_selected_pairs("config.json", selected_pairs);
+      Config::ConfigManager::save_selected_pairs("config.json", selected_pairs);
       if (cancel_pair)
         cancel_pair(removed);
       save_pairs();
