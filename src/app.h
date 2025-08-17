@@ -46,6 +46,7 @@ private:
   void process_events();
   void render_ui();
   void cleanup();
+  void update_next_fetch_time(long long candidate);
 
   struct AppContext {
     struct TradeEvent {
