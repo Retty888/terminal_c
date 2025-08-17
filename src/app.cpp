@@ -221,11 +221,11 @@ void App::process_events() {
         auto interval_it = pair_it->second.find(this->ctx_->active_interval);
         if (interval_it != pair_it->second.end() &&
             !interval_it->second.empty())
-          this->ctx_->next_fetch_time.store(
+          update_next_fetch_time(
               interval_it->second.back().open_time + period.count());
       }
       if (this->ctx_->next_fetch_time.load() == 0)
-        this->ctx_->next_fetch_time.store(now_ms + period.count());
+        update_next_fetch_time(now_ms + period.count());
     }
     if (now_ms >= this->ctx_->next_fetch_time.load()) {
       for (const auto &item : this->ctx_->pairs) {
@@ -237,7 +237,7 @@ void App::process_events() {
           add_status("Updating " + pair);
         }
       }
-      this->ctx_->next_fetch_time.store(now_ms + period.count());
+      update_next_fetch_time(now_ms + period.count());
     }
   }
   if (use_http) {
@@ -259,31 +259,26 @@ void App::process_events() {
                                          {latest.candles.back()});
             auto p = parse_interval(it->second.interval);
             long long boundary = vec.back().open_time + p.count();
-            auto nft = this->ctx_->next_fetch_time.load();
-            if (nft == 0 || boundary < nft)
-              this->ctx_->next_fetch_time.store(boundary);
+            update_next_fetch_time(boundary);
           } else {
             long long retry =
                 result_now +
                 std::chrono::duration_cast<std::chrono::milliseconds>(
                     this->ctx_->fetch_backoff)
                     .count();
-            auto nft2 = this->ctx_->next_fetch_time.load();
-            if (nft2 == 0 || retry < nft2)
-              this->ctx_->next_fetch_time.store(retry);
+            update_next_fetch_time(retry);
           }
           add_status("Updated " + it->first);
         } else {
           status_.error_message = "Update failed for " + it->first;
+          Logger::instance().error(status_.error_message);
           add_status(status_.error_message);
           long long retry =
               result_now +
               std::chrono::duration_cast<std::chrono::milliseconds>(
                   this->ctx_->fetch_backoff)
                   .count();
-          auto nft3 = this->ctx_->next_fetch_time.load();
-          if (nft3 == 0 || retry < nft3)
-            this->ctx_->next_fetch_time.store(retry);
+          update_next_fetch_time(retry);
         }
         it = this->ctx_->pending_fetches.erase(it);
       } else {
@@ -319,6 +314,7 @@ void App::process_events() {
       } else {
         status_.error_message = "Failed to fetch " + it->pair + " " +
                                 it->interval + ", retrying";
+        Logger::instance().error(status_.error_message);
         add_status(status_.error_message);
         int miss = this->ctx_->candles_limit -
                    static_cast<int>(this->ctx_->all_candles[it->pair][it->interval].size());
@@ -333,6 +329,7 @@ void App::process_events() {
       if (std::chrono::steady_clock::now() - it->start > this->ctx_->request_timeout) {
         status_.error_message = "Timeout fetching " + it->pair + " " +
                                 it->interval + ", retrying";
+        Logger::instance().error(status_.error_message);
         add_status(status_.error_message);
         int miss = this->ctx_->candles_limit -
                    static_cast<int>(this->ctx_->all_candles[it->pair][it->interval].size());
@@ -349,6 +346,12 @@ void App::process_events() {
                                ? static_cast<float>(this->ctx_->completed_fetches) /
                                      static_cast<float>(this->ctx_->total_fetches)
                                : 1.0f;
+}
+
+void App::update_next_fetch_time(long long candidate) {
+  auto nft = this->ctx_->next_fetch_time.load();
+  if (nft == 0 || candidate < nft)
+    this->ctx_->next_fetch_time.store(candidate);
 }
 
 void App::render_ui() {
