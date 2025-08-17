@@ -68,8 +68,3 @@ std::vector<std::string> DataService::list_stored_data() const {
   return candle_manager_.list_stored_data();
 }
 
-Core::CandleManager &DataService::candle_manager() { return candle_manager_; }
-const Core::CandleManager &DataService::candle_manager() const {
-  return candle_manager_;
-}
-
