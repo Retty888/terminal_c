@@ -1,6 +1,44 @@
 #include "services/data_service.h"
 
 #include "core/candle_manager.h"
+#include "core/interval_utils.h"
+#include "core/logger.h"
+#include <nlohmann/json.hpp>
+#include <algorithm>
+#include <thread>
+
+namespace {
+
+void fill_missing(std::vector<Core::Candle> &candles, long long interval_ms) {
+  if (candles.size() < 2 || interval_ms <= 0)
+    return;
+  std::vector<Core::Candle> filled;
+  filled.reserve(candles.size());
+  for (std::size_t i = 0; i + 1 < candles.size(); ++i) {
+    const auto &cur = candles[i];
+    const auto &next = candles[i + 1];
+    filled.push_back(cur);
+    long long expected = cur.open_time + interval_ms;
+    while (expected < next.open_time) {
+      filled.emplace_back(expected, cur.close, cur.close, cur.close, cur.close,
+                         0.0, expected + interval_ms - 1, 0.0, 0, 0.0, 0.0,
+                         0.0);
+      expected += interval_ms;
+    }
+  }
+  filled.push_back(candles.back());
+  candles = std::move(filled);
+}
+
+std::string to_gate_symbol(const std::string &symbol) {
+  if (symbol.size() < 6)
+    return symbol;
+  std::string base = symbol.substr(0, symbol.size() - 4);
+  std::string quote = symbol.substr(symbol.size() - 4);
+  return base + "_" + quote;
+}
+
+} // namespace
 
 DataService::DataService()
     : http_client_(std::make_shared<Core::CprHttpClient>()),
@@ -38,6 +76,161 @@ Core::KlinesResult DataService::fetch_klines_alt(
     int max_retries, std::chrono::milliseconds retry_delay) const {
   return fetcher_.fetch_klines_alt(symbol, interval, limit, max_retries,
                                    retry_delay);
+}
+
+Core::KlinesResult DataService::fetch_range(
+    const std::string &symbol, const std::string &interval,
+    long long start_time, long long end_time, int max_retries,
+    std::chrono::milliseconds retry_delay) const {
+  std::vector<Core::Candle> result;
+  long long interval_ms = Core::parse_interval(interval).count();
+  if (interval_ms <= 0 || start_time > end_time)
+    return {Core::FetchError::None, 0, "", result};
+
+  int http_status = 0;
+  if (interval == "5s" || interval == "15s") {
+    std::string pair = to_gate_symbol(symbol);
+    while (start_time <= end_time) {
+      long long batch_end =
+          std::min(end_time, start_time + interval_ms * 999);
+      std::string url =
+          "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=" +
+          pair + "&interval=" + interval + "&from=" +
+          std::to_string(start_time / 1000) + "&to=" +
+          std::to_string((batch_end + interval_ms) / 1000);
+      bool success = false;
+      for (int attempt = 0; attempt < max_retries; ++attempt) {
+        rate_limiter_->acquire();
+        Core::HttpResponse r = http_client_->get(url);
+        if (r.network_error) {
+          Core::Logger::instance().error("Alt range request error: " +
+                                         r.error_message);
+          if (attempt < max_retries - 1) {
+            std::this_thread::sleep_for(retry_delay);
+            continue;
+          }
+          return {Core::FetchError::NetworkError, 0, r.error_message, {}};
+        }
+        http_status = r.status_code;
+        if (r.status_code == 200) {
+          try {
+            std::vector<Core::Candle> candles;
+            auto json_data = nlohmann::json::parse(r.text);
+            for (const auto &kline : json_data) {
+              long long ts =
+                  static_cast<long long>(
+                      std::stoll(kline[0].get<std::string>())) *
+                  1000LL;
+              double volume = std::stod(kline[1].get<std::string>());
+              double close = std::stod(kline[2].get<std::string>());
+              double high = std::stod(kline[3].get<std::string>());
+              double low = std::stod(kline[4].get<std::string>());
+              double open = std::stod(kline[5].get<std::string>());
+              candles.emplace_back(ts, open, high, low, close, volume,
+                                   ts + interval_ms - 1, 0.0, 0, 0.0, 0.0, 0.0);
+            }
+            std::reverse(candles.begin(), candles.end());
+            if (candles.empty())
+              return {Core::FetchError::None, http_status, "", result};
+            result.insert(result.end(), candles.begin(), candles.end());
+            start_time = result.back().open_time + interval_ms;
+            success = true;
+            break;
+          } catch (const std::exception &e) {
+            Core::Logger::instance().error(
+                std::string("Alt range parse error: ") + e.what());
+            return {Core::FetchError::ParseError, http_status, e.what(), {}};
+          }
+        }
+        Core::Logger::instance().error(
+            "Alt range HTTP Request failed with status code: " +
+            std::to_string(r.status_code));
+        if (attempt < max_retries - 1) {
+          std::this_thread::sleep_for(retry_delay);
+        } else {
+          return {Core::FetchError::HttpError, r.status_code, r.error_message,
+                  {}};
+        }
+      }
+      if (!success) {
+        return {Core::FetchError::HttpError, http_status,
+                "Max retries exceeded", {}};
+      }
+    }
+  } else {
+    const std::string base_url =
+        "https://api.binance.com/api/v3/klines?symbol=" + symbol +
+        "&interval=" + interval;
+    while (start_time <= end_time) {
+      long long batch_end =
+          std::min(end_time, start_time + interval_ms * 999);
+      std::string url = base_url + "&startTime=" + std::to_string(start_time) +
+                        "&endTime=" + std::to_string(batch_end) +
+                        "&limit=1000";
+      bool success = false;
+      for (int attempt = 0; attempt < max_retries; ++attempt) {
+        rate_limiter_->acquire();
+        Core::HttpResponse r = http_client_->get(url);
+        if (r.network_error) {
+          Core::Logger::instance().error("Range request error: " +
+                                         r.error_message);
+          if (attempt < max_retries - 1) {
+            std::this_thread::sleep_for(retry_delay);
+            continue;
+          }
+          return {Core::FetchError::NetworkError, 0, r.error_message, {}};
+        }
+        http_status = r.status_code;
+        if (r.status_code == 200) {
+          try {
+            auto json_data = nlohmann::json::parse(r.text);
+            if (json_data.empty())
+              return {Core::FetchError::None, http_status, "", result};
+            for (const auto &kline : json_data) {
+              result.emplace_back(
+                  kline[0].get<long long>(),
+                  std::stod(kline[1].get<std::string>()),
+                  std::stod(kline[2].get<std::string>()),
+                  std::stod(kline[3].get<std::string>()),
+                  std::stod(kline[4].get<std::string>()),
+                  std::stod(kline[5].get<std::string>()),
+                  kline[6].get<long long>(),
+                  std::stod(kline[7].get<std::string>()),
+                  kline[8].get<int>(),
+                  std::stod(kline[9].get<std::string>()),
+                  std::stod(kline[10].get<std::string>()),
+                  std::stod(kline[11].get<std::string>()));
+            }
+            if (result.empty())
+              return {Core::FetchError::None, http_status, "", result};
+            start_time = result.back().open_time + interval_ms;
+            success = true;
+            break;
+          } catch (const std::exception &e) {
+            Core::Logger::instance().error(
+                std::string("Range parse error: ") + e.what());
+            return {Core::FetchError::ParseError, http_status, e.what(), {}};
+          }
+        }
+        Core::Logger::instance().error(
+            "Range HTTP Request failed with status code: " +
+            std::to_string(r.status_code));
+        if (attempt < max_retries - 1) {
+          std::this_thread::sleep_for(retry_delay);
+        } else {
+          return {Core::FetchError::HttpError, r.status_code, r.error_message,
+                  {}};
+        }
+      }
+      if (!success) {
+        return {Core::FetchError::HttpError, http_status,
+                "Max retries exceeded", {}};
+      }
+    }
+  }
+
+  fill_missing(result, interval_ms);
+  return {Core::FetchError::None, http_status, "", result};
 }
 
 std::future<Core::KlinesResult> DataService::fetch_klines_async(
