@@ -168,7 +168,7 @@ void App::load_config() {
                          exchange_interval_res.intervals.end());
   }
   if (pair_names.empty()) {
-    auto stored = CandleManager::list_stored_data();
+    auto stored = data_service_.list_stored_data();
     std::set<std::string> pairs_found;
     std::set<std::string> intervals_found;
     for (const auto &entry : stored) {
@@ -238,7 +238,7 @@ void App::load_config() {
     for (const auto &p : ctx.pairs) {
       std::string pair = p.name;
       auto stream =
-          std::make_unique<KlineStream>(pair, ctx.active_interval);
+          std::make_unique<KlineStream>(pair, ctx.active_interval, data_service_.candle_manager());
       stream->start(
           [pair](const Candle &c) {
             std::lock_guard<std::mutex> lock(ctx.candles_mutex);
@@ -458,7 +458,7 @@ void App::render_ui() {
   DrawControlPanel(ctx.pairs, ctx.selected_pairs, ctx.active_pair,
                    ctx.intervals, ctx.selected_interval, ctx.all_candles,
                    ctx.save_pairs, ctx.exchange_pairs, status_,
-                   ctx.cancel_pair);
+                   data_service_, ctx.cancel_pair);
 
   DrawSignalsWindow(ctx.strategy, ctx.short_period, ctx.long_period,
                     ctx.oversold, ctx.overbought, ctx.show_on_chart,

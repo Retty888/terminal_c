@@ -6,6 +6,7 @@
 #include <thread>
 
 #include "candle.h"
+#include "candle_manager.h"
 
 namespace Core {
 class KlineStream {
@@ -13,7 +14,8 @@ public:
   using CandleCallback = std::function<void(const Candle&)>;
   using ErrorCallback = std::function<void()>;
 
-  KlineStream(const std::string &symbol, const std::string &interval);
+  KlineStream(const std::string &symbol, const std::string &interval,
+              CandleManager &manager);
   ~KlineStream();
 
   void start(CandleCallback cb, ErrorCallback err_cb = nullptr);
@@ -25,6 +27,7 @@ private:
 
   std::string symbol_;
   std::string interval_;
+  CandleManager &candle_manager_;
   std::thread thread_;
   std::atomic<bool> running_{false};
 };

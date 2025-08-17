@@ -3,7 +3,6 @@
 #include <chrono>
 #include <nlohmann/json.hpp>
 
-#include "candle_manager.h"
 #include "logger.h"
 
 #if __has_include(<ixwebsocket/IXWebSocket.h>)
@@ -13,8 +12,9 @@
 
 namespace Core {
 
-KlineStream::KlineStream(const std::string &symbol, const std::string &interval)
-    : symbol_(symbol), interval_(interval) {}
+KlineStream::KlineStream(const std::string &symbol, const std::string &interval,
+                         CandleManager &manager)
+    : symbol_(symbol), interval_(interval), candle_manager_(manager) {}
 
 KlineStream::~KlineStream() { stop(); }
 
@@ -55,7 +55,7 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb) {
                 std::stod(k.value("V", std::string("0"))),
                 std::stod(k.value("Q", std::string("0"))),
                 0.0);
-            CandleManager::append_candles(symbol_, interval_, {c});
+            candle_manager_.append_candles(symbol_, interval_, {c});
             if (cb) cb(c);
           }
         }

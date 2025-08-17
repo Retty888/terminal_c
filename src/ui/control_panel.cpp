@@ -1,7 +1,6 @@
 #include "ui/control_panel.h"
 
 #include "config_manager.h"
-#include "core/candle_manager.h"
 #include "core/data_fetcher.h"
 #include "imgui.h"
 #include "ui/chart_window.h"
@@ -118,6 +117,7 @@ void DrawControlPanel(
         &all_candles,
     const std::function<void()> &save_pairs,
     const std::vector<std::string> &exchange_pairs, const AppStatus &status,
+    DataService &data_service,
     const std::function<void(const std::string &)> &cancel_pair) {
   ImGui::Begin("Control Panel");
 
@@ -168,7 +168,7 @@ void DrawControlPanel(
         }
         bool failed = false;
         for (const auto &interval : intervals) {
-          auto candles = CandleManager::load_candles(symbol, interval);
+          auto candles = data_service.load_candles(symbol, interval);
           long long last_time = candles.empty() ? 0 : candles.back().open_time;
           if (candles.size() < EXPECTED_CANDLES) {
             int missing = EXPECTED_CANDLES - static_cast<int>(candles.size());
@@ -190,7 +190,7 @@ void DrawControlPanel(
                 }
               }
               if (!to_append.empty()) {
-                CandleManager::append_candles(symbol, interval, to_append);
+                data_service.append_candles(symbol, interval, to_append);
                 for (const auto &c : to_append) {
                   if (c.open_time > last_time) {
                     candles.push_back(c);

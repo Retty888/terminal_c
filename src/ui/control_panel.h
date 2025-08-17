@@ -7,6 +7,7 @@
 
 #include "core/candle.h"
 #include "app.h"
+#include "services/data_service.h"
 
 struct PairItem {
     std::string name;
@@ -23,5 +24,6 @@ void DrawControlPanel(
     const std::function<void()>& save_pairs,
     const std::vector<std::string>& exchange_pairs,
     const AppStatus& status,
+    DataService& data_service,
     const std::function<void(const std::string&)>& cancel_pair);
 

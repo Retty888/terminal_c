@@ -1,6 +1,6 @@
 #include "candle_manager.h"
+
 #include <fstream>
-#include <iostream>
 #include <iomanip>
 #include <cstdlib>
 #include <charconv>
@@ -8,6 +8,7 @@
 #include <array>
 #include <nlohmann/json.hpp>
 #include "logger.h"
+
 #ifdef _WIN32
 #include <windows.h>
 #elif __APPLE__
@@ -75,7 +76,7 @@ std::filesystem::path resolve_data_dir() {
                 dir = j["data_dir"].get<std::string>();
             }
         } catch (const std::exception& e) {
-            std::cerr << "Failed to parse " << cfg_path << ": " << e.what() << std::endl;
+            Logger::instance().error("Failed to parse " + cfg_path.string() + ": " + e.what());
         }
     }
 
@@ -102,15 +103,38 @@ std::filesystem::path resolve_data_dir() {
     return dir;
 }
 
-std::filesystem::path data_dir = resolve_data_dir();
+} // unnamed namespace
 
-std::filesystem::path get_index_path(const std::string& symbol, const std::string& interval) {
-    std::filesystem::create_directories(data_dir);
-    std::string filename = symbol + "_" + interval + ".idx";
-    return data_dir / filename;
+CandleManager::CandleManager() : data_dir_(resolve_data_dir()) {}
+
+CandleManager::CandleManager(const std::filesystem::path& dir) : data_dir_(dir) {
+    std::filesystem::create_directories(data_dir_);
 }
 
-long long read_last_open_time(const std::string& symbol, const std::string& interval) {
+void CandleManager::set_data_dir(const std::filesystem::path& dir) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    data_dir_ = dir;
+    std::filesystem::create_directories(data_dir_);
+}
+
+std::filesystem::path CandleManager::get_data_dir() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return data_dir_;
+}
+
+std::filesystem::path CandleManager::get_candle_path(const std::string& symbol, const std::string& interval) const {
+    std::filesystem::create_directories(data_dir_); // Ensure directory exists
+    std::string filename = symbol + "_" + interval + ".csv";
+    return data_dir_ / filename;
+}
+
+std::filesystem::path CandleManager::get_index_path(const std::string& symbol, const std::string& interval) const {
+    std::filesystem::create_directories(data_dir_);
+    std::string filename = symbol + "_" + interval + ".idx";
+    return data_dir_ / filename;
+}
+
+long long CandleManager::read_last_open_time(const std::string& symbol, const std::string& interval) const {
     std::filesystem::path idx_path = get_index_path(symbol, interval);
     long long last = -1;
     if (std::filesystem::exists(idx_path)) {
@@ -121,7 +145,7 @@ long long read_last_open_time(const std::string& symbol, const std::string& inte
         }
     }
 
-    std::filesystem::path csv_path = data_dir / (symbol + "_" + interval + ".csv");
+    std::filesystem::path csv_path = get_candle_path(symbol, interval);
     if (std::filesystem::exists(csv_path)) {
         std::ifstream csv(csv_path);
         if (csv.is_open()) {
@@ -142,7 +166,7 @@ long long read_last_open_time(const std::string& symbol, const std::string& inte
                     std::ofstream idx_new(idx_path);
                     if (idx_new.is_open()) idx_new << last;
                 } else {
-                    Logger::instance().error("Failed to parse last open time: " + last_line);
+                    Logger::instance().error("Failed to parse last open time: " + std::string(last_line));
                 }
             }
         }
@@ -150,7 +174,7 @@ long long read_last_open_time(const std::string& symbol, const std::string& inte
     return last;
 }
 
-void write_last_open_time(const std::string& symbol, const std::string& interval, long long t) {
+void CandleManager::write_last_open_time(const std::string& symbol, const std::string& interval, long long t) const {
     if (t < 0) return;
     std::filesystem::path idx_path = get_index_path(symbol, interval);
     std::ofstream idx(idx_path, std::ios::trunc);
@@ -159,28 +183,13 @@ void write_last_open_time(const std::string& symbol, const std::string& interval
     }
 }
 
-} // namespace
-
-std::filesystem::path CandleManager::get_candle_path(const std::string& symbol, const std::string& interval) {
-    std::filesystem::create_directories(data_dir); // Ensure directory exists
-    std::string filename = symbol + "_" + interval + ".csv";
-    return data_dir / filename;
-}
-
-void CandleManager::set_data_dir(const std::filesystem::path& dir) {
-    data_dir = dir;
-}
-
-std::filesystem::path CandleManager::get_data_dir() {
-    return data_dir;
-}
-
 bool CandleManager::save_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) {
+    std::lock_guard<std::mutex> lock(mutex_);
     std::filesystem::path path_to_save = get_candle_path(symbol, interval);
     std::ofstream file(path_to_save);
 
     if (!file.is_open()) {
-        std::cerr << "Error: Could not open file for writing: " << path_to_save << std::endl;
+        Logger::instance().error("Could not open file for writing: " + path_to_save.string());
         return false;
     }
 
@@ -214,12 +223,13 @@ bool CandleManager::save_candles(const std::string& symbol, const std::string& i
 }
 
 bool CandleManager::append_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) {
+    std::lock_guard<std::mutex> lock(mutex_);
     std::filesystem::path path_to_save = get_candle_path(symbol, interval);
     long long last_open_time = read_last_open_time(symbol, interval);
 
     std::ofstream file(path_to_save, std::ios::app);
     if (!file.is_open()) {
-        std::cerr << "Error: Could not open file for appending: " << path_to_save << std::endl;
+        Logger::instance().error("Could not open file for appending: " + path_to_save.string());
         return false;
     }
 
@@ -252,17 +262,17 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
 }
 
 std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const std::string& interval) {
+    std::lock_guard<std::mutex> lock(mutex_);
     std::filesystem::path path = get_candle_path(symbol, interval);
     std::vector<Candle> candles;
 
     if (!std::filesystem::exists(path)) {
-        // std::cerr << "Warning: Candle file not found: " << path << std::endl;
         return candles; // Return empty vector if file doesn't exist
     }
 
     std::ifstream file(path);
     if (!file.is_open()) {
-        std::cerr << "Error: Could not open file for reading: " << path << std::endl;
+        Logger::instance().error("Could not open file for reading: " + path.string());
         return candles;
     }
 
@@ -327,9 +337,10 @@ std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const
 }
 
 std::vector<std::string> CandleManager::list_stored_data() {
+    std::lock_guard<std::mutex> lock(mutex_);
     std::vector<std::string> stored_files;
-    if (std::filesystem::exists(data_dir) && std::filesystem::is_directory(data_dir)) {
-        for (const auto& entry : std::filesystem::directory_iterator(data_dir)) {
+    if (std::filesystem::exists(data_dir_) && std::filesystem::is_directory(data_dir_)) {
+        for (const auto& entry : std::filesystem::directory_iterator(data_dir_)) {
             if (entry.is_regular_file() && entry.path().extension() == ".csv") {
                 std::string filename = entry.path().filename().string();
                 // Assuming filename format is SYMBOL_INTERVAL.csv
@@ -350,3 +361,4 @@ std::vector<std::string> CandleManager::list_stored_data() {
 }
 
 } // namespace Core
+

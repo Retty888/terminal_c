@@ -3,6 +3,11 @@
 #include "core/candle_manager.h"
 #include "core/data_fetcher.h"
 
+DataService::DataService() = default;
+
+DataService::DataService(const std::filesystem::path &data_dir)
+    : candle_manager_(data_dir) {}
+
 Core::SymbolsResult DataService::fetch_all_symbols(
     int max_retries, std::chrono::milliseconds retry_delay,
     std::chrono::milliseconds request_pause, std::size_t top_n) const {
@@ -48,18 +53,27 @@ DataService::fetch_klines_async(const std::string &symbol,
 std::vector<Core::Candle>
 DataService::load_candles(const std::string &pair,
                           const std::string &interval) const {
-  return Core::CandleManager::load_candles(pair, interval);
+  return candle_manager_.load_candles(pair, interval);
 }
 
 void DataService::save_candles(
     const std::string &pair, const std::string &interval,
     const std::vector<Core::Candle> &candles) const {
-  Core::CandleManager::save_candles(pair, interval, candles);
+  candle_manager_.save_candles(pair, interval, candles);
 }
 
 void DataService::append_candles(
     const std::string &pair, const std::string &interval,
     const std::vector<Core::Candle> &candles) const {
-  Core::CandleManager::append_candles(pair, interval, candles);
+  candle_manager_.append_candles(pair, interval, candles);
+}
+
+std::vector<std::string> DataService::list_stored_data() const {
+  return candle_manager_.list_stored_data();
+}
+
+Core::CandleManager &DataService::candle_manager() { return candle_manager_; }
+const Core::CandleManager &DataService::candle_manager() const {
+  return candle_manager_;
 }
 
