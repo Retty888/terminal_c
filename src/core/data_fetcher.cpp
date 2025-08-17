@@ -1,5 +1,10 @@
 #include "data_fetcher.h"
 
+#include <utility>
+#include <algorithm>
+#include <chrono>
+#include <future>
+#include "logger.h"
 #include "logger.h"
 #include <algorithm>
 #include <chrono>
@@ -56,6 +61,16 @@ void fill_missing(std::vector<Core::Candle> &candles, long long interval_ms) {
   candles = std::move(filled);
 }
 
+Core::KlinesResult fetch_klines_from_api(const std::string &prefix,
+                                         const std::string &symbol,
+                                         const std::string &interval, int limit,
+                                         int max_retries,
+                                         std::chrono::milliseconds retry_delay,
+                                         Core::Net::IHttpClient &http,
+                                         Core::Net::IRateLimiter &limiter) {
+  using Core::Candle;
+  using Core::FetchError;
+  using Core::KlinesResult;
 std::string to_gate_symbol(const std::string &symbol) {
   if (symbol.size() < 6)
     return symbol;
@@ -98,6 +113,8 @@ KlinesResult DataFetcher::fetch_klines_from_api(
 
     bool success = false;
     for (int attempt = 0; attempt < max_retries; ++attempt) {
+      limiter.acquire();
+      auto r = http.get(url);
       rate_limiter_->acquire();
       HttpResponse r = http_client_->get(url);
       if (r.network_error) {
@@ -158,6 +175,27 @@ KlinesResult DataFetcher::fetch_klines_from_api(
   return {FetchError::None, http_status, "", all_candles};
 }
 
+std::string to_gate_symbol(const std::string &symbol) {
+  if (symbol.size() < 6)
+    return symbol;
+  std::string base = symbol.substr(0, symbol.size() - 4);
+  std::string quote = symbol.substr(symbol.size() - 4);
+  return base + "_" + quote;
+}
+
+} // namespace
+
+namespace Core {
+
+DataFetcher::DataFetcher(std::shared_ptr<Net::IHttpClient> http_client,
+                         std::shared_ptr<Net::IRateLimiter> rate_limiter)
+    : http_client_(std::move(http_client)),
+      rate_limiter_(std::move(rate_limiter)) {}
+
+KlinesResult DataFetcher::fetch_klines(const std::string &symbol,
+                                       const std::string &interval, int limit,
+                                       int max_retries,
+                                       std::chrono::milliseconds retry_delay) {
 KlinesResult DataFetcher::fetch_klines(
     const std::string &symbol, const std::string &interval, int limit,
     int max_retries, std::chrono::milliseconds retry_delay) const {
@@ -166,6 +204,7 @@ KlinesResult DataFetcher::fetch_klines(
   }
   auto res = fetch_klines_from_api(
       "https://api.binance.com/api/v3/klines?symbol=", symbol, interval, limit,
+      max_retries, retry_delay, *http_client_, *rate_limiter_);
       max_retries, retry_delay);
   if (res.error != FetchError::None) {
     return fetch_klines_alt(symbol, interval, limit, max_retries, retry_delay);
@@ -174,6 +213,10 @@ KlinesResult DataFetcher::fetch_klines(
   return res;
 }
 
+KlinesResult DataFetcher::fetch_klines_alt(const std::string &symbol,
+                                           const std::string &interval,
+                                           int limit, int max_retries,
+                                           std::chrono::milliseconds retry_delay) {
 KlinesResult DataFetcher::fetch_klines_alt(
     const std::string &symbol, const std::string &interval, int limit,
     int max_retries, std::chrono::milliseconds retry_delay) const {
@@ -184,6 +227,7 @@ KlinesResult DataFetcher::fetch_klines_alt(
         pair + "&limit=" + std::to_string(limit) + "&interval=" + interval;
     for (int attempt = 0; attempt < max_retries; ++attempt) {
       rate_limiter_->acquire();
+      auto r = http_client_->get(url);
       HttpResponse r = http_client_->get(url);
       if (r.network_error) {
         Logger::instance().error("Alt request error: " + r.error_message);
@@ -231,6 +275,14 @@ KlinesResult DataFetcher::fetch_klines_alt(
 
   return fetch_klines_from_api(
       "https://api.binance.us/api/v3/klines?symbol=", symbol, interval, limit,
+      max_retries, retry_delay, *http_client_, *rate_limiter_);
+}
+
+std::future<KlinesResult>
+DataFetcher::fetch_klines_async(const std::string &symbol,
+                                const std::string &interval, int limit,
+                                int max_retries,
+                                std::chrono::milliseconds retry_delay) {
       max_retries, retry_delay);
 }
 
@@ -245,6 +297,11 @@ std::future<KlinesResult> DataFetcher::fetch_klines_async(
 }
 
 SymbolsResult DataFetcher::fetch_all_symbols(
+    int max_retries, std::chrono::milliseconds retry_delay, std::size_t top_n) {
+  const std::string url = "https://api.binance.com/api/v3/exchangeInfo";
+  for (int attempt = 0; attempt < max_retries; ++attempt) {
+    rate_limiter_->acquire();
+    auto r = http_client_->get(url);
     int max_retries, std::chrono::milliseconds retry_delay,
     std::size_t top_n) const {
   const std::string url = "https://api.binance.com/api/v3/exchangeInfo";
@@ -270,6 +327,7 @@ SymbolsResult DataFetcher::fetch_all_symbols(
         const std::string ticker_url =
             "https://api.binance.com/api/v3/ticker/24hr";
         rate_limiter_->acquire();
+        auto t = http_client_->get(ticker_url);
         HttpResponse t = http_client_->get(ticker_url);
         if (!t.network_error && t.status_code == 200) {
           try {
@@ -323,6 +381,11 @@ SymbolsResult DataFetcher::fetch_all_symbols(
 }
 
 IntervalsResult DataFetcher::fetch_all_intervals(
+    int max_retries, std::chrono::milliseconds retry_delay) {
+  const std::string url = "https://api.binance.com/api/v3/exchangeInfo";
+  for (int attempt = 0; attempt < max_retries; ++attempt) {
+    rate_limiter_->acquire();
+    auto r = http_client_->get(url);
     int max_retries, std::chrono::milliseconds retry_delay) const {
   const std::string url = "https://api.binance.com/api/v3/exchangeInfo";
   for (int attempt = 0; attempt < max_retries; ++attempt) {
@@ -369,4 +432,3 @@ IntervalsResult DataFetcher::fetch_all_intervals(
 }
 
 } // namespace Core
-

@@ -1,5 +1,11 @@
 #pragma once
 
+#include "i_rate_limiter.h"
+#include <chrono>
+#include <mutex>
+
+namespace Core::Net {
+=======
 #include "irate_limiter.h"
 #include <chrono>
 #include <mutex>
@@ -14,6 +20,14 @@ public:
   void acquire() override;
 
 private:
+  std::size_t capacity_;
+  std::chrono::milliseconds refill_interval_;
+  double tokens_;
+  std::chrono::steady_clock::time_point last_refill_;
+  std::mutex mutex_;
+  void refill();
+};
+}
   void refill();
 
   const std::size_t capacity_;

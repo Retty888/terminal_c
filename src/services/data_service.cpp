@@ -1,6 +1,11 @@
 #include "services/data_service.h"
 
 #include "core/candle_manager.h"
+#include "core/data_fetcher.h"
+#include "core/net/http_client_cpr.h"
+#include <memory>
+#include "core/net/token_bucket_rate_limiter.h"
+=======
 
 DataService::DataService()
     : http_client_(std::make_shared<Core::CprHttpClient>()),
@@ -17,6 +22,22 @@ DataService::DataService(const std::filesystem::path &data_dir)
 
 Core::SymbolsResult DataService::fetch_all_symbols(
     int max_retries, std::chrono::milliseconds retry_delay,
+    std::chrono::milliseconds request_pause, std::size_t top_n) const {
+  auto client = std::make_shared<Core::Net::CprHttpClient>();
+  auto limiter =
+      std::make_shared<Core::Net::TokenBucketRateLimiter>(1, request_pause);
+  Core::DataFetcher fetcher(client, limiter);
+  return fetcher.fetch_all_symbols(max_retries, retry_delay, top_n);
+}
+
+Core::IntervalsResult DataService::fetch_intervals(
+    int max_retries, std::chrono::milliseconds retry_delay,
+    std::chrono::milliseconds request_pause) const {
+  auto client = std::make_shared<Core::Net::CprHttpClient>();
+  auto limiter =
+      std::make_shared<Core::Net::TokenBucketRateLimiter>(1, request_pause);
+  Core::DataFetcher fetcher(client, limiter);
+  return fetcher.fetch_all_intervals(max_retries, retry_delay);
     std::size_t top_n) const {
   return fetcher_.fetch_all_symbols(max_retries, retry_delay, top_n);
 }
@@ -28,6 +49,13 @@ Core::IntervalsResult DataService::fetch_intervals(
 
 Core::KlinesResult DataService::fetch_klines(
     const std::string &symbol, const std::string &interval, int limit,
+    int max_retries, std::chrono::milliseconds retry_delay,
+    std::chrono::milliseconds request_pause) const {
+  auto client = std::make_shared<Core::Net::CprHttpClient>();
+  auto limiter =
+      std::make_shared<Core::Net::TokenBucketRateLimiter>(1, request_pause);
+  Core::DataFetcher fetcher(client, limiter);
+  return fetcher.fetch_klines(symbol, interval, limit, max_retries, retry_delay);
     int max_retries, std::chrono::milliseconds retry_delay) const {
   return fetcher_.fetch_klines(symbol, interval, limit, max_retries,
                                retry_delay);
@@ -35,6 +63,28 @@ Core::KlinesResult DataService::fetch_klines(
 
 Core::KlinesResult DataService::fetch_klines_alt(
     const std::string &symbol, const std::string &interval, int limit,
+    int max_retries, std::chrono::milliseconds retry_delay,
+    std::chrono::milliseconds request_pause) const {
+  auto client = std::make_shared<Core::Net::CprHttpClient>();
+  auto limiter =
+      std::make_shared<Core::Net::TokenBucketRateLimiter>(1, request_pause);
+  Core::DataFetcher fetcher(client, limiter);
+  return fetcher.fetch_klines_alt(symbol, interval, limit, max_retries,
+                                  retry_delay);
+}
+
+std::future<Core::KlinesResult>
+DataService::fetch_klines_async(const std::string &symbol,
+                                const std::string &interval, int limit,
+                                int max_retries,
+                                std::chrono::milliseconds retry_delay,
+                                std::chrono::milliseconds request_pause) const {
+  auto client = std::make_shared<Core::Net::CprHttpClient>();
+  auto limiter =
+      std::make_shared<Core::Net::TokenBucketRateLimiter>(1, request_pause);
+  auto fetcher =
+      std::make_shared<Core::DataFetcher>(client, limiter);
+  return fetcher->fetch_klines_async(symbol, interval, limit, max_retries,
     int max_retries, std::chrono::milliseconds retry_delay) const {
   return fetcher_.fetch_klines_alt(symbol, interval, limit, max_retries,
                                    retry_delay);
@@ -72,4 +122,3 @@ Core::CandleManager &DataService::candle_manager() { return candle_manager_; }
 const Core::CandleManager &DataService::candle_manager() const {
   return candle_manager_;
 }
-

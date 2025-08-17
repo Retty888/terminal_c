@@ -1,6 +1,9 @@
 #pragma once
 
 #include "candle.h"
+ codex/create-iratelimiter-and-ihttpclient-interfaces-kdyhje
+#include "net/i_http_client.h"
+#include "net/i_rate_limiter.h"
 #include "net/ihttp_client.h"
 #include "net/irate_limiter.h"
 #include <future>
@@ -43,6 +46,39 @@ struct IntervalsResult {
 
 class DataFetcher {
 public:
+  DataFetcher(std::shared_ptr<Net::IHttpClient> http_client,
+              std::shared_ptr<Net::IRateLimiter> rate_limiter);
+
+  KlinesResult fetch_klines(const std::string &symbol,
+                            const std::string &interval, int limit = 500,
+                            int max_retries = 3,
+                            std::chrono::milliseconds retry_delay =
+                                std::chrono::milliseconds(1000));
+
+  KlinesResult fetch_klines_alt(const std::string &symbol,
+                                const std::string &interval, int limit = 500,
+                                int max_retries = 3,
+                                std::chrono::milliseconds retry_delay =
+                                    std::chrono::milliseconds(1000));
+
+  std::future<KlinesResult>
+  fetch_klines_async(const std::string &symbol, const std::string &interval,
+                     int limit = 500, int max_retries = 3,
+                     std::chrono::milliseconds retry_delay =
+                         std::chrono::milliseconds(1000));
+
+  SymbolsResult fetch_all_symbols(
+      int max_retries = 3,
+      std::chrono::milliseconds retry_delay = std::chrono::milliseconds(1000),
+      std::size_t top_n = 100);
+
+  IntervalsResult fetch_all_intervals(
+      int max_retries = 3,
+      std::chrono::milliseconds retry_delay = std::chrono::milliseconds(1000));
+
+private:
+  std::shared_ptr<Net::IHttpClient> http_client_;
+  std::shared_ptr<Net::IRateLimiter> rate_limiter_;
   DataFetcher(std::shared_ptr<IHttpClient> http_client,
               std::shared_ptr<IRateLimiter> rate_limiter);
 
