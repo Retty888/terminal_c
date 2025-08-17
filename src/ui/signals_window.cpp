@@ -76,7 +76,7 @@ void DrawSignalsWindow(
     if (need_recalc) {
         status.signal_message = "Computing signals";
         status.log.push_back("Computing signals for " + active_pair + " " + selected_interval);
-        if (status.log.size() > 50) status.log.erase(status.log.begin());
+        if (status.log.size() > 50) status.log.pop_front();
         cache.strategy = strategy;
         cache.short_period = short_period;
         cache.long_period = long_period;

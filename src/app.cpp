@@ -45,7 +45,7 @@ void App::add_status(const std::string &msg) {
   std::lock_guard<std::mutex> lock(status_mutex_);
   status_.log.push_back(msg);
   if (status_.log.size() > 50)
-    status_.log.erase(status_.log.begin());
+    status_.log.pop_front();
 }
 
 bool App::init_window() {
