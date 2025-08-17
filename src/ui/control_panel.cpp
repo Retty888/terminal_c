@@ -5,8 +5,6 @@
 #include "core/interval_utils.h"
 #include "imgui.h"
 #include "ui/chart_window.h"
-#include <cpr/cpr.h>
-#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -41,47 +39,6 @@ std::string format_date(long long ms) {
   if (std::strftime(buf, sizeof(buf), "%d.%m", tm))
     return std::string(buf);
   return "-";
-}
-
-
-std::vector<Candle> fetch_range(const std::string &symbol,
-                                const std::string &interval,
-                                long long start_time, long long end_time) {
-  std::vector<Candle> result;
-  auto interval_ms = parse_interval(interval).count();
-  if (interval_ms <= 0 || start_time > end_time)
-    return result;
-  const std::string base_url =
-      "https://api.binance.com/api/v3/klines?symbol=" + symbol +
-      "&interval=" + interval;
-  while (start_time <= end_time) {
-    long long batch_end = std::min(end_time, start_time + interval_ms * 999);
-    std::string url = base_url + "&startTime=" + std::to_string(start_time) +
-                      "&endTime=" + std::to_string(batch_end) +
-                      "&limit=1000";
-    cpr::Response r = cpr::Get(cpr::Url{url});
-    if (r.status_code != 200)
-      break;
-    auto json_data = nlohmann::json::parse(r.text);
-    if (json_data.empty())
-      break;
-    for (const auto &kline : json_data) {
-      result.emplace_back(
-          kline[0].get<long long>(), std::stod(kline[1].get<std::string>()),
-          std::stod(kline[2].get<std::string>()),
-          std::stod(kline[3].get<std::string>()),
-          std::stod(kline[4].get<std::string>()),
-          std::stod(kline[5].get<std::string>()), kline[6].get<long long>(),
-          std::stod(kline[7].get<std::string>()), kline[8].get<int>(),
-          std::stod(kline[9].get<std::string>()),
-          std::stod(kline[10].get<std::string>()),
-          std::stod(kline[11].get<std::string>()));
-    }
-    if (result.empty())
-      break;
-    start_time = result.back().open_time + interval_ms;
-  }
-  return result;
 }
 } // namespace
 
@@ -156,8 +113,17 @@ void DrawControlPanel(
               for (const auto &c : fetched.candles) {
                 if (c.open_time > expected) {
                   long long gap_end = c.open_time - interval_ms;
-                  auto gap = fetch_range(symbol, interval, expected, gap_end);
-                  to_append.insert(to_append.end(), gap.begin(), gap.end());
+                  auto gap_res = data_service.fetch_range(
+                      symbol, interval, expected, gap_end);
+                  if (gap_res.error == FetchError::None &&
+                      !gap_res.candles.empty()) {
+                    to_append.insert(to_append.end(), gap_res.candles.begin(),
+                                      gap_res.candles.end());
+                    load_error.clear();
+                  } else {
+                    failed = true;
+                    load_error = "Failed to load gap for " + symbol;
+                  }
                   expected = gap_end + interval_ms;
                 }
                 if (c.open_time >= expected) {
