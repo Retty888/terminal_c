@@ -2,6 +2,8 @@
   "data_dir": "candle_data",
   "pairs": [],
   "log_level": "INFO",
+  "log_sinks": ["file", "console"],
+  "log_file": "terminal.log",
   "candles_limit": 5000,
   "enable_streaming": true,
   "signal": {

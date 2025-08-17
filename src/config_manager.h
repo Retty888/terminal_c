@@ -19,6 +19,9 @@ struct SignalConfig {
 struct ConfigData {
     std::vector<std::string> pairs{};
     LogLevel log_level{LogLevel::Info};
+    bool log_to_file{true};
+    bool log_to_console{true};
+    std::string log_file{"terminal.log"};
     std::size_t candles_limit{5000};
     bool enable_streaming{false};
     SignalConfig signal{};
