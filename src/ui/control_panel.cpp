@@ -172,7 +172,7 @@ void DrawControlPanel(
           long long last_time = candles.empty() ? 0 : candles.back().open_time;
           if (candles.size() < EXPECTED_CANDLES) {
             int missing = EXPECTED_CANDLES - static_cast<int>(candles.size());
-            auto fetched = DataFetcher::fetch_klines(symbol, interval, missing);
+            auto fetched = data_service.fetch_klines(symbol, interval, missing);
             if (fetched.error == FetchError::None && !fetched.candles.empty()) {
               long long interval_ms = interval_to_ms(interval);
               std::vector<Candle> to_append;
