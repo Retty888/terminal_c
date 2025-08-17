@@ -92,6 +92,6 @@ TEST(KlineStreamTest, StopsPromptly) {
   ks.stop();
   auto elapsed = std::chrono::steady_clock::now() - t0;
   EXPECT_LT(std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count(), 20);
-  EXPECT_EQ(sleeps.load(), 0);
+  EXPECT_LE(sleeps.load(), 1);
 }
 

@@ -145,7 +145,15 @@ target_include_directories(test_kline_stream PRIVATE src include)
 target_link_libraries(test_kline_stream PRIVATE GTest::gtest_main)
 add_test(NAME test_kline_stream COMMAND test_kline_stream)
 
+add_executable(test_logger
+  tests/test_logger.cpp
+  src/logger.cpp
+)
+target_include_directories(test_logger PRIVATE src include)
+target_link_libraries(test_logger PRIVATE GTest::gtest_main)
+add_test(NAME test_logger COMMAND test_logger)
+
 add_custom_target(ctest COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-  DEPENDS test_backtester test_candle_manager test_signal test_scheduler test_kline_stream test_data_fetcher test_interval_utils
+  DEPENDS test_backtester test_candle_manager test_signal test_scheduler test_kline_stream test_data_fetcher test_interval_utils test_logger
 )
 

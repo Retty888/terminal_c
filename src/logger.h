@@ -1,8 +1,12 @@
 #pragma once
 
+#include <condition_variable>
+#include <deque>
 #include <fstream>
 #include <mutex>
 #include <string>
+#include <thread>
+#include <chrono>
 
 enum class LogLevel { Info, Warning, Error };
 
@@ -17,11 +21,24 @@ public:
   void info(const std::string &message);
   void warn(const std::string &message);
   void error(const std::string &message);
+  ~Logger();
 
 private:
-  Logger() = default;
+  Logger();
+  struct LogMessage {
+    LogLevel level;
+    std::string message;
+    std::chrono::system_clock::time_point time;
+  };
+
+  void process_queue();
+
   std::ofstream out_;
   std::mutex mutex_;
+  std::condition_variable cv_;
+  std::deque<LogMessage> queue_;
+  std::thread worker_;
+  bool running_ = true;
   bool console_output_ = false;
   LogLevel min_level_ = LogLevel::Info;
   std::string filename_;

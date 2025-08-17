@@ -99,8 +99,13 @@ bool App::init_window() {
   auto cfg = Config::ConfigManager::load("config.json");
   auto level = cfg ? cfg->log_level : LogLevel::Info;
   Logger::instance().set_min_level(level);
-  Logger::instance().enable_console_output(true);
-  Logger::instance().set_file("terminal.log");
+  bool console = cfg ? cfg->log_to_console : true;
+  bool file = cfg ? cfg->log_to_file : true;
+  Logger::instance().enable_console_output(console);
+  if (file)
+    Logger::instance().set_file(cfg ? cfg->log_file : "terminal.log");
+  else
+    Logger::instance().set_file("");
   Logger::instance().info("Application started");
   status_ = AppStatus{};
 

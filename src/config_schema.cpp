@@ -38,6 +38,42 @@ std::optional<ConfigData> ConfigSchema::parse(const nlohmann::json &j,
         }
     }
 
+    if (j.contains("log_sinks")) {
+        if (!j["log_sinks"].is_array()) {
+            error = "'log_sinks' must be an array";
+            return std::nullopt;
+        }
+        cfg.log_to_file = false;
+        cfg.log_to_console = false;
+        for (const auto &item : j["log_sinks"]) {
+            if (!item.is_string()) {
+                error = "'log_sinks' entries must be strings";
+                return std::nullopt;
+            }
+            auto sink = item.get<std::string>();
+            if (sink == "file")
+                cfg.log_to_file = true;
+            else if (sink == "console")
+                cfg.log_to_console = true;
+            else {
+                error = "Unknown log sink '" + sink + "'";
+                return std::nullopt;
+            }
+        }
+        if (!cfg.log_to_file && !cfg.log_to_console) {
+            error = "'log_sinks' must contain at least one valid sink";
+            return std::nullopt;
+        }
+    }
+
+    if (j.contains("log_file")) {
+        if (!j["log_file"].is_string()) {
+            error = "'log_file' must be a string";
+            return std::nullopt;
+        }
+        cfg.log_file = j["log_file"].get<std::string>();
+    }
+
     if (j.contains("candles_limit")) {
         if (!j["candles_limit"].is_number_unsigned()) {
             error = "'candles_limit' must be an unsigned number";
