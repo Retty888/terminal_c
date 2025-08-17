@@ -219,7 +219,7 @@ void App::load_config() {
       auto stream =
           std::make_unique<KlineStream>(pair, this->ctx_->active_interval, data_service_.candle_manager());
       stream->start(
-          [pair](const Candle &c) {
+          [this, pair](const Candle &c) {
             std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
             auto &vec = this->ctx_->all_candles[pair][this->ctx_->active_interval];
             if (vec.empty() || c.open_time > vec.back().open_time)

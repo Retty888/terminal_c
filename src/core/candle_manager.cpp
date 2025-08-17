@@ -183,7 +183,7 @@ void CandleManager::write_last_open_time(const std::string& symbol, const std::s
     }
 }
 
-bool CandleManager::save_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) {
+bool CandleManager::save_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::filesystem::path path_to_save = get_candle_path(symbol, interval);
     std::ofstream file(path_to_save);
@@ -222,7 +222,7 @@ bool CandleManager::save_candles(const std::string& symbol, const std::string& i
     return true;
 }
 
-bool CandleManager::append_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) {
+bool CandleManager::append_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::filesystem::path path_to_save = get_candle_path(symbol, interval);
     long long last_open_time = read_last_open_time(symbol, interval);
@@ -261,7 +261,7 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
     return true;
 }
 
-std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const std::string& interval) {
+std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const std::string& interval) const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::filesystem::path path = get_candle_path(symbol, interval);
     std::vector<Candle> candles;
@@ -336,7 +336,7 @@ std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const
     return candles;
 }
 
-std::vector<std::string> CandleManager::list_stored_data() {
+std::vector<std::string> CandleManager::list_stored_data() const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<std::string> stored_files;
     if (std::filesystem::exists(data_dir_) && std::filesystem::is_directory(data_dir_)) {

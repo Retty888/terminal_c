@@ -14,16 +14,16 @@ public:
     explicit CandleManager(const std::filesystem::path& dir);
 
     // Saves a vector of candles to a CSV file.
-    bool save_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles);
+    bool save_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) const;
 
     // Appends new candles to an existing CSV file, skipping duplicates.
-    bool append_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles);
+    bool append_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) const;
 
     // Loads candles from a CSV file into a vector.
-    std::vector<Candle> load_candles(const std::string& symbol, const std::string& interval);
+    std::vector<Candle> load_candles(const std::string& symbol, const std::string& interval) const;
 
     // Lists all locally stored candle data files (symbol_interval.csv).
-    std::vector<std::string> list_stored_data();
+    std::vector<std::string> list_stored_data() const;
 
     // Allows runtime configuration of the candle data directory
     void set_data_dir(const std::filesystem::path& dir);
