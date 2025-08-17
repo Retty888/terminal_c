@@ -1,6 +1,6 @@
 #include "signal.h"
 #include "services/signal_bot.h"
-#include "config.h"
+#include "config_manager.h"
 #include <vector>
 #include <fstream>
 #include <filesystem>
@@ -48,10 +48,11 @@ TEST(ConfigTest, LoadSignalConfig) {
   }
 })";
     }
-    Config::SignalConfig cfg = Config::load_signal_config(tmp.string());
-    EXPECT_EQ(cfg.type, "sma_crossover");
-    EXPECT_EQ(cfg.short_period, 2u);
-    EXPECT_EQ(cfg.long_period, 3u);
+    auto cfg = Config::ConfigManager::load(tmp.string());
+    ASSERT_TRUE(cfg.has_value());
+    EXPECT_EQ(cfg->signal.type, "sma_crossover");
+    EXPECT_EQ(cfg->signal.short_period, 2u);
+    EXPECT_EQ(cfg->signal.long_period, 3u);
     std::filesystem::remove(tmp);
 }
 

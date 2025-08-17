@@ -16,11 +16,6 @@
 // on high level behaviour.
 class DataService {
 public:
-  // Configuration ---------------------------------------------------------
-  std::vector<std::string> load_selected_pairs(const std::string &filename) const;
-  void save_selected_pairs(const std::string &filename,
-                           const std::vector<std::string> &pairs) const;
-
   // Exchange data ---------------------------------------------------------
   Core::SymbolsResult fetch_all_symbols(
       int max_retries = 3,

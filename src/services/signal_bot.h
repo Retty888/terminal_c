@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "config.h"
+#include "config_manager.h"
 #include "core/backtester.h"
 #include "signal.h"
 

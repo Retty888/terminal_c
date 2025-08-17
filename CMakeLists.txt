@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_compile_definitions(NOMINMAX)
+add_compile_definitions(GTEST_USE_STD_FORMAT=0)
 
 option(BUILD_TRADING_TERMINAL "Build the TradingTerminal application" ON)
 
@@ -23,7 +24,7 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
   add_executable(TradingTerminal
     main.cpp
     src/app.cpp
-    src/config.cpp
+    src/config_manager.cpp
     src/candle.cpp
     src/signal.cpp
     src/plot/candlestick.cpp
@@ -91,11 +92,21 @@ add_executable(test_signal
   src/signal.cpp
   src/candle.cpp
   src/services/signal_bot.cpp
-  src/config.cpp
+  src/config_manager.cpp
+  src/logger.cpp
 )
 target_include_directories(test_signal PRIVATE src include)
 target_link_libraries(test_signal PRIVATE GTest::gtest_main)
 add_test(NAME test_signal COMMAND test_signal)
+
+add_executable(test_config_manager
+  tests/test_config_manager.cpp
+  src/config_manager.cpp
+  src/logger.cpp
+)
+target_include_directories(test_config_manager PRIVATE src include)
+target_link_libraries(test_config_manager PRIVATE GTest::gtest_main)
+add_test(NAME test_config_manager COMMAND test_config_manager)
 
 if(cpr_FOUND)
   add_executable(test_data_fetcher
@@ -119,7 +130,7 @@ target_link_libraries(test_scheduler PRIVATE GTest::gtest_main)
 add_test(NAME test_scheduler COMMAND test_scheduler)
 
 add_custom_target(ctest COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-  DEPENDS test_backtester test_candle_manager test_signal test_scheduler
+  DEPENDS test_backtester test_candle_manager test_signal test_scheduler test_config_manager
 )
 if(cpr_FOUND)
   add_dependencies(ctest test_data_fetcher)
