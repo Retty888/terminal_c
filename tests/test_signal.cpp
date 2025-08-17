@@ -4,6 +4,7 @@
 #include <vector>
 #include <fstream>
 #include <filesystem>
+#include <cstdio>
 #include <gtest/gtest.h>
 
 TEST(SignalTest, SmaCrossoverAndAverage) {
@@ -50,10 +51,36 @@ TEST(ConfigTest, LoadSignalConfig) {
     }
     auto cfg = Config::ConfigManager::load(tmp.string());
     ASSERT_TRUE(cfg.has_value());
+    EXPECT_TRUE(cfg->pairs.empty());
+    EXPECT_EQ(cfg->log_level, LogLevel::Info);
+    EXPECT_EQ(cfg->candles_limit, 5000u);
+    EXPECT_FALSE(cfg->enable_streaming);
     EXPECT_EQ(cfg->signal.type, "sma_crossover");
     EXPECT_EQ(cfg->signal.short_period, 2u);
     EXPECT_EQ(cfg->signal.long_period, 3u);
     std::filesystem::remove(tmp);
+}
+
+TEST(ConfigManagerTest, ReturnsNulloptOnCorruptedJson) {
+    std::string tmp = std::string("/tmp/") + "corrupted_config.json";
+    {
+        std::ofstream out(tmp);
+        out << "{ this is not json";
+    }
+    auto cfg = Config::ConfigManager::load(tmp);
+    EXPECT_FALSE(cfg.has_value());
+    std::remove(tmp.c_str());
+}
+
+TEST(ConfigManagerTest, ReturnsNulloptOnTypeErrors) {
+    std::string tmp = std::string("/tmp/") + "type_error_config.json";
+    {
+        std::ofstream out(tmp);
+        out << R"({"candles_limit": "oops"})";
+    }
+    auto cfg = Config::ConfigManager::load(tmp);
+    EXPECT_FALSE(cfg.has_value());
+    std::remove(tmp.c_str());
 }
 
 TEST(SignalIndicators, CalculatesEmaAndRsi) {
