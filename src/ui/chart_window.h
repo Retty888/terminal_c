@@ -7,6 +7,7 @@
 #include "core/candle.h"
 #include "journal.h"
 #include "core/backtester.h"
+#include "app.h"
 
 void DrawChartWindow(
     const std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>& all_candles,
@@ -15,10 +16,7 @@ void DrawChartWindow(
     const std::vector<std::string>& pair_list,
     const std::vector<std::string>& interval_list,
     bool show_on_chart,
-    const std::vector<double>& buy_times,
-    const std::vector<double>& buy_prices,
-    const std::vector<double>& sell_times,
-    const std::vector<double>& sell_prices,
+    const std::vector<App::AppContext::TradeEvent>& trades,
     const Journal::Journal& journal,
     const Core::BacktestResult& last_result);
 

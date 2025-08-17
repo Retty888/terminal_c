@@ -38,53 +38,6 @@
 
 using namespace Core;
 
-struct App::AppContext {
-  std::vector<PairItem> pairs;
-  std::vector<std::string> selected_pairs;
-  std::string active_pair;
-  std::string active_interval;
-  std::vector<std::string> intervals;
-  std::vector<std::string> exchange_pairs;
-  std::string selected_interval;
-  std::string strategy = "sma_crossover";
-  int short_period = 9;
-  int long_period = 21;
-  double oversold = 30.0;
-  double overbought = 70.0;
-  bool show_on_chart = false;
-  std::vector<SignalEntry> signal_entries;
-  std::vector<double> buy_times, buy_prices, sell_times, sell_prices;
-  std::map<std::string, std::map<std::string, std::vector<Candle>>> all_candles;
-  std::mutex candles_mutex;
-  std::map<std::string, std::unique_ptr<KlineStream>> streams;
-  std::atomic<bool> stream_failed{false};
-  struct PendingFetch {
-    std::string interval;
-    std::future<Core::KlinesResult> future;
-  };
-  std::map<std::string, PendingFetch> pending_fetches;
-  Core::BacktestResult last_result;
-  Config::SignalConfig last_signal_cfg;
-  struct FetchTask {
-    std::string pair;
-    std::string interval;
-    std::future<Core::KlinesResult> future;
-    std::chrono::steady_clock::time_point start;
-  };
-  std::deque<FetchTask> fetch_queue;
-  std::size_t total_fetches = 0;
-  std::size_t completed_fetches = 0;
-  std::atomic<long long> next_fetch_time{0};
-  int candles_limit = 0;
-  bool streaming_enabled = false;
-  std::function<void()> save_pairs;
-  std::function<void(const std::string &)> cancel_pair;
-  std::string last_active_pair;
-  std::string last_active_interval;
-  const std::chrono::seconds fetch_backoff{5};
-  const std::chrono::seconds request_timeout{10};
-};
-
 App::App() : ctx_(std::make_unique<AppContext>()) {}
 App::~App() = default;
 
@@ -441,8 +394,7 @@ void App::render_ui() {
 
   DrawSignalsWindow(this->ctx_->strategy, this->ctx_->short_period, this->ctx_->long_period,
                     this->ctx_->oversold, this->ctx_->overbought, this->ctx_->show_on_chart,
-                    this->ctx_->signal_entries, this->ctx_->buy_times, this->ctx_->buy_prices,
-                    this->ctx_->sell_times, this->ctx_->sell_prices, this->ctx_->all_candles,
+                    this->ctx_->signal_entries, this->ctx_->trades, this->ctx_->all_candles,
                     this->ctx_->active_pair, this->ctx_->selected_interval, status_);
 
   DrawAnalyticsWindow(this->ctx_->all_candles, this->ctx_->active_pair, this->ctx_->selected_interval);
@@ -519,8 +471,7 @@ void App::render_ui() {
 
   DrawChartWindow(this->ctx_->all_candles, this->ctx_->active_pair, this->ctx_->active_interval,
                   this->ctx_->selected_pairs, this->ctx_->intervals, this->ctx_->show_on_chart,
-                  this->ctx_->buy_times, this->ctx_->buy_prices, this->ctx_->sell_times, this->ctx_->sell_prices,
-                  journal_service_.journal(), this->ctx_->last_result);
+                  this->ctx_->trades, journal_service_.journal(), this->ctx_->last_result);
 
   if (this->ctx_->active_pair != this->ctx_->last_active_pair ||
       this->ctx_->active_interval != this->ctx_->last_active_interval) {

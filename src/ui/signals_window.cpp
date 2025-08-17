@@ -19,10 +19,7 @@ void DrawSignalsWindow(
     double& overbought,
     bool& show_on_chart,
     std::vector<SignalEntry>& signal_entries,
-    std::vector<double>& buy_times,
-    std::vector<double>& buy_prices,
-    std::vector<double>& sell_times,
-    std::vector<double>& sell_prices,
+    std::vector<App::AppContext::TradeEvent>& trades,
     const std::map<std::string, std::map<std::string, std::vector<Candle>>>& all_candles,
     const std::string& active_pair,
     const std::string& selected_interval,
@@ -61,10 +58,7 @@ void DrawSignalsWindow(
         std::string selected_interval;
         long long last_candle_time = 0;
         std::vector<SignalEntry> entries;
-        std::vector<double> buy_times;
-        std::vector<double> buy_prices;
-        std::vector<double> sell_times;
-        std::vector<double> sell_prices;
+        std::vector<App::AppContext::TradeEvent> trades;
         bool initialized = false;
     };
     static SignalsCache cache;
@@ -93,10 +87,7 @@ void DrawSignalsWindow(
         cache.last_candle_time = latest_time;
 
         cache.entries.clear();
-        cache.buy_times.clear();
-        cache.buy_prices.clear();
-        cache.sell_times.clear();
-        cache.sell_prices.clear();
+        cache.trades.clear();
 
         if (strategy == "sma_crossover") {
             for (std::size_t i = static_cast<std::size_t>(long_period); i < sig_candles.size(); ++i) {
@@ -107,13 +98,7 @@ void DrawSignalsWindow(
                     double short_sma = Signal::simple_moving_average(sig_candles, i, short_period);
                     double long_sma = Signal::simple_moving_average(sig_candles, i, long_period);
                     cache.entries.push_back({t, price, short_sma, long_sma, sig});
-                    if (sig > 0) {
-                        cache.buy_times.push_back(t);
-                        cache.buy_prices.push_back(price);
-                    } else {
-                        cache.sell_times.push_back(t);
-                        cache.sell_prices.push_back(price);
-                    }
+                    cache.trades.push_back({t, price, sig > 0 ? App::AppContext::TradeEvent::Side::Buy : App::AppContext::TradeEvent::Side::Sell});
                 }
             }
         } else if (strategy == "ema") {
@@ -124,13 +109,7 @@ void DrawSignalsWindow(
                     double price = sig_candles[i].close;
                     double ema = Signal::exponential_moving_average(sig_candles, i, static_cast<std::size_t>(short_period));
                     cache.entries.push_back({t, price, ema, 0.0, sig});
-                    if (sig > 0) {
-                        cache.buy_times.push_back(t);
-                        cache.buy_prices.push_back(price);
-                    } else {
-                        cache.sell_times.push_back(t);
-                        cache.sell_prices.push_back(price);
-                    }
+                    cache.trades.push_back({t, price, sig > 0 ? App::AppContext::TradeEvent::Side::Buy : App::AppContext::TradeEvent::Side::Sell});
                 }
             }
         } else if (strategy == "rsi") {
@@ -141,13 +120,7 @@ void DrawSignalsWindow(
                     double price = sig_candles[i].close;
                     double rsi = Signal::relative_strength_index(sig_candles, i, static_cast<std::size_t>(short_period));
                     cache.entries.push_back({t, price, rsi, 0.0, sig});
-                    if (sig > 0) {
-                        cache.buy_times.push_back(t);
-                        cache.buy_prices.push_back(price);
-                    } else {
-                        cache.sell_times.push_back(t);
-                        cache.sell_prices.push_back(price);
-                    }
+                    cache.trades.push_back({t, price, sig > 0 ? App::AppContext::TradeEvent::Side::Buy : App::AppContext::TradeEvent::Side::Sell});
                 }
             }
         }
@@ -157,10 +130,7 @@ void DrawSignalsWindow(
     }
 
     signal_entries = cache.entries;
-    buy_times = cache.buy_times;
-    buy_prices = cache.buy_prices;
-    sell_times = cache.sell_times;
-    sell_prices = cache.sell_prices;
+    trades = cache.trades;
 
     if (ImGui::BeginTable("SignalsTable", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
         ImGui::TableSetupColumn("Time");
