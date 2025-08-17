@@ -172,6 +172,9 @@ void DrawChartWindow(
   static bool show_rsi = false;
   static bool show_macd = false;
 
+  static float volume_height = 1.f;
+  static float volume_bar_width = 0.5f;
+
   static ImPlotRect manual_limits;
   static bool apply_manual_limits = false;
 
@@ -261,7 +264,9 @@ void DrawChartWindow(
 
   ImPlotFlags plot_flags = ImPlotFlags_Crosshairs;
   ImPlotSubplotFlags subplot_flags = ImPlotSubplotFlags_LinkAllX;
-  std::vector<float> row_sizes = {3.f, 1.f};
+  ImGui::SliderFloat("Volume height", &volume_height, 0.5f, 5.f);
+  ImGui::SliderFloat("Volume bar width", &volume_bar_width, 0.1f, 2.f);
+  std::vector<float> row_sizes = {3.f, volume_height};
   if (show_rsi)
     row_sizes.push_back(2.f);
   if (show_macd)
@@ -672,7 +677,9 @@ void DrawChartWindow(
       ImPlot::SetupAxes("Time", "Volume");
       ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
       ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
-      double bar_width = times.size() > 1 ? (times[1] - times[0]) * 0.5 : 0.5;
+      double bar_width = times.size() > 1
+                             ? (times[1] - times[0]) * volume_bar_width
+                             : volume_bar_width;
       ImPlot::PlotBars("Volume", times.data(), volumes.data(),
                        static_cast<int>(volumes.size()), bar_width);
       ImPlot::EndPlot();
