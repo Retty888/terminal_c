@@ -5,6 +5,7 @@
 #include "core/candle.h"
 #include "core/candle_manager.h"
 #include "core/kline_stream.h"
+#include "core/interval_utils.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "implot.h"
@@ -38,31 +39,6 @@
 using namespace Core;
 
 namespace {
-std::chrono::milliseconds interval_to_duration(const std::string &interval) {
-  if (interval.empty())
-    return std::chrono::milliseconds(0);
-  char unit = interval.back();
-  long long value = 0;
-  try {
-    value = std::stoll(interval.substr(0, interval.size() - 1));
-  } catch (...) {
-    return std::chrono::milliseconds(0);
-  }
-  switch (unit) {
-  case 's':
-    return std::chrono::milliseconds(value * 1000LL);
-  case 'm':
-    return std::chrono::milliseconds(value * 60LL * 1000LL);
-  case 'h':
-    return std::chrono::milliseconds(value * 60LL * 60LL * 1000LL);
-  case 'd':
-    return std::chrono::milliseconds(value * 24LL * 60LL * 60LL * 1000LL);
-  case 'w':
-    return std::chrono::milliseconds(value * 7LL * 24LL * 60LL * 60LL * 1000LL);
-  default:
-    return std::chrono::milliseconds(0);
-  }
-}
 
 struct AppContext {
   std::vector<PairItem> pairs;
@@ -187,7 +163,7 @@ void App::load_config() {
     pair_names.push_back("BTCUSDT");
   std::sort(ctx.intervals.begin(), ctx.intervals.end(),
             [](const std::string &a, const std::string &b) {
-              return interval_to_duration(a) < interval_to_duration(b);
+              return parse_interval(a) < parse_interval(b);
             });
   ctx.intervals.erase(
       std::unique(ctx.intervals.begin(), ctx.intervals.end()),
@@ -276,7 +252,7 @@ void App::load_config() {
 
 void App::process_events() {
   glfwPollEvents();
-  auto period = interval_to_duration(ctx.active_interval);
+  auto period = parse_interval(ctx.active_interval);
   auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::system_clock::now().time_since_epoch())
                     .count();
@@ -325,7 +301,7 @@ void App::process_events() {
             vec.push_back(latest.candles.back());
             data_service_.append_candles(it->first, it->second.interval,
                                          {latest.candles.back()});
-            auto p = interval_to_duration(it->second.interval);
+            auto p = parse_interval(it->second.interval);
             long long boundary = vec.back().open_time + p.count();
             auto nft = ctx.next_fetch_time.load();
             if (nft == 0 || boundary < nft)

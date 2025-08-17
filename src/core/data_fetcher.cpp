@@ -1,6 +1,7 @@
 #include "data_fetcher.h"
 
 #include "logger.h"
+#include "interval_utils.h"
 #include <algorithm>
 #include <chrono>
 #include <future>
@@ -10,31 +11,6 @@
 
 namespace {
 
-long long interval_to_ms(const std::string &interval) {
-  if (interval.empty())
-    return 0;
-  char unit = interval.back();
-  long long value = 0;
-  try {
-    value = std::stoll(interval.substr(0, interval.size() - 1));
-  } catch (...) {
-    return 0;
-  }
-  switch (unit) {
-  case 's':
-    return value * 1000LL;
-  case 'm':
-    return value * 60LL * 1000LL;
-  case 'h':
-    return value * 60LL * 60LL * 1000LL;
-  case 'd':
-    return value * 24LL * 60LL * 60LL * 1000LL;
-  case 'w':
-    return value * 7LL * 24LL * 60LL * 60LL * 1000LL;
-  default:
-    return 0;
-  }
-}
 
 void fill_missing(std::vector<Core::Candle> &candles, long long interval_ms) {
   if (candles.size() < 2 || interval_ms <= 0)
@@ -79,7 +55,7 @@ KlinesResult DataFetcher::fetch_klines_from_api(
     std::chrono::milliseconds retry_delay) const {
   const std::string base_url = prefix + symbol + "&interval=" + interval;
   std::vector<Candle> all_candles;
-  long long interval_ms = interval_to_ms(interval);
+  auto interval_ms = parse_interval(interval).count();
 
   auto now = std::chrono::system_clock::now();
   long long current_ms =
@@ -170,7 +146,7 @@ KlinesResult DataFetcher::fetch_klines(
   if (res.error != FetchError::None) {
     return fetch_klines_alt(symbol, interval, limit, max_retries, retry_delay);
   }
-  fill_missing(res.candles, interval_to_ms(interval));
+  fill_missing(res.candles, parse_interval(interval).count());
   return res;
 }
 
@@ -197,7 +173,7 @@ KlinesResult DataFetcher::fetch_klines_alt(
         try {
           std::vector<Candle> candles;
           auto json_data = nlohmann::json::parse(r.text);
-          long long interval_ms = interval_to_ms(interval);
+          auto interval_ms = parse_interval(interval).count();
           for (const auto &kline : json_data) {
             long long ts =
                 static_cast<long long>(std::stoll(kline[0].get<std::string>())) *

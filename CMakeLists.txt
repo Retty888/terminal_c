@@ -30,6 +30,7 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
     src/plot/candlestick.cpp
     src/core/candle_manager.cpp
     src/core/data_fetcher.cpp
+    src/core/interval_utils.cpp
     src/core/net/token_bucket_rate_limiter.cpp
     src/core/net/cpr_http_client.cpp
     src/core/backtester.cpp
@@ -105,6 +106,7 @@ add_test(NAME test_signal COMMAND test_signal)
 add_executable(test_data_fetcher
   tests/test_data_fetcher.cpp
   src/core/data_fetcher.cpp
+  src/core/interval_utils.cpp
   src/candle.cpp
   src/logger.cpp
 )
@@ -112,8 +114,17 @@ target_include_directories(test_data_fetcher PRIVATE src include)
 target_link_libraries(test_data_fetcher PRIVATE GTest::gtest_main)
 add_test(NAME test_data_fetcher COMMAND test_data_fetcher)
 
+add_executable(test_interval_utils
+  tests/test_interval_utils.cpp
+  src/core/interval_utils.cpp
+)
+target_include_directories(test_interval_utils PRIVATE src include)
+target_link_libraries(test_interval_utils PRIVATE GTest::gtest_main)
+add_test(NAME test_interval_utils COMMAND test_interval_utils)
+
 add_executable(test_scheduler
   tests/test_scheduler.cpp
+  src/core/interval_utils.cpp
   src/candle.cpp
 )
 target_include_directories(test_scheduler PRIVATE src include)
@@ -133,6 +144,6 @@ target_link_libraries(test_kline_stream PRIVATE GTest::gtest_main)
 add_test(NAME test_kline_stream COMMAND test_kline_stream)
 
 add_custom_target(ctest COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-  DEPENDS test_backtester test_candle_manager test_signal test_scheduler test_kline_stream test_data_fetcher
+  DEPENDS test_backtester test_candle_manager test_signal test_scheduler test_kline_stream test_data_fetcher test_interval_utils
 )
 

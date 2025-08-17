@@ -2,6 +2,7 @@
 
 #include "config_manager.h"
 #include "core/data_fetcher.h"
+#include "core/interval_utils.h"
 #include "imgui.h"
 #include "ui/chart_window.h"
 #include <cpr/cpr.h>
@@ -42,37 +43,12 @@ std::string format_date(long long ms) {
   return "-";
 }
 
-long long interval_to_ms(const std::string &interval) {
-  if (interval.empty())
-    return 0;
-  char unit = interval.back();
-  long long value = 0;
-  try {
-    value = std::stoll(interval.substr(0, interval.size() - 1));
-  } catch (...) {
-    return 0;
-  }
-  switch (unit) {
-  case 's':
-    return value * 1000LL;
-  case 'm':
-    return value * 60LL * 1000LL;
-  case 'h':
-    return value * 60LL * 60LL * 1000LL;
-  case 'd':
-    return value * 24LL * 60LL * 60LL * 1000LL;
-  case 'w':
-    return value * 7LL * 24LL * 60LL * 60LL * 1000LL;
-  default:
-    return 0;
-  }
-}
 
 std::vector<Candle> fetch_range(const std::string &symbol,
                                 const std::string &interval,
                                 long long start_time, long long end_time) {
   std::vector<Candle> result;
-  long long interval_ms = interval_to_ms(interval);
+  auto interval_ms = parse_interval(interval).count();
   if (interval_ms <= 0 || start_time > end_time)
     return result;
   const std::string base_url =
@@ -174,7 +150,7 @@ void DrawControlPanel(
             int missing = EXPECTED_CANDLES - static_cast<int>(candles.size());
             auto fetched = data_service.fetch_klines(symbol, interval, missing);
             if (fetched.error == FetchError::None && !fetched.candles.empty()) {
-              long long interval_ms = interval_to_ms(interval);
+              auto interval_ms = parse_interval(interval).count();
               std::vector<Candle> to_append;
               long long expected = last_time + interval_ms;
               for (const auto &c : fetched.candles) {
