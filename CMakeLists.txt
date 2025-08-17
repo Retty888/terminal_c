@@ -32,6 +32,7 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
     src/core/data_fetcher.cpp
     src/core/backtester.cpp
     src/core/kline_stream.cpp
+    src/core/iwebsocket.cpp
     src/logger.cpp
     src/journal.cpp
     src/services/data_service.cpp
@@ -129,8 +130,20 @@ target_include_directories(test_scheduler PRIVATE src include)
 target_link_libraries(test_scheduler PRIVATE GTest::gtest_main)
 add_test(NAME test_scheduler COMMAND test_scheduler)
 
+add_executable(test_kline_stream
+  tests/test_kline_stream.cpp
+  src/core/kline_stream.cpp
+  src/core/iwebsocket.cpp
+  src/core/candle_manager.cpp
+  src/candle.cpp
+  src/logger.cpp
+)
+target_include_directories(test_kline_stream PRIVATE src include)
+target_link_libraries(test_kline_stream PRIVATE GTest::gtest_main)
+add_test(NAME test_kline_stream COMMAND test_kline_stream)
+
 add_custom_target(ctest COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-  DEPENDS test_backtester test_candle_manager test_signal test_scheduler test_config_manager
+  DEPENDS test_backtester test_candle_manager test_signal test_scheduler test_config_manager test_kline_stream
 )
 if(cpr_FOUND)
   add_dependencies(ctest test_data_fetcher)

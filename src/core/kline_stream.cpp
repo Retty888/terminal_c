@@ -1,20 +1,24 @@
 #include "kline_stream.h"
 
-#include <chrono>
+#include <algorithm>
+#include <atomic>
 #include <nlohmann/json.hpp>
+#include <thread>
 
 #include "logger.h"
-
-#if __has_include(<ixwebsocket/IXWebSocket.h>)
-#define HAS_IXWEBSOCKET 1
-#include <ixwebsocket/IXWebSocket.h>
-#endif
 
 namespace Core {
 
 KlineStream::KlineStream(const std::string &symbol, const std::string &interval,
-                         CandleManager &manager)
-    : symbol_(symbol), interval_(interval), candle_manager_(manager) {}
+                         CandleManager &manager,
+                         WebSocketFactory ws_factory,
+                         SleepFunc sleep_func,
+                         std::chrono::milliseconds base_delay)
+    : symbol_(symbol), interval_(interval), candle_manager_(manager),
+      ws_factory_(std::move(ws_factory)),
+      sleep_func_(sleep_func ? std::move(sleep_func)
+                             : [](std::chrono::milliseconds d) { std::this_thread::sleep_for(d); }),
+      base_delay_(base_delay) {}
 
 KlineStream::~KlineStream() { stop(); }
 
@@ -30,14 +34,23 @@ void KlineStream::stop() {
 }
 
 void KlineStream::run(CandleCallback cb, ErrorCallback err_cb) {
-#ifdef HAS_IXWEBSOCKET
-  ix::WebSocket ws;
-  std::string url = "wss://stream.binance.com:9443/ws/" + symbol_ + "@kline_" + interval_;
-  ws.setUrl(url);
-  ws.setOnMessage([this, cb, err_cb](const ix::WebSocketMessagePtr &msg) {
-    if (msg->type == ix::WebSocketMessageType::Message) {
+  const std::string url = "wss://stream.binance.com:9443/ws/" + symbol_ + "@kline_" + interval_;
+  std::size_t attempt = 0;
+
+  while (running_) {
+    auto ws = ws_factory_();
+    if (!ws) {
+      Logger::instance().warn("WebSocket support not available; Kline streaming disabled");
+      if (err_cb) err_cb();
+      running_ = false;
+      break;
+    }
+
+    std::atomic<bool> error{false};
+    ws->setUrl(url);
+    ws->setOnMessage([this, cb](const std::string &msg) {
       try {
-        auto j = nlohmann::json::parse(msg->str);
+        auto j = nlohmann::json::parse(msg);
         if (j.contains("k")) {
           auto k = j["k"];
           bool closed = k.value("x", false);
@@ -62,22 +75,23 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb) {
       } catch (const std::exception &e) {
         Logger::instance().error(std::string("Kline parse error: ") + e.what());
       }
-    } else if (msg->type == ix::WebSocketMessageType::Error) {
-      Logger::instance().error("Kline stream error: " + msg->errorInfo.reason);
-      running_ = false;
-      if (err_cb) err_cb();
+    });
+    ws->setOnError([&]() { error = true; });
+
+    ws->start();
+    while (running_ && !error) {
+      sleep_func_(std::chrono::milliseconds(100));
     }
-  });
-  ws.start();
-  while (running_) {
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    ws->stop();
+
+    if (!running_) break;
+
+    if (err_cb) err_cb();
+
+    ++attempt;
+    auto delay = base_delay_ * (1 << std::min<std::size_t>(attempt - 1, 8));
+    sleep_func_(delay);
   }
-  ws.stop();
-#else
-  Logger::instance().warn("WebSocket support not available; Kline streaming disabled");
-  running_ = false;
-  if (err_cb) err_cb();
-#endif
 }
 
 } // namespace Core
