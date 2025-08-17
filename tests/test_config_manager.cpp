@@ -1,13 +1,11 @@
 #include "config_manager.h"
 
-#include <cstdio>
-#include <fstream>
 #include <gtest/gtest.h>
+#include <filesystem>
+#include <fstream>
 
 static std::string make_tmp(const char *name) {
-    std::string path = std::tmpnam(nullptr);
-    path += name;
-    return path;
+    return (std::filesystem::temp_directory_path() / name).string();
 }
 
 TEST(ConfigManagerTest, ReturnsNulloptOnCorruptedJson) {
@@ -18,7 +16,7 @@ TEST(ConfigManagerTest, ReturnsNulloptOnCorruptedJson) {
     }
     auto cfg = Config::ConfigManager::load(tmp);
     EXPECT_FALSE(cfg.has_value());
-    std::remove(tmp.c_str());
+    std::filesystem::remove(tmp);
 }
 
 TEST(ConfigManagerTest, ReturnsNulloptOnMissingKeys) {
@@ -29,6 +27,6 @@ TEST(ConfigManagerTest, ReturnsNulloptOnMissingKeys) {
     }
     auto cfg = Config::ConfigManager::load(tmp);
     EXPECT_FALSE(cfg.has_value());
-    std::remove(tmp.c_str());
+    std::filesystem::remove(tmp);
 }
 
