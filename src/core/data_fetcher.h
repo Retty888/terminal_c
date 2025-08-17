@@ -1,11 +1,14 @@
 #pragma once
 
 #include "candle.h"
+#include "net/i_http_client.h"
+#include "net/i_rate_limiter.h"
 #include <future>
 #include <string>
 #include <vector>
 #include <chrono>
 #include <cstddef>
+#include <memory>
 
 namespace Core {
 
@@ -40,62 +43,39 @@ struct IntervalsResult {
 
 class DataFetcher {
 public:
-  // Fetches kline (candle) data from a specified API (e.g., Binance).
-  // symbol: Trading pair (e.g., "BTCUSDT")
-  // interval: Time interval (e.g., "5m", "1h", "1d")
-  // limit: Number of candles to fetch
-  // max_retries: how many times to retry on failure
-  // retry_delay: delay between retries
-  // request_pause: enforced pause between requests to respect API limits
-  static KlinesResult
-  fetch_klines(const std::string &symbol, const std::string &interval,
-               int limit = 500, int max_retries = 3,
-               std::chrono::milliseconds retry_delay =
-                   std::chrono::milliseconds(1000),
-               std::chrono::milliseconds request_pause =
-                   std::chrono::milliseconds(1100));
+  DataFetcher(std::shared_ptr<Net::IHttpClient> http_client,
+              std::shared_ptr<Net::IRateLimiter> rate_limiter);
 
-  // Alternative API for fetching klines. Used as a fallback when the main
-  // endpoint is unavailable or for special intervals not supported by the
-  // primary exchange.
-  // Fetches kline data from an alternative API. Used as a fallback when the
-  // primary exchange fails or for unsupported intervals (e.g. 5s/15s).
-  static KlinesResult
-  fetch_klines_alt(const std::string &symbol, const std::string &interval,
-                   int limit = 500, int max_retries = 3,
-                   std::chrono::milliseconds retry_delay =
-                       std::chrono::milliseconds(1000),
-                   std::chrono::milliseconds request_pause =
-                       std::chrono::milliseconds(1100));
+  KlinesResult fetch_klines(const std::string &symbol,
+                            const std::string &interval, int limit = 500,
+                            int max_retries = 3,
+                            std::chrono::milliseconds retry_delay =
+                                std::chrono::milliseconds(1000));
 
-  // Asynchronously fetches kline data on a background thread.
-  // Returns a future that becomes ready with the fetched candles once
-  // the HTTP request completes. The function itself is thread-safe;
-  // callers must ensure synchronization when modifying shared candle data
-  // with the returned result.
-  static std::future<KlinesResult>
+  KlinesResult fetch_klines_alt(const std::string &symbol,
+                                const std::string &interval, int limit = 500,
+                                int max_retries = 3,
+                                std::chrono::milliseconds retry_delay =
+                                    std::chrono::milliseconds(1000));
+
+  std::future<KlinesResult>
   fetch_klines_async(const std::string &symbol, const std::string &interval,
                      int limit = 500, int max_retries = 3,
                      std::chrono::milliseconds retry_delay =
-                         std::chrono::milliseconds(1000),
-                     std::chrono::milliseconds request_pause =
-                         std::chrono::milliseconds(1100));
+                         std::chrono::milliseconds(1000));
 
-  // Fetch list of all available trading symbols from the exchange.
-  static SymbolsResult
-  fetch_all_symbols(int max_retries = 3,
-                    std::chrono::milliseconds retry_delay =
-                        std::chrono::milliseconds(1000),
-                    std::chrono::milliseconds request_pause =
-                        std::chrono::milliseconds(1100),
-                    std::size_t top_n = 100);
+  SymbolsResult fetch_all_symbols(
+      int max_retries = 3,
+      std::chrono::milliseconds retry_delay = std::chrono::milliseconds(1000),
+      std::size_t top_n = 100);
 
-  static IntervalsResult
-  fetch_all_intervals(int max_retries = 3,
-                      std::chrono::milliseconds retry_delay =
-                          std::chrono::milliseconds(1000),
-                      std::chrono::milliseconds request_pause =
-                          std::chrono::milliseconds(1100));
+  IntervalsResult fetch_all_intervals(
+      int max_retries = 3,
+      std::chrono::milliseconds retry_delay = std::chrono::milliseconds(1000));
+
+private:
+  std::shared_ptr<Net::IHttpClient> http_client_;
+  std::shared_ptr<Net::IRateLimiter> rate_limiter_;
 };
 
 } // namespace Core

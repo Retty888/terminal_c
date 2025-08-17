@@ -1,60 +1,61 @@
 #include "core/data_fetcher.h"
+#include "core/net/i_http_client.h"
+#include "core/net/i_rate_limiter.h"
 #include <gtest/gtest.h>
 #include <chrono>
+#include <memory>
 
-TEST(DataFetcherTest, LatestCandleNoLag) {
-    using namespace Core;
-    long long interval_ms = 60LL * 1000LL; // 1 minute
-    auto res = DataFetcher::fetch_klines(
-        "BTCUSDT", "1m", 1, 3,
-        std::chrono::milliseconds(0),
-        std::chrono::milliseconds(0));
+using namespace Core;
 
-    if (res.error != FetchError::None) {
-        GTEST_SKIP() << "Network error";
-    }
-    ASSERT_EQ(res.candles.size(), 1u);
+class FakeHttpClient : public Net::IHttpClient {
+public:
+  Net::HttpResponse response;
+  Net::HttpResponse get(const std::string &url) override { return response; }
+};
 
-    auto now = std::chrono::system_clock::now();
-    long long current_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                               now.time_since_epoch())
-                               .count();
-    long long expected_open = current_ms / interval_ms * interval_ms - interval_ms;
-    EXPECT_EQ(res.candles[0].open_time, expected_open);
-    EXPECT_EQ(res.candles[0].close_time, expected_open + interval_ms - 1);
+class NoopRateLimiter : public Net::IRateLimiter {
+public:
+  void acquire() override {}
+};
+
+static const char *kKlineJson =
+    R"([[0,"1","1","1","1","1",1,"0",0,"0","0","0"]])";
+
+TEST(DataFetcherTest, ParsesKlines) {
+  auto client = std::make_shared<FakeHttpClient>();
+  client->response.status_code = 200;
+  client->response.text = kKlineJson;
+  auto limiter = std::make_shared<NoopRateLimiter>();
+  DataFetcher fetcher(client, limiter);
+  auto res =
+      fetcher.fetch_klines("BTCUSDT", "1m", 1, 1, std::chrono::milliseconds(0));
+  EXPECT_EQ(res.error, FetchError::None);
+  ASSERT_EQ(res.candles.size(), 1u);
+  EXPECT_EQ(res.candles[0].open_time, 0);
+  EXPECT_DOUBLE_EQ(res.candles[0].open, 1.0);
 }
 
-TEST(DataFetcherTest, AltApiLatestCandle) {
-    using namespace Core;
-    auto res = DataFetcher::fetch_klines_alt(
-        "BTCUSDT", "1m", 1, 1,
-        std::chrono::milliseconds(0),
-        std::chrono::milliseconds(0));
-    if (res.error != FetchError::None) {
-        GTEST_SKIP() << "Network error";
-    }
-    ASSERT_EQ(res.candles.size(), 1u);
+TEST(DataFetcherTest, AltFetchWorks) {
+  auto client = std::make_shared<FakeHttpClient>();
+  client->response.status_code = 200;
+  client->response.text = kKlineJson;
+  auto limiter = std::make_shared<NoopRateLimiter>();
+  DataFetcher fetcher(client, limiter);
+  auto res =
+      fetcher.fetch_klines_alt("BTCUSDT", "1m", 1, 1, std::chrono::milliseconds(0));
+  EXPECT_EQ(res.error, FetchError::None);
+  ASSERT_EQ(res.candles.size(), 1u);
 }
 
-TEST(DataFetcherTest, AsyncLatestCandleNoLag) {
-    using namespace Core;
-    long long interval_ms = 60LL * 1000LL; // 1 minute
-    auto fut = DataFetcher::fetch_klines_async(
-        "BTCUSDT", "1m", 1, 3,
-        std::chrono::milliseconds(0),
-        std::chrono::milliseconds(0));
-    auto res = fut.get();
-
-    if (res.error != FetchError::None) {
-        GTEST_SKIP() << "Network error";
-    }
-    ASSERT_EQ(res.candles.size(), 1u);
-
-    auto now = std::chrono::system_clock::now();
-    long long current_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                               now.time_since_epoch())
-                               .count();
-    long long expected_open = current_ms / interval_ms * interval_ms - interval_ms;
-    EXPECT_EQ(res.candles[0].open_time, expected_open);
-    EXPECT_EQ(res.candles[0].close_time, expected_open + interval_ms - 1);
+TEST(DataFetcherTest, AsyncFetch) {
+  auto client = std::make_shared<FakeHttpClient>();
+  client->response.status_code = 200;
+  client->response.text = kKlineJson;
+  auto limiter = std::make_shared<NoopRateLimiter>();
+  DataFetcher fetcher(client, limiter);
+  auto fut = fetcher.fetch_klines_async("BTCUSDT", "1m", 1, 1,
+                                        std::chrono::milliseconds(0));
+  auto res = fut.get();
+  EXPECT_EQ(res.error, FetchError::None);
+  ASSERT_EQ(res.candles.size(), 1u);
 }
