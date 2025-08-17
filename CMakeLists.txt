@@ -25,6 +25,7 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
     main.cpp
     src/app.cpp
     src/config_manager.cpp
+    src/config_schema.cpp
     src/candle.cpp
     src/signal.cpp
     src/plot/candlestick.cpp
@@ -97,6 +98,7 @@ add_executable(test_signal
   src/candle.cpp
   src/services/signal_bot.cpp
   src/config_manager.cpp
+  src/config_schema.cpp
   src/logger.cpp
 )
 target_include_directories(test_signal PRIVATE src include)
