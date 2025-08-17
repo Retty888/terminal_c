@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "core/candle.h"
+#include "core/candle_manager.h"
 #include "core/data_fetcher.h"
 #include "core/net/cpr_http_client.h"
 #include "core/net/token_bucket_rate_limiter.h"
