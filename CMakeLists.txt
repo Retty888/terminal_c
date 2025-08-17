@@ -85,6 +85,7 @@ add_test(NAME test_backtester COMMAND test_backtester)
 add_executable(test_candle_manager
   tests/test_candle_manager.cpp
   src/core/candle_manager.cpp
+  src/core/interval_utils.cpp
   src/candle.cpp
   src/logger.cpp
 )
@@ -138,6 +139,7 @@ add_executable(test_kline_stream
   src/core/kline_stream.cpp
   src/core/iwebsocket.cpp
   src/core/candle_manager.cpp
+  src/core/interval_utils.cpp
   src/candle.cpp
   src/logger.cpp
 )
