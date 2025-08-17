@@ -26,7 +26,7 @@ struct AppStatus {
   std::string analysis_message = "Idle";
   std::string signal_message = "Idle";
   std::string error_message;
-  std::vector<std::string> log;
+  std::deque<std::string> log;
 };
 
 // The App class owns the services and drives the main event loop.
