@@ -4,6 +4,7 @@
 #include "services/journal_service.h"
 #include "ui/ui_manager.h"
 
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -19,6 +20,8 @@ struct AppStatus {
 // The App class owns the services and drives the main event loop.
 class App {
 public:
+  App();
+  ~App();
   // Runs the application. Returns the exit code.
   int run();
   const AppStatus &status() const { return status_; }
@@ -32,6 +35,8 @@ private:
   void render_ui();
   void cleanup();
 
+  struct AppContext;
+  std::unique_ptr<AppContext> ctx_;
   DataService data_service_;
   JournalService journal_service_;
   AppStatus status_;

@@ -1,5 +1,7 @@
 #include "core/interval_utils.h"
+#include "app.h"
 #include <gtest/gtest.h>
+#include <type_traits>
 
 using Core::parse_interval;
 
@@ -20,5 +22,10 @@ TEST(IntervalUtilsTest, HandlesInvalidIntervals) {
   EXPECT_EQ(parse_interval("abc"), std::chrono::milliseconds(0));
   EXPECT_EQ(parse_interval("5"), std::chrono::milliseconds(0));
   EXPECT_EQ(parse_interval("-5m"), std::chrono::milliseconds(0));
+}
+
+TEST(AppContextTest, AppIsDefaultConstructible) {
+  static_assert(std::is_default_constructible_v<App>);
+  static_assert(!std::is_copy_constructible_v<App>);
 }
 
