@@ -6,8 +6,9 @@
 #include <functional>
 
 #include "core/candle.h"
-#include "app.h"
 #include "services/data_service.h"
+
+struct AppStatus;
 
 struct PairItem {
     std::string name;

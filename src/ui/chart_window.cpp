@@ -86,9 +86,8 @@ void DrawChartWindow(
     std::string &active_pair, std::string &active_interval,
     const std::vector<std::string> &pair_list,
     const std::vector<std::string> &interval_list, bool show_on_chart,
-    const std::vector<double> &buy_times, const std::vector<double> &buy_prices,
-    const std::vector<double> &sell_times,
-    const std::vector<double> &sell_prices, const Journal::Journal &journal,
+    const std::vector<App::AppContext::TradeEvent> &trades,
+    const Journal::Journal &journal,
     const Core::BacktestResult &last_result) {
   ImGui::Begin("Chart");
 
@@ -507,14 +506,29 @@ void DrawChartWindow(
     double py[2] = {price, price};
     ImPlot::SetNextLineStyle(ImVec4(0, 1, 0, 1));
     ImPlot::PlotLine("##price", px, py, 2);
-    if (show_on_chart) {
+    if (show_on_chart && !trades.empty()) {
+      std::vector<double> buy_times, buy_prices, sell_times, sell_prices;
+      buy_times.reserve(trades.size());
+      buy_prices.reserve(trades.size());
+      sell_times.reserve(trades.size());
+      sell_prices.reserve(trades.size());
+      for (const auto &tr : trades) {
+        if (tr.side == App::AppContext::TradeEvent::Side::Buy) {
+          buy_times.push_back(tr.time);
+          buy_prices.push_back(tr.price);
+        } else {
+          sell_times.push_back(tr.time);
+          sell_prices.push_back(tr.price);
+        }
+      }
       if (!buy_times.empty()) {
         ImPlot::SetNextMarkerStyle(ImPlotMarker_Up, 6, ImVec4(0, 1, 0, 1));
         ImPlot::PlotScatter("Buy", buy_times.data(), buy_prices.data(),
                             (int)buy_times.size());
       }
       if (!sell_times.empty()) {
-        ImPlot::SetNextMarkerStyle(ImPlotMarker_Down, 6, ImVec4(1, 0, 0, 1));
+        ImPlot::SetNextMarkerStyle(ImPlotMarker_Down, 6,
+                                   ImVec4(1, 0, 0, 1));
         ImPlot::PlotScatter("Sell", sell_times.data(), sell_prices.data(),
                             (int)sell_times.size());
       }
