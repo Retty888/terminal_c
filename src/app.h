@@ -2,6 +2,7 @@
 
 #include "services/data_service.h"
 #include "services/journal_service.h"
+#include "ui/ui_manager.h"
 
 #include <mutex>
 #include <string>
@@ -24,9 +25,18 @@ public:
   void add_status(const std::string &msg);
 
 private:
+  bool init_window();
+  void setup_imgui();
+  void load_config();
+  void process_events();
+  void render_ui();
+  void cleanup();
+
   DataService data_service_;
   JournalService journal_service_;
   AppStatus status_;
   mutable std::mutex status_mutex_;
+  GLFWwindow *window_ = nullptr;
+  UiManager ui_manager_;
 };
 

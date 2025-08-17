@@ -42,6 +42,7 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
     src/ui/journal_window.cpp
     src/ui/chart_window.cpp
     src/ui/tradingview_style.cpp
+    src/ui/ui_manager.cpp
   )
 
   target_sources(TradingTerminal PRIVATE
