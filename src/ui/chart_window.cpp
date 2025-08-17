@@ -68,6 +68,17 @@ float DistancePointToSegment(const ImVec2 &p, const ImVec2 &v,
 
 } // namespace
 
+void InvalidateCache(const std::string& pair, const std::string& interval) {
+  auto &c = cache[pair][interval];
+  c.times.clear();
+  c.opens.clear();
+  c.highs.clear();
+  c.lows.clear();
+  c.closes.clear();
+  c.volumes.clear();
+  c.last_time = 0;
+}
+
 void DrawChartWindow(
     const std::map<std::string, std::map<std::string, std::vector<Candle>>>
         &all_candles,

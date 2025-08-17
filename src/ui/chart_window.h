@@ -22,3 +22,7 @@ void DrawChartWindow(
     const Journal::Journal& journal,
     const Core::BacktestResult& last_result);
 
+// Reset cached plot data for a specific trading pair and interval so that
+// the next draw rebuilds it from the updated candle list.
+void InvalidateCache(const std::string& pair, const std::string& interval);
+
