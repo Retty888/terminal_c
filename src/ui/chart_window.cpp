@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <ctime>
 #include <map>
 #include <string>
 #include <cctype>
@@ -474,9 +475,13 @@ void DrawChartWindow(
       ImPlotPoint mouse = ImPlot::GetPlotMousePos();
       cursor_x = mouse.x;
       cursor_y = mouse.y;
-      ImPlotTime t = ImPlotTime::FromSeconds(cursor_x);
+      std::time_t tt = static_cast<std::time_t>(cursor_x);
       char time_buf[32];
-      ImPlot::FormatTime(t, "%H:%M:%S", time_buf, sizeof(time_buf));
+      if (std::tm *tm = std::localtime(&tt)) {
+        std::strftime(time_buf, sizeof(time_buf), "%H:%M:%S", tm);
+      } else {
+        std::snprintf(time_buf, sizeof(time_buf), "%lld", (long long)tt);
+      }
       ImGui::BeginTooltip();
       ImGui::Text("Time: %s\nPrice: %.2f", time_buf, cursor_y);
       ImGui::EndTooltip();
