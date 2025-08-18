@@ -13,6 +13,7 @@ find_package(GTest CONFIG REQUIRED)
 find_package(imgui CONFIG QUIET)
 find_package(implot CONFIG QUIET)
 find_package(cpr CONFIG QUIET)
+find_package(webview CONFIG QUIET)
 if(NOT cpr_FOUND)
   message(WARNING "cpr not found, skipping targets that require it")
 endif()
@@ -50,6 +51,11 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
     src/ui/tradingview_style.cpp
     src/ui/ui_manager.cpp
   )
+
+  if(webview_FOUND)
+    target_sources(TradingTerminal PRIVATE src/ui/echarts_window.cpp)
+    target_link_libraries(TradingTerminal PRIVATE webview::webview)
+  endif()
 
   target_sources(TradingTerminal PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_glfw.cpp
