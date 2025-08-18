@@ -141,7 +141,6 @@ void DrawControlPanel(
                     last_time = c.open_time;
                   }
                 }
-                InvalidateCache(symbol, interval);
               }
             } else if (fetched.error != FetchError::None) {
               failed = true;
@@ -289,7 +288,6 @@ void DrawControlPanel(
           }
           if (status.log.size() > 50)
             status.log.pop_front();
-          InvalidateCache(it->name, interval);
         }
       }
       ++it;
