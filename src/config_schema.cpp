@@ -90,6 +90,22 @@ std::optional<ConfigData> ConfigSchema::parse(const nlohmann::json &j,
         cfg.enable_streaming = j["enable_streaming"].get<bool>();
     }
 
+    if (j.contains("primary_provider")) {
+        if (!j["primary_provider"].is_string()) {
+            error = "'primary_provider' must be a string";
+            return std::nullopt;
+        }
+        cfg.primary_provider = j["primary_provider"].get<std::string>();
+    }
+
+    if (j.contains("fallback_provider")) {
+        if (!j["fallback_provider"].is_string()) {
+            error = "'fallback_provider' must be a string";
+            return std::nullopt;
+        }
+        cfg.fallback_provider = j["fallback_provider"].get<std::string>();
+    }
+
     if (j.contains("signal")) {
         if (!j["signal"].is_object()) {
             error = "'signal' must be an object";

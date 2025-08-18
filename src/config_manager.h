@@ -25,6 +25,8 @@ struct ConfigData {
     std::size_t candles_limit{5000};
     bool enable_streaming{false};
     SignalConfig signal{};
+    std::string primary_provider{"binance"};
+    std::string fallback_provider{"gateio"};
 };
 
 class ConfigManager {
