@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_compile_definitions(NOMINMAX)
 add_compile_definitions(GTEST_HAS_STD_FORMAT=0)
+add_compile_definitions(GTEST_HAS_STD_WSTRING=0)
 
 option(BUILD_TRADING_TERMINAL "Build the TradingTerminal application" ON)
 

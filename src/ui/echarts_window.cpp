@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <utility>
 #include "core/candle_manager.h"
+#include "ui/echarts_serializer.h"
 
 EChartsWindow::EChartsWindow(const std::string &html_path, bool debug)
     : html_path_(html_path), debug_(debug),
@@ -22,7 +23,8 @@ void EChartsWindow::Show() {
     auto json = nlohmann::json::parse(req, nullptr, false);
     if (json.contains("request") && json["request"] == "init") {
       Core::CandleManager cm;
-      auto data = cm.load_candles_json("BTCUSDT", "1m");
+      auto candles = cm.load_candles("BTCUSDT", "1m");
+      auto data = SerializeCandles(candles);
       SendToJs(data);
     }
     if (handler_) {
