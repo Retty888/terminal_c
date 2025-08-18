@@ -1,4 +1,5 @@
 #include "ui/control_panel.h"
+#include "app.h"
 
 #include "config_manager.h"
 #include "core/data_fetcher.h"
@@ -97,7 +98,8 @@ void DrawControlPanel(
         if (std::find(selected_pairs.begin(), selected_pairs.end(), symbol) ==
             selected_pairs.end()) {
           selected_pairs.push_back(symbol);
-          Config::ConfigManager::save_selected_pairs("config.json", selected_pairs);
+          Config::ConfigManager::save_selected_pairs("config.json",
+                                                     selected_pairs);
         }
         bool failed = false;
         for (const auto &interval : intervals) {
@@ -113,12 +115,12 @@ void DrawControlPanel(
               for (const auto &c : fetched.candles) {
                 if (c.open_time > expected) {
                   long long gap_end = c.open_time - interval_ms;
-                  auto gap_res = data_service.fetch_range(
-                      symbol, interval, expected, gap_end);
+                  auto gap_res = data_service.fetch_range(symbol, interval,
+                                                          expected, gap_end);
                   if (gap_res.error == FetchError::None &&
                       !gap_res.candles.empty()) {
                     to_append.insert(to_append.end(), gap_res.candles.begin(),
-                                      gap_res.candles.end());
+                                     gap_res.candles.end());
                     load_error.clear();
                   } else {
                     failed = true;
@@ -258,9 +260,9 @@ void DrawControlPanel(
         active_pair =
             new_active != pairs.end() ? new_active->name : std::string();
       }
-      selected_pairs.erase(std::remove(selected_pairs.begin(),
-                                       selected_pairs.end(), removed),
-                           selected_pairs.end());
+      selected_pairs.erase(
+          std::remove(selected_pairs.begin(), selected_pairs.end(), removed),
+          selected_pairs.end());
       Config::ConfigManager::save_selected_pairs("config.json", selected_pairs);
       if (cancel_pair)
         cancel_pair(removed);
