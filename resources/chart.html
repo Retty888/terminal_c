@@ -9,9 +9,18 @@
   </style>
 </head>
 <body>
-  <div id="chart"></div>
+  <select id="interval">
+    <option value="1m">1m</option>
+    <option value="5m">5m</option>
+    <option value="1h">1h</option>
+  </select>
+  <div id="chart" style="height:90%;"></div>
   <script>
     const chart = echarts.init(document.getElementById('chart'));
+    const intervalSel = document.getElementById('interval');
+    intervalSel.addEventListener('change', function() {
+      sendToCpp({ interval: intervalSel.value });
+    });
     chart.setOption({
       title: { text: 'ECharts' },
       xAxis: { type: 'category', data: [] },
@@ -22,10 +31,15 @@
     window.receiveFromCpp = function(data) {
       try {
         const obj = JSON.parse(data);
-        chart.setOption({
-          xAxis: { data: obj.x },
-          series: [{ data: obj.y }]
-        });
+        if (obj.x && obj.y) {
+          chart.setOption({
+            xAxis: { data: obj.x },
+            series: [{ data: obj.y }]
+          });
+        }
+        if (obj.interval) {
+          intervalSel.value = obj.interval;
+        }
       } catch (e) {
         console.error('Invalid JSON from C++', e);
       }

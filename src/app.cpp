@@ -75,7 +75,11 @@ bool App::init_window() {
   return true;
 }
 
-void App::setup_imgui() { ui_manager_.setup(window_); }
+void App::setup_imgui() {
+  ui_manager_.setup(window_);
+  ui_manager_.set_interval_callback(
+      [this](const std::string &iv) { this->ctx_->selected_interval = iv; });
+}
 
 void App::load_config() {
   auto cfg = Config::ConfigManager::load("config.json");
@@ -475,6 +479,8 @@ void App::render_ui() {
     DrawAnalyticsWindow(this->ctx_->all_candles, this->ctx_->active_pair, this->ctx_->selected_interval);
     DrawJournalWindow(journal_service_.journal());
   }
+
+  ui_manager_.draw_echarts_panel(this->ctx_->selected_interval);
 
   ImGui::Begin("Backtest");
   ImGui::Text("Strategy: %s", this->ctx_->strategy.c_str());
