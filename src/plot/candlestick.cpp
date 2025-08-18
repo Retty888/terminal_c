@@ -1,5 +1,6 @@
 #include "plot/candlestick.h"
 #include "implot_internal.h"
+#include <vector>
 
 namespace Plot {
 
@@ -62,14 +63,30 @@ void PlotCandlestick(const char* label_id,
                 ImPlot::FitPoint(ImPlotPoint(xs[i], highs[i]));
             }
         }
+
+        std::vector<ImVec2> open_pos(count);
+        std::vector<ImVec2> close_pos(count);
+        std::vector<ImVec2> low_pos(count);
+        std::vector<ImVec2> high_pos(count);
+
         for (int i = 0; i < count; ++i) {
-            ImVec2 open_pos  = ImPlot::PlotToPixels(xs[i] - half_width, opens[i]);
-            ImVec2 close_pos = ImPlot::PlotToPixels(xs[i] + half_width, closes[i]);
-            ImVec2 low_pos   = ImPlot::PlotToPixels(xs[i], lows[i]);
-            ImVec2 high_pos  = ImPlot::PlotToPixels(xs[i], highs[i]);
-            ImU32 color      = ImGui::GetColorU32(opens[i] > closes[i] ? bearCol : bullCol);
-            draw_list->AddLine(low_pos, high_pos, color);
-            draw_list->AddRectFilled(open_pos, close_pos, color);
+            open_pos[i]  = ImPlot::PlotToPixels(xs[i] - half_width, opens[i]);
+            close_pos[i] = ImPlot::PlotToPixels(xs[i] + half_width, closes[i]);
+            low_pos[i]   = ImPlot::PlotToPixels(xs[i], lows[i]);
+            high_pos[i]  = ImPlot::PlotToPixels(xs[i], highs[i]);
+        }
+
+        draw_list->PrimReserve(count * 12, count * 8);
+        for (int i = 0; i < count; ++i) {
+            ImU32 color = ImGui::GetColorU32(opens[i] > closes[i] ? bearCol : bullCol);
+            draw_list->PrimRect(ImVec2(low_pos[i].x - 0.5f, high_pos[i].y),
+                                ImVec2(low_pos[i].x + 0.5f, low_pos[i].y),
+                                color);
+            float top = open_pos[i].y < close_pos[i].y ? open_pos[i].y : close_pos[i].y;
+            float bottom = open_pos[i].y < close_pos[i].y ? close_pos[i].y : open_pos[i].y;
+            draw_list->PrimRect(ImVec2(open_pos[i].x, top),
+                                ImVec2(close_pos[i].x, bottom),
+                                color);
         }
         ImPlot::EndItem();
     }
