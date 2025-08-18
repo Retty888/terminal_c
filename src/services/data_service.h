@@ -58,6 +58,7 @@ public:
                     const std::vector<Core::Candle> &candles) const;
   void append_candles(const std::string &pair, const std::string &interval,
                       const std::vector<Core::Candle> &candles) const;
+  bool remove_candles(const std::string &pair) const;
   std::vector<std::string> list_stored_data() const;
 
   Core::CandleManager &candle_manager() { return candle_manager_; }
