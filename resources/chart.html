@@ -25,15 +25,31 @@
       title: { text: 'ECharts' },
       xAxis: { type: 'category', data: [] },
       yAxis: { scale: true },
-      series: [{ type: 'candlestick', data: [] }]
+      series: [
+        {
+          name: 'Candlestick',
+          type: 'candlestick',
+          itemStyle: {
+            color: '#0CF49B',
+            color0: '#FD1050',
+            borderColor: '#0CF49B',
+            borderColor0: '#FD1050'
+          },
+          data: []
+        }
+      ]
     });
 
     window.receiveFromCpp = function(obj) {
       try {
-        if (obj.x && obj.y) {
+        if (Array.isArray(obj.x) && Array.isArray(obj.y)) {
           chart.setOption({
             xAxis: { data: obj.x },
-            series: [{ type: 'candlestick', data: obj.y }]
+            series: [{
+              name: 'Candlestick',
+              type: 'candlestick',
+              data: obj.y
+            }]
           });
         }
         if (obj.interval) {
