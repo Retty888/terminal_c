@@ -5,7 +5,6 @@
 #include "core/data_fetcher.h"
 #include "core/interval_utils.h"
 #include "imgui.h"
-#include "ui/chart_window.h"
 
 #include <algorithm>
 #include <cctype>

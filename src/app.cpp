@@ -8,9 +8,7 @@
 #include "core/interval_utils.h"
 #include "imgui.h"
 #include "imgui_internal.h"
-#include "implot.h"
 #include "core/logger.h"
-#include "plot/candlestick.h"
 #include "signal.h"
 
 #include <algorithm>
@@ -32,7 +30,6 @@
 
 #include "services/signal_bot.h"
 #include "ui/analytics_window.h"
-#include "ui/chart_window.h"
 #include "ui/control_panel.h"
 #include "ui/journal_window.h"
 #include "ui/signals_window.h"
@@ -540,23 +537,10 @@ void App::render_ui() {
     ImGui::Text("Sharpe Ratio: %.2f", this->ctx_->last_result.sharpe_ratio);
     ImGui::Text("Average Win: %.2f", this->ctx_->last_result.avg_win);
     ImGui::Text("Average Loss: %.2f", this->ctx_->last_result.avg_loss);
-    if (ImPlot::BeginPlot("Equity")) {
-      std::vector<double> x(this->ctx_->last_result.equity_curve.size());
-      for (size_t i = 0; i < x.size(); ++i)
-        x[i] = static_cast<double>(i);
-      ImPlot::PlotLine("Equity", x.data(),
-                       this->ctx_->last_result.equity_curve.data(), x.size());
-      ImPlot::EndPlot();
-    }
   }
   ImGui::End();
 
-  {
-    std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
-    DrawChartWindow(this->ctx_->all_candles, this->ctx_->active_pair, this->ctx_->active_interval,
-                    this->ctx_->selected_pairs, this->ctx_->intervals, this->ctx_->show_on_chart,
-                    this->ctx_->trades, journal_service_.journal(), this->ctx_->last_result);
-  }
+
 
   if (this->ctx_->active_pair != this->ctx_->last_active_pair ||
       this->ctx_->active_interval != this->ctx_->last_active_interval) {

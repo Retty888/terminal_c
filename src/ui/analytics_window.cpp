@@ -1,7 +1,6 @@
 #include "ui/analytics_window.h"
 
 #include "imgui.h"
-#include "implot.h"
 
 #include <algorithm>
 #include <vector>
@@ -32,15 +31,6 @@ void DrawAnalyticsWindow(
                                 ? change / ana_candles.front().close * 100.0
                                 : 0.0;
 
-        std::vector<double> closes(ana_candles.size());
-        std::vector<double> idx(ana_candles.size());
-        std::vector<double> volumes(ana_candles.size());
-        for (size_t i = 0; i < ana_candles.size(); ++i) {
-            closes[i] = ana_candles[i].close;
-            volumes[i] = ana_candles[i].volume;
-            idx[i] = static_cast<double>(i);
-        }
-
         if (ImGui::BeginTabBar("##analytics_tabs")) {
             if (ImGui::BeginTabItem("Price")) {
                 ImGui::Text("Data points: %d", (int)ana_candles.size());
@@ -48,27 +38,11 @@ void DrawAnalyticsWindow(
                 ImGui::Text("Max price: %.2f", max_price);
                 ImGui::Text("Avg close: %.2f", avg_close);
                 ImGui::Text("Change: %.2f (%.2f%%)", change, change_pct);
-                if (ana_candles.size() > 1 &&
-                    ImPlot::BeginPlot("##price_plot", ImVec2(-1, 150),
-                                      ImPlotFlags_NoTitle | ImPlotFlags_NoLegend |
-                                          ImPlotFlags_NoMenus)) {
-                    ImPlot::PlotLine("Price", idx.data(), closes.data(),
-                                     (int)closes.size());
-                    ImPlot::EndPlot();
-                }
                 ImGui::EndTabItem();
             }
 
             if (ImGui::BeginTabItem("Volume")) {
                 ImGui::Text("Avg volume: %.2f", avg_volume);
-                if (ana_candles.size() >= 5 &&
-                    ImPlot::BeginPlot("##volume_hist", ImVec2(-1, 150),
-                                      ImPlotFlags_NoTitle | ImPlotFlags_NoLegend |
-                                          ImPlotFlags_NoMenus)) {
-                    ImPlot::PlotHistogram("Volume", volumes.data(),
-                                          (int)volumes.size(), 20);
-                    ImPlot::EndPlot();
-                }
                 ImGui::EndTabItem();
             }
             ImGui::EndTabBar();

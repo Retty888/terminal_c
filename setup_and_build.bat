@@ -28,7 +28,7 @@ if exist "%SCRIPT_DIR%vcpkg.json" (
     "%VCPKG_PATH%\vcpkg.exe" install --recurse
 ) else (
     echo Installing required packages...
-    "%VCPKG_PATH%\vcpkg.exe" install imgui[core,docking-experimental,glfw-binding,opengl3-binding] implot cpr nlohmann-json arrow glfw3 opengl --recurse
+    "%VCPKG_PATH%\vcpkg.exe" install imgui[core,docking-experimental,glfw-binding,opengl3-binding] cpr nlohmann-json arrow glfw3 opengl --recurse
 )
 if %errorlevel% neq 0 (
     echo Dependency installation failed!

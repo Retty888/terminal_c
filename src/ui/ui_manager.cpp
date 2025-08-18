@@ -1,19 +1,15 @@
 #include "ui_manager.h"
 
 #include "imgui.h"
-#include "implot.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
-#include "tradingview_style.h"
 
 bool UiManager::setup(GLFWwindow *window) {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
-  ImPlot::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   ImGui::StyleColorsDark();
-  ApplyTradingViewStyle();
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 130");
   return true;
@@ -39,6 +35,5 @@ void UiManager::end_frame(GLFWwindow *window) {
 void UiManager::shutdown() {
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
-  ImPlot::DestroyContext();
   ImGui::DestroyContext();
 }

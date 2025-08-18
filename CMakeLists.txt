@@ -5,13 +5,12 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_compile_definitions(NOMINMAX)
-add_compile_definitions(GTEST_USE_STD_FORMAT=0)
+add_compile_definitions(GTEST_HAS_STD_FORMAT=0)
 
 option(BUILD_TRADING_TERMINAL "Build the TradingTerminal application" ON)
 
 find_package(GTest CONFIG REQUIRED)
-find_package(imgui CONFIG QUIET)
-find_package(implot CONFIG QUIET)
+  find_package(imgui CONFIG QUIET)
 find_package(cpr CONFIG QUIET)
 find_package(webview CONFIG QUIET)
 if(NOT cpr_FOUND)
@@ -27,10 +26,9 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
     src/app.cpp
     src/config_manager.cpp
     src/config_schema.cpp
-    src/candle.cpp
-    src/signal.cpp
-    src/plot/candlestick.cpp
-    src/core/candle_manager.cpp
+      src/candle.cpp
+      src/signal.cpp
+      src/core/candle_manager.cpp
     src/core/data_fetcher.cpp
     src/core/interval_utils.cpp
     src/core/net/token_bucket_rate_limiter.cpp
@@ -45,17 +43,16 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
     src/services/signal_bot.cpp
     src/ui/control_panel.cpp
     src/ui/signals_window.cpp
-    src/ui/analytics_window.cpp
-    src/ui/journal_window.cpp
-    src/ui/chart_window.cpp
-    src/ui/tradingview_style.cpp
-    src/ui/ui_manager.cpp
+      src/ui/analytics_window.cpp
+      src/ui/journal_window.cpp
+      src/ui/ui_manager.cpp
+      src/ui/echarts_window.cpp
+      src/ui/echarts_serializer.cpp
   )
 
-  if(webview_FOUND)
-    target_sources(TradingTerminal PRIVATE src/ui/echarts_window.cpp)
-    target_link_libraries(TradingTerminal PRIVATE webview::webview)
-  endif()
+    if(webview_FOUND)
+      target_link_libraries(TradingTerminal PRIVATE webview::webview)
+    endif()
 
   target_sources(TradingTerminal PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_glfw.cpp
@@ -63,9 +60,8 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
   )
 
   target_link_libraries(TradingTerminal PRIVATE
-    imgui::imgui
-    implot::implot
-    cpr::cpr
+      imgui::imgui
+      cpr::cpr
     glfw
     OpenGL::GL
   )
@@ -161,25 +157,15 @@ target_include_directories(test_logger PRIVATE src include)
 target_link_libraries(test_logger PRIVATE GTest::gtest_main)
 add_test(NAME test_logger COMMAND test_logger)
 
-if(imgui_FOUND AND implot_FOUND)
-  add_executable(test_chart_render tests/test_chart_render.cpp)
-  target_link_libraries(test_chart_render PRIVATE GTest::gtest_main imgui::imgui implot::implot)
-else()
-  add_executable(test_chart_render
-    tests/test_chart_render.cpp
-    third_party/imgui/imgui.cpp
-    third_party/imgui/imgui_draw.cpp
-    third_party/imgui/imgui_tables.cpp
-    third_party/imgui/imgui_widgets.cpp
-    third_party/implot/implot.cpp
-    third_party/implot/implot_items.cpp
+  add_executable(test_echarts_serialization
+    tests/test_echarts_serialization.cpp
+    src/ui/echarts_serializer.cpp
   )
-  target_include_directories(test_chart_render PRIVATE third_party/imgui third_party/implot)
-  target_link_libraries(test_chart_render PRIVATE GTest::gtest_main)
-endif()
-add_test(NAME test_chart_render COMMAND test_chart_render)
+  target_include_directories(test_echarts_serialization PRIVATE src include)
+  target_link_libraries(test_echarts_serialization PRIVATE GTest::gtest_main)
+  add_test(NAME test_echarts_serialization COMMAND test_echarts_serialization)
 
 add_custom_target(ctest COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-  DEPENDS test_backtester test_candle_manager test_signal test_scheduler test_kline_stream test_data_fetcher test_interval_utils test_logger test_chart_render
-)
+    DEPENDS test_backtester test_candle_manager test_signal test_scheduler test_kline_stream test_data_fetcher test_interval_utils test_logger test_echarts_serialization
+  )
 
