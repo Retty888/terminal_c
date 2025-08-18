@@ -3,6 +3,7 @@
 #include "core/candle_manager.h"
 #include "core/interval_utils.h"
 #include "core/logger.h"
+#include "config_manager.h"
 
 #include <algorithm>
 #include <nlohmann/json.hpp>
@@ -260,6 +261,18 @@ void DataService::append_candles(
 
 bool DataService::remove_candles(const std::string &pair) const {
   return candle_manager_.remove_candles(pair);
+}
+
+bool DataService::reload_candles(const std::string &pair, const std::string &interval) const {
+  candle_manager_.clear_interval(pair, interval);
+  auto cfg = Config::ConfigManager::load("config.json");
+  int limit = cfg ? static_cast<int>(cfg->candles_limit) : 1000;
+  auto res = fetch_klines(pair, interval, limit);
+  if (res.error == Core::FetchError::None && !res.candles.empty()) {
+    candle_manager_.save_candles(pair, interval, res.candles);
+    return true;
+  }
+  return false;
 }
 
 std::vector<std::string> DataService::list_stored_data() const {

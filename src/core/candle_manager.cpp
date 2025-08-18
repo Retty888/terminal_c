@@ -386,6 +386,32 @@ bool CandleManager::remove_candles(const std::string& symbol) const {
     return success;
 }
 
+bool CandleManager::clear_interval(const std::string& symbol, const std::string& interval) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    bool success = true;
+    std::error_code ec;
+    std::filesystem::path csv_path = get_candle_path(symbol, interval);
+    if (std::filesystem::exists(csv_path)) {
+        std::filesystem::remove(csv_path, ec);
+        if (ec) {
+            Logger::instance().warn("Failed to remove " + csv_path.string() + ": " + ec.message());
+            success = false;
+        }
+    }
+
+    ec.clear();
+    std::filesystem::path idx_path = get_index_path(symbol, interval);
+    if (std::filesystem::exists(idx_path)) {
+        std::filesystem::remove(idx_path, ec);
+        if (ec) {
+            Logger::instance().warn("Failed to remove " + idx_path.string() + ": " + ec.message());
+            success = false;
+        }
+    }
+
+    return success;
+}
+
 std::vector<std::string> CandleManager::list_stored_data() const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<std::string> stored_files;
