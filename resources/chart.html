@@ -24,24 +24,23 @@
     chart.setOption({
       title: { text: 'ECharts' },
       xAxis: { type: 'category', data: [] },
-      yAxis: { type: 'value' },
-      series: [{ type: 'line', data: [] }]
+      yAxis: { scale: true },
+      series: [{ type: 'candlestick', data: [] }]
     });
 
-    window.receiveFromCpp = function(data) {
+    window.receiveFromCpp = function(obj) {
       try {
-        const obj = JSON.parse(data);
         if (obj.x && obj.y) {
           chart.setOption({
             xAxis: { data: obj.x },
-            series: [{ data: obj.y }]
+            series: [{ type: 'candlestick', data: obj.y }]
           });
         }
         if (obj.interval) {
           intervalSel.value = obj.interval;
         }
       } catch (e) {
-        console.error('Invalid JSON from C++', e);
+        console.error('Invalid data from C++', e);
       }
     };
 

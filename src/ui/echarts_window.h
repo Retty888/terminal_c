@@ -19,6 +19,9 @@ class EChartsWindow {
   // Set handler that will be invoked when JavaScript sends JSON via the bridge.
   void SetHandler(JsonHandler handler);
 
+  // Provide preformatted JSON that will be sent to JS upon initialization.
+  void SetInitData(nlohmann::json data);
+
   // Show the window and start the event loop.
   void Show();
 
@@ -31,5 +34,6 @@ class EChartsWindow {
   bool debug_;
   JsonHandler handler_;
   std::unique_ptr<webview::webview> view_;
+  nlohmann::json init_data_{};
 };
 
