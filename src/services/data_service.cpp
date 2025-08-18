@@ -3,8 +3,9 @@
 #include "core/candle_manager.h"
 #include "core/interval_utils.h"
 #include "core/logger.h"
-#include <nlohmann/json.hpp>
+
 #include <algorithm>
+#include <nlohmann/json.hpp>
 #include <thread>
 
 namespace {
