@@ -193,6 +193,90 @@ void UpdateIndicatorsIfNeeded(const std::vector<Candle> &candles,
   cached.indicators_last_time = candles.back().open_time;
 }
 
+namespace {
+
+void PlotRSI(const CandleDataCache &cached, const ImPlotRect &manual_limits) {
+  const int rsi_period = 14;
+  const auto &vals = cached.rsi;
+  const auto &t = cached.indicator_times;
+  std::size_t offset = rsi_period;
+  ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max, 0.0,
+                            100.0, ImGuiCond_Always);
+  if (ImPlot::BeginPlot("RSI", ImVec2(-1, -1),
+                        ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
+    ImPlot::SetupAxes("Time", "RSI");
+    ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
+    ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
+    if (vals.size() > offset)
+      ImPlot::PlotLine("RSI", t.data() + offset, vals.data() + offset,
+                       static_cast<int>(vals.size() - offset));
+    double x[2] = {manual_limits.X.Min, manual_limits.X.Max};
+    double y30[2] = {30.0, 30.0};
+    double y70[2] = {70.0, 70.0};
+    ImPlot::PlotLine("30", x, y30, 2);
+    ImPlot::PlotLine("70", x, y70, 2);
+    ImPlot::EndPlot();
+  }
+}
+
+void PlotMACD(const CandleDataCache &cached, const ImPlotRect &manual_limits) {
+  const int fast = 12, slow = 26, signal = 9;
+  const auto &times_full = cached.indicator_times;
+  const auto &macd_vals = cached.macd;
+  const auto &signal_vals = cached.macd_signal;
+  const auto &hist_vals = cached.macd_hist;
+  std::size_t start = slow + signal - 1;
+  double ymin = 0.0, ymax = 0.0;
+  if (macd_vals.size() > start) {
+    ymin = ymax = macd_vals[start];
+    for (std::size_t i = start; i < macd_vals.size(); ++i) {
+      ymin = std::min(ymin, macd_vals[i]);
+      ymax = std::max(ymax, macd_vals[i]);
+    }
+    for (std::size_t i = start; i < signal_vals.size(); ++i) {
+      ymin = std::min(ymin, signal_vals[i]);
+      ymax = std::max(ymax, signal_vals[i]);
+    }
+    for (std::size_t i = start; i < hist_vals.size(); ++i) {
+      ymin = std::min(ymin, hist_vals[i]);
+      ymax = std::max(ymax, hist_vals[i]);
+    }
+    if (ymin == ymax) {
+      ymin -= 1.0;
+      ymax += 1.0;
+    }
+  }
+  ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max, ymin,
+                            ymax, ImGuiCond_Always);
+  if (ImPlot::BeginPlot("MACD", ImVec2(-1, -1),
+                        ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
+    ImPlot::SetupAxes("Time", "MACD");
+    ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
+    ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
+    if (macd_vals.size() > start)
+      ImPlot::PlotLine("MACD", times_full.data() + start,
+                       macd_vals.data() + start,
+                       static_cast<int>(macd_vals.size() - start));
+    if (signal_vals.size() > start)
+      ImPlot::PlotLine("Signal", times_full.data() + start,
+                       signal_vals.data() + start,
+                       static_cast<int>(signal_vals.size() - start));
+    if (hist_vals.size() > start) {
+      double bar_width = times_full.size() > start + 1
+                             ? (times_full[start + 1] - times_full[start]) *
+                                   0.5
+                             : 0.5;
+      ImPlot::PlotBars("Histogram", times_full.data() + start,
+                       hist_vals.data() + start,
+                       static_cast<int>(hist_vals.size() - start),
+                       bar_width);
+    }
+    ImPlot::EndPlot();
+  }
+}
+
+} // namespace
+
 void DrawChartWindow(
     const std::map<std::string, std::map<std::string, std::vector<Candle>>>
         &all_candles,
@@ -795,78 +879,6 @@ void DrawChartWindow(
 
       ImPlot::EndPlot();
     }
-    if (show_rsi) {
-      const int rsi_period = 14;
-      const auto &vals = cached.rsi;
-      const auto &t = cached.indicator_times;
-      std::size_t offset = rsi_period;
-      ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max, 0.0,
-                                100.0, ImGuiCond_Always);
-      if (ImPlot::BeginPlot("RSI", ImVec2(-1, -1),
-                            ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
-        ImPlot::SetupAxes("Time", "RSI");
-        ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
-        ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
-        if (vals.size() > offset) {
-          ImPlot::PlotLine("RSI", t.data() + offset, vals.data() + offset,
-                           static_cast<int>(vals.size() - offset));
-          double ox[2] = {manual_limits.X.Min, manual_limits.X.Max};
-          double overbought_y[2] = {70.0, 70.0};
-          double oversold_y[2] = {30.0, 30.0};
-          ImPlot::PlotLine("Overbought", ox, overbought_y, 2);
-          ImPlot::PlotLine("Oversold", ox, oversold_y, 2);
-        }
-        ImPlot::EndPlot();
-      }
-    }
-    if (show_macd) {
-      const int short_p = 12, long_p = 26, signal_p = 9;
-      const auto &times_full = cached.indicator_times;
-      const auto &macd_vals = cached.macd;
-      const auto &signal_vals = cached.macd_signal;
-      const auto &hist_vals = cached.macd_hist;
-      std::size_t start = long_p + signal_p - 1;
-      double ymin = 0.0, ymax = 0.0;
-      if (macd_vals.size() > start) {
-        ymin = std::min({*std::min_element(macd_vals.begin() + start,
-                                           macd_vals.end()),
-                         *std::min_element(signal_vals.begin() + start,
-                                           signal_vals.end()),
-                         *std::min_element(hist_vals.begin() + start,
-                                           hist_vals.end())});
-        ymax = std::max({*std::max_element(macd_vals.begin() + start,
-                                           macd_vals.end()),
-                         *std::max_element(signal_vals.begin() + start,
-                                           signal_vals.end()),
-                         *std::max_element(hist_vals.begin() + start,
-                                           hist_vals.end())});
-      }
-      ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max, ymin,
-                                ymax, ImGuiCond_Always);
-      if (ImPlot::BeginPlot("MACD", ImVec2(-1, -1),
-                            ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
-        ImPlot::SetupAxes("Time", "MACD");
-        ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
-        ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
-        if (macd_vals.size() > start) {
-          ImPlot::PlotLine("MACD", times_full.data() + start,
-                           macd_vals.data() + start,
-                           static_cast<int>(macd_vals.size() - start));
-          ImPlot::PlotLine("Signal", times_full.data() + start,
-                           signal_vals.data() + start,
-                           static_cast<int>(signal_vals.size() - start));
-          double bar_width = times_full.size() > start + 1
-                                 ? (times_full[start + 1] - times_full[start]) *
-                                       0.5
-                                 : 0.5;
-          ImPlot::PlotBars("Histogram", times_full.data() + start,
-                           hist_vals.data() + start,
-                           static_cast<int>(hist_vals.size() - start),
-                           bar_width);
-        }
-        ImPlot::EndPlot();
-      }
-    }
     if (!times.empty() && !volumes.empty()) {
       double max_vol = *std::max_element(volumes.begin(), volumes.end());
       if (volume_limits.Max == 0.0 || volume_limits.Max < max_vol * 1.1) {
@@ -910,160 +922,10 @@ void DrawChartWindow(
         ImPlot::EndPlot();
       }
     }
-
-    if (show_rsi) {
-      const int rsi_period = 14;
-      const auto &vals = cached.rsi;
-      const auto &t = cached.indicator_times;
-      std::size_t offset = rsi_period;
-      ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max, 0.0,
-                                100.0, ImGuiCond_Always);
-      if (ImPlot::BeginPlot("RSI", ImVec2(-1, -1),
-                            ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
-        ImPlot::SetupAxes("Time", "RSI");
-        ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
-        ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
-        if (vals.size() > offset)
-          ImPlot::PlotLine("RSI", t.data() + offset, vals.data() + offset,
-                           static_cast<int>(vals.size() - offset));
-        ImPlot::EndPlot();
-      }
-    }
-
-    if (show_macd) {
-      const int fast_period = 12;
-      const int slow_period = 26;
-      const int signal_period = 9;
-      const auto &times_full = cached.indicator_times;
-      const auto &macd_vals = cached.macd;
-      const auto &signal_vals = cached.macd_signal;
-      const auto &hist_vals = cached.macd_hist;
-      std::size_t start = slow_period + signal_period - 1;
-      double ymin = -1.0, ymax = 1.0;
-      if (macd_vals.size() > start) {
-        auto [min_it, max_it] =
-            std::minmax_element(macd_vals.begin() + start, macd_vals.end());
-        ymin = *min_it;
-        ymax = *max_it;
-        if (signal_vals.size() > start) {
-          auto [smin, smax] = std::minmax_element(signal_vals.begin() + start,
-                                                  signal_vals.end());
-          ymin = std::min(ymin, *smin);
-          ymax = std::max(ymax, *smax);
-        }
-        if (hist_vals.size() > start) {
-          auto [hmin, hmax] = std::minmax_element(hist_vals.begin() + start,
-                                                  hist_vals.end());
-          ymin = std::min(ymin, *hmin);
-          ymax = std::max(ymax, *hmax);
-        }
-      }
-      ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max, ymin,
-                                ymax, ImGuiCond_Always);
-      if (ImPlot::BeginPlot("MACD", ImVec2(-1, -1),
-                            ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
-        ImPlot::SetupAxes("Time", "MACD");
-        ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
-        ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
-        if (macd_vals.size() > start)
-          ImPlot::PlotLine("MACD", times_full.data() + start,
-                           macd_vals.data() + start,
-                           static_cast<int>(macd_vals.size() - start));
-        if (signal_vals.size() > start)
-          ImPlot::PlotLine("Signal", times_full.data() + start,
-                           signal_vals.data() + start,
-                           static_cast<int>(signal_vals.size() - start));
-        if (hist_vals.size() > start) {
-          double bar_width = times_full.size() > start + 1
-                                 ? (times_full[start + 1] - times_full[start]) *
-                                       0.5
-                                 : 0.5;
-          ImPlot::PlotBars("Histogram", times_full.data() + start,
-                           hist_vals.data() + start,
-                           static_cast<int>(hist_vals.size() - start),
-                           bar_width);
-        }
-        ImPlot::EndPlot();
-      }
-    }
-
-    if (show_rsi) {
-      const int rsi_period = 14;
-      const auto &vals = cached.rsi;
-      const auto &t = cached.indicator_times;
-      std::size_t offset = rsi_period;
-      ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max, 0.0,
-                                100.0, ImGuiCond_Always);
-      if (ImPlot::BeginPlot("RSI", ImVec2(-1, -1),
-                            ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
-        ImPlot::SetupAxes("Time", "RSI");
-        ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
-        ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
-        if (vals.size() > offset)
-          ImPlot::PlotLine("RSI", t.data() + offset, vals.data() + offset,
-                           static_cast<int>(vals.size() - offset));
-        double x[2] = {manual_limits.X.Min, manual_limits.X.Max};
-        double y30[2] = {30.0, 30.0};
-        double y70[2] = {70.0, 70.0};
-        ImPlot::PlotLine("30", x, y30, 2);
-        ImPlot::PlotLine("70", x, y70, 2);
-        ImPlot::EndPlot();
-      }
-    }
-
-    if (show_macd) {
-      const int fast = 12, slow = 26, signal = 9;
-      const auto &times_full = cached.indicator_times;
-      const auto &macd_vals = cached.macd;
-      const auto &signal_vals = cached.macd_signal;
-      const auto &hist_vals = cached.macd_hist;
-      std::size_t start = slow + signal - 1;
-      double ymin = 0.0, ymax = 0.0;
-      if (macd_vals.size() > start) {
-        ymin = ymax = macd_vals[start];
-        for (std::size_t i = start; i < macd_vals.size(); ++i) {
-          ymin = std::min(ymin, macd_vals[i]);
-          ymax = std::max(ymax, macd_vals[i]);
-        }
-        for (std::size_t i = start; i < signal_vals.size(); ++i) {
-          ymin = std::min(ymin, signal_vals[i]);
-          ymax = std::max(ymax, signal_vals[i]);
-        }
-        for (std::size_t i = start; i < hist_vals.size(); ++i) {
-          ymin = std::min(ymin, hist_vals[i]);
-          ymax = std::max(ymax, hist_vals[i]);
-        }
-        if (ymin == ymax) {
-          ymin -= 1.0;
-          ymax += 1.0;
-        }
-      }
-      ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max, ymin,
-                                ymax, ImGuiCond_Always);
-      if (ImPlot::BeginPlot("MACD", ImVec2(-1, -1),
-                            ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
-        ImPlot::SetupAxes("Time", "MACD");
-        ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
-        ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
-        if (macd_vals.size() > start) {
-          ImPlot::PlotLine("MACD", times_full.data() + start,
-                           macd_vals.data() + start,
-                           static_cast<int>(macd_vals.size() - start));
-          ImPlot::PlotLine("Signal", times_full.data() + start,
-                           signal_vals.data() + start,
-                           static_cast<int>(signal_vals.size() - start));
-          double bar_width = times_full.size() > start + 1
-                                 ? (times_full[start + 1] - times_full[start]) *
-                                       0.5
-                                 : 0.5;
-          ImPlot::PlotBars("Hist", times_full.data() + start,
-                           hist_vals.data() + start,
-                           static_cast<int>(hist_vals.size() - start),
-                           bar_width);
-        }
-        ImPlot::EndPlot();
-      }
-    }
+    if (show_rsi)
+      PlotRSI(cached, manual_limits);
+    if (show_macd)
+      PlotMACD(cached, manual_limits);
     ImPlot::EndSubplots();
   }
     auto end = std::chrono::steady_clock::now();
