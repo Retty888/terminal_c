@@ -879,7 +879,7 @@ void DrawChartWindow(
       if (ImPlot::BeginPlot("Volume", ImVec2(-1, -1),
                             ImPlotFlags_NoLegend)) {
         ImPlot::SetupAxes("Time", "Volume",
-                          ImPlotAxisFlags_NoPan | ImPlotAxisFlags_NoZoom,
+                          ImPlotAxisFlags_Lock,
                           ImPlotAxisFlags_None);
         ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
         ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
@@ -900,7 +900,7 @@ void DrawChartWindow(
       if (ImPlot::BeginPlot("Volume", ImVec2(-1, -1),
                             ImPlotFlags_NoLegend)) {
         ImPlot::SetupAxes("Time", "Volume",
-                          ImPlotAxisFlags_NoPan | ImPlotAxisFlags_NoZoom,
+                          ImPlotAxisFlags_Lock,
                           ImPlotAxisFlags_None);
         ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
         ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
