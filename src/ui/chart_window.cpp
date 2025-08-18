@@ -80,6 +80,43 @@ void InvalidateCache(const std::string &pair, const std::string &interval) {
   c.last_time = 0;
 }
 
+std::vector<Candle> DownsampleCandles(const std::vector<Candle> &candles,
+                                      double t_min, double t_max,
+                                      int pixel_width) {
+  std::vector<Candle> result;
+  if (candles.empty() || pixel_width <= 0 || t_max <= t_min)
+    return result;
+
+  double bucket = (t_max - t_min) / static_cast<double>(pixel_width);
+  if (bucket <= 0)
+    return result;
+
+  int current_bin = -1;
+  Candle agg{};
+
+  for (const auto &c : candles) {
+    double t = static_cast<double>(c.open_time) / 1000.0;
+    if (t < t_min || t > t_max)
+      continue;
+    int bin = static_cast<int>((t - t_min) / bucket);
+    if (bin != current_bin) {
+      if (current_bin != -1)
+        result.push_back(agg);
+      current_bin = bin;
+      agg = c;
+    } else {
+      agg.high = std::max(agg.high, c.high);
+      agg.low = std::min(agg.low, c.low);
+      agg.close = c.close;
+      agg.volume += c.volume;
+      agg.close_time = c.close_time;
+    }
+  }
+  if (current_bin != -1)
+    result.push_back(agg);
+  return result;
+}
+
 void DrawChartWindow(
     const std::map<std::string, std::map<std::string, std::vector<Candle>>>
         &all_candles,
@@ -127,32 +164,13 @@ void DrawChartWindow(
 
   const auto &candles = all_candles.at(active_pair).at(active_interval);
   auto &cached = cache[active_pair][active_interval];
-  if (!candles.empty() && (cached.times.size() != candles.size() ||
-                           cached.last_time != candles.back().open_time)) {
-    cached.times.resize(candles.size());
-    cached.opens.resize(candles.size());
-    cached.highs.resize(candles.size());
-    cached.lows.resize(candles.size());
-    cached.closes.resize(candles.size());
-    cached.volumes.resize(candles.size());
-    for (size_t i = 0; i < candles.size(); ++i) {
-      const auto &c = candles[i];
-      cached.times[i] = static_cast<double>(c.open_time) / 1000.0;
-      cached.opens[i] = c.open;
-      cached.highs[i] = c.high;
-      cached.lows[i] = c.low;
-      cached.closes[i] = c.close;
-      cached.volumes[i] = c.volume;
+  if (!candles.empty()) {
+    if (cached.last_time != candles.back().open_time) {
+      InvalidateCache(active_pair, active_interval);
+      cached.last_time = candles.back().open_time;
     }
-    cached.last_time = candles.back().open_time;
-  } else if (candles.empty()) {
-    cached.times.clear();
-    cached.opens.clear();
-    cached.highs.clear();
-    cached.lows.clear();
-    cached.closes.clear();
-    cached.volumes.clear();
-    cached.last_time = 0;
+  } else {
+    InvalidateCache(active_pair, active_interval);
   }
 
   const auto &times = cached.times;
@@ -179,30 +197,36 @@ void DrawChartWindow(
   static ImPlotRange volume_limits{0.0, 0.0};
 
   if (ImGui::Button("Reset")) {
-    if (!times.empty()) {
-      manual_limits.X.Min = times.front();
-      manual_limits.X.Max = times.back();
+    if (!candles.empty()) {
+      manual_limits.X.Min = static_cast<double>(candles.front().open_time) / 1000.0;
+      manual_limits.X.Max = static_cast<double>(candles.back().open_time) / 1000.0;
     }
     if (!lows.empty() && !highs.empty()) {
       manual_limits.Y.Min = *std::min_element(lows.begin(), lows.end());
       manual_limits.Y.Max = *std::max_element(highs.begin(), highs.end());
     }
-    if (!volumes.empty()) {
-      double max_vol = *std::max_element(volumes.begin(), volumes.end());
+    if (!candles.empty()) {
+      double max_vol = 0.0;
+      for (const auto &c : candles)
+        max_vol = std::max(max_vol, c.volume);
       volume_limits.Min = 0.0;
       volume_limits.Max = max_vol * 1.1;
     }
     apply_manual_limits = true;
+    InvalidateCache(active_pair, active_interval);
   }
   ImGui::SameLine();
   if (ImGui::Button("Fit")) {
     ImPlot::SetNextAxesToFit();
-    if (!volumes.empty()) {
-      double max_vol = *std::max_element(volumes.begin(), volumes.end());
+    if (!candles.empty()) {
+      double max_vol = 0.0;
+      for (const auto &c : candles)
+        max_vol = std::max(max_vol, c.volume);
       volume_limits.Min = 0.0;
       volume_limits.Max = max_vol * 1.1;
     }
     apply_manual_limits = false;
+    InvalidateCache(active_pair, active_interval);
   }
   ImGui::SameLine();
   if (ImGui::Button("Add Line")) {
@@ -303,9 +327,32 @@ void DrawChartWindow(
       ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
       ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
       ImPlot::SetupLegend(ImPlotLocation_South, ImPlotLegendFlags_Outside);
+
+      cur_limits = ImPlot::GetPlotLimits();
+      int pixel_width = static_cast<int>(ImPlot::GetPlotSize().x);
+      if (cached.times.empty()) {
+        auto ds = DownsampleCandles(candles, cur_limits.X.Min, cur_limits.X.Max,
+                                   pixel_width);
+        cached.times.resize(ds.size());
+        cached.opens.resize(ds.size());
+        cached.highs.resize(ds.size());
+        cached.lows.resize(ds.size());
+        cached.closes.resize(ds.size());
+        cached.volumes.resize(ds.size());
+        for (std::size_t i = 0; i < ds.size(); ++i) {
+          const auto &c = ds[i];
+          cached.times[i] = static_cast<double>(c.open_time) / 1000.0;
+          cached.opens[i] = c.open;
+          cached.highs[i] = c.high;
+          cached.lows[i] = c.low;
+          cached.closes[i] = c.close;
+          cached.volumes[i] = c.volume;
+        }
+      }
+
       Plot::PlotCandlestick("Candles", times.data(), opens.data(),
                             closes.data(), lows.data(), highs.data(),
-                            (int)candles.size(), true, 0.25f,
+                            (int)times.size(), true, 0.25f,
                             ImVec4(0.149f, 0.651f, 0.604f, 1.0f),
                             ImVec4(0.937f, 0.325f, 0.314f, 1.0f));
 
@@ -313,7 +360,8 @@ void DrawChartWindow(
         if (candles.size() >= (size_t)period) {
           std::vector<double> ma_times, ma_vals;
           for (size_t i = period - 1; i < candles.size(); ++i) {
-            ma_times.push_back(times[i]);
+            ma_times.push_back(static_cast<double>(candles[i].open_time) /
+                               1000.0);
             ma_vals.push_back(
                 Signal::simple_moving_average(candles, i, period));
           }
@@ -326,7 +374,8 @@ void DrawChartWindow(
         if (candles.size() >= (size_t)period) {
           std::vector<double> ma_times, ma_vals;
           for (size_t i = period - 1; i < candles.size(); ++i) {
-            ma_times.push_back(times[i]);
+            ma_times.push_back(static_cast<double>(candles[i].open_time) /
+                               1000.0);
             ma_vals.push_back(
                 Signal::exponential_moving_average(candles, i, period));
           }
@@ -348,7 +397,8 @@ void DrawChartWindow(
         if (candles.size() >= static_cast<std::size_t>(period)) {
           std::vector<double> ema_times, ema_vals;
           for (std::size_t i = period - 1; i < candles.size(); ++i) {
-            ema_times.push_back(times[i]);
+            ema_times.push_back(static_cast<double>(candles[i].open_time) /
+                                1000.0);
             ema_vals.push_back(
                 Signal::exponential_moving_average(candles, i, period));
           }
@@ -389,6 +439,7 @@ void DrawChartWindow(
                 mouse.y + (cur_limits.Y.Max - mouse.y) * zoom;
           }
           apply_manual_limits = true;
+          InvalidateCache(active_pair, active_interval);
         }
         if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) && !adding_line &&
             !adding_rect && !measure_mode) {
@@ -412,6 +463,7 @@ void DrawChartWindow(
           }
           ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
           apply_manual_limits = true;
+          InvalidateCache(active_pair, active_interval);
         }
 
         if (adding_line) {
@@ -671,7 +723,8 @@ void DrawChartWindow(
       std::vector<double> rsi_times, rsi_vals;
       if (candles.size() > static_cast<std::size_t>(rsi_period)) {
         for (std::size_t i = rsi_period; i < candles.size(); ++i) {
-          rsi_times.push_back(times[i]);
+          rsi_times.push_back(static_cast<double>(candles[i].open_time) /
+                               1000.0);
           rsi_vals.push_back(
               Signal::relative_strength_index(candles, i, rsi_period));
         }
@@ -701,7 +754,8 @@ void DrawChartWindow(
       if (candles.size() >= static_cast<std::size_t>(long_p + signal_p)) {
         for (std::size_t i = long_p + signal_p - 1; i < candles.size(); ++i) {
           auto m = Signal::macd(candles, i, short_p, long_p, signal_p);
-          macd_times.push_back(times[i]);
+          macd_times.push_back(static_cast<double>(candles[i].open_time) /
+                                1000.0);
           macd_vals.push_back(m.macd);
           signal_vals.push_back(m.signal);
           hist_vals.push_back(m.histogram);
@@ -788,7 +842,8 @@ void DrawChartWindow(
       std::vector<double> rsi_times, rsi_vals;
       if (candles.size() >= (size_t)rsi_period) {
         for (size_t i = rsi_period; i < candles.size(); ++i) {
-          rsi_times.push_back(times[i]);
+          rsi_times.push_back(static_cast<double>(candles[i].open_time) /
+                               1000.0);
           rsi_vals.push_back(
               Signal::relative_strength_index(candles, i, rsi_period));
         }
@@ -817,7 +872,7 @@ void DrawChartWindow(
         for (size_t i = start; i < candles.size(); ++i) {
           auto res =
               Signal::macd(candles, i, fast_period, slow_period, signal_period);
-          macd_t.push_back(times[i]);
+          macd_t.push_back(static_cast<double>(candles[i].open_time) / 1000.0);
           macd_vals.push_back(res.macd);
           signal_vals.push_back(res.signal);
           hist_vals.push_back(res.histogram);
@@ -870,7 +925,8 @@ void DrawChartWindow(
       std::vector<double> rsi_times, rsi_vals;
       if (candles.size() > (std::size_t)rsi_period) {
         for (std::size_t i = rsi_period; i < candles.size(); ++i) {
-          rsi_times.push_back(times[i]);
+          rsi_times.push_back(static_cast<double>(candles[i].open_time) /
+                               1000.0);
           rsi_vals.push_back(
               Signal::relative_strength_index(candles, i, rsi_period));
         }
@@ -899,7 +955,8 @@ void DrawChartWindow(
       std::vector<double> macd_times, macd_vals, signal_vals, hist_vals;
       if (candles.size() >= (std::size_t)(slow + signal)) {
         for (std::size_t i = slow + signal - 1; i < candles.size(); ++i) {
-          macd_times.push_back(times[i]);
+          macd_times.push_back(static_cast<double>(candles[i].open_time) /
+                               1000.0);
           auto m = Signal::macd(candles, i, fast, slow, signal);
           macd_vals.push_back(m.macd);
           signal_vals.push_back(m.signal);
