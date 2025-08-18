@@ -28,6 +28,9 @@ Standalone C++ trading terminal using ImGui with an embedded chart powered by [A
 ## Сборка
 
 1. Установите [vcpkg](https://github.com/microsoft/vcpkg) и настройте переменную `CMAKE_TOOLCHAIN_FILE` на `scripts/buildsystems/vcpkg.cmake`.
+   Опциональные зависимости:
+   - `imgui` — используется из пакета, если он установлен; иначе проект собирает встроенные исходники из `third_party/imgui`.
+   - `webview` — обеспечивает окно графиков на ECharts. При отсутствии пакета сборка продолжится без него, и окно графиков будет отключено.
 2. Выполните конфигурацию проекта:
    ```
    cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=path/to/vcpkg/scripts/buildsystems/vcpkg.cmake
