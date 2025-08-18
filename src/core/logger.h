@@ -8,6 +8,8 @@
 #include <thread>
 #include <chrono>
 
+namespace Core {
+
 enum class LogLevel { Info, Warning, Error };
 
 class Logger {
@@ -45,4 +47,6 @@ private:
   std::size_t max_file_size_ = 1024 * 1024;
   std::string level_to_string(LogLevel level);
 };
+
+} // namespace Core
 

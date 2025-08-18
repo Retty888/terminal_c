@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "logger.h"
+#include "core/logger.h"
 
 namespace Config {
 
@@ -18,7 +18,7 @@ struct SignalConfig {
 
 struct ConfigData {
     std::vector<std::string> pairs{};
-    LogLevel log_level{LogLevel::Info};
+    Core::LogLevel log_level{Core::LogLevel::Info};
     bool log_to_file{true};
     bool log_to_console{true};
     std::string log_file{"terminal.log"};

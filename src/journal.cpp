@@ -1,5 +1,5 @@
 #include "journal.h"
-#include "logger.h"
+#include "core/logger.h"
 #include <array>
 #include <charconv>
 #include <fstream>
@@ -12,7 +12,7 @@ namespace Journal {
 bool Journal::load_json(const std::string &filename) {
   std::ifstream f(filename);
   if (!f.is_open()) {
-    Logger::instance().error("Failed to open journal file: " + filename);
+    Core::Logger::instance().error("Failed to open journal file: " + filename);
     return false;
   }
 
@@ -20,12 +20,12 @@ bool Journal::load_json(const std::string &filename) {
   buffer << f.rdbuf();
   std::string content = buffer.str();
   if (content.empty()) {
-    Logger::instance().error("Journal file is empty: " + filename);
+    Core::Logger::instance().error("Journal file is empty: " + filename);
     return false;
   }
   if (!nlohmann::json::accept(content)) {
-    Logger::instance().error("Invalid JSON format in journal file: " +
-                             filename);
+    Core::Logger::instance().error("Invalid JSON format in journal file: " +
+                                   filename);
     return false;
   }
 
@@ -33,12 +33,13 @@ bool Journal::load_json(const std::string &filename) {
   try {
     j = nlohmann::json::parse(content);
   } catch (const std::exception &e) {
-    Logger::instance().error("Journal parse error: " + std::string(e.what()));
+    Core::Logger::instance().error("Journal parse error: " +
+                                   std::string(e.what()));
     return false;
   }
 
   if (!j.is_array()) {
-    Logger::instance().error("Journal JSON is not an array.");
+    Core::Logger::instance().error("Journal JSON is not an array.");
     return false;
   }
 
@@ -94,7 +95,7 @@ bool Journal::load_csv(const std::string &filename) {
       start = comma + 1;
     }
     if (idx != fields.size()) {
-      Logger::instance().error("Malformed journal line: " + line);
+      Core::Logger::instance().error("Malformed journal line: " + line);
       continue;
     }
 
@@ -114,7 +115,7 @@ bool Journal::load_csv(const std::string &filename) {
     if (!parse_double(fields[2], e.price) ||
         !parse_double(fields[3], e.quantity) ||
         !parse_ll(fields[4], e.timestamp)) {
-      Logger::instance().error("Failed to parse journal line: " + line);
+      Core::Logger::instance().error("Failed to parse journal line: " + line);
       continue;
     }
 

@@ -10,7 +10,7 @@ namespace Config {
 std::optional<ConfigData> ConfigManager::load(const std::string &filename) {
     std::ifstream in(filename);
     if (!in.is_open()) {
-        Logger::instance().error("Failed to open " + filename);
+        Core::Logger::instance().error("Failed to open " + filename);
         return std::nullopt;
     }
     try {
@@ -20,12 +20,12 @@ std::optional<ConfigData> ConfigManager::load(const std::string &filename) {
         std::string error;
         auto cfg = ConfigSchema::parse(j, error);
         if (!cfg) {
-            Logger::instance().error(error + " in " + filename);
+            Core::Logger::instance().error(error + " in " + filename);
             return std::nullopt;
         }
         return cfg;
     } catch (const std::exception &e) {
-        Logger::instance().error(std::string("Failed to parse ") + filename + ": " + e.what());
+        Core::Logger::instance().error(std::string("Failed to parse ") + filename + ": " + e.what());
         return std::nullopt;
     }
 }
@@ -39,14 +39,14 @@ bool ConfigManager::save_selected_pairs(const std::string &filename,
             try {
                 in >> j;
             } catch (const std::exception &e) {
-                Logger::instance().warn(std::string("Failed to parse existing ") + filename + ": " + e.what());
+                Core::Logger::instance().warn(std::string("Failed to parse existing ") + filename + ": " + e.what());
             }
         }
     }
     j["pairs"] = pairs;
     std::ofstream out(filename);
     if (!out.is_open()) {
-        Logger::instance().error("Failed to open " + filename + " for writing");
+        Core::Logger::instance().error("Failed to open " + filename + " for writing");
         return false;
     }
     out << j.dump(4);

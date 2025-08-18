@@ -52,7 +52,7 @@ TEST(ConfigTest, LoadSignalConfig) {
     auto cfg = Config::ConfigManager::load(tmp.string());
     ASSERT_TRUE(cfg.has_value());
     EXPECT_TRUE(cfg->pairs.empty());
-    EXPECT_EQ(cfg->log_level, LogLevel::Info);
+    EXPECT_EQ(cfg->log_level, Core::LogLevel::Info);
     EXPECT_EQ(cfg->candles_limit, 5000u);
     EXPECT_FALSE(cfg->enable_streaming);
     EXPECT_EQ(cfg->signal.type, "sma_crossover");
