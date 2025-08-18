@@ -1,6 +1,6 @@
 #include "data_fetcher.h"
 
-#include "logger.h"
+#include "core/logger.h"
 #include "interval_utils.h"
 #include <algorithm>
 #include <chrono>

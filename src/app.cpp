@@ -9,7 +9,7 @@
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "implot.h"
-#include "logger.h"
+#include "core/logger.h"
 #include "plot/candlestick.h"
 #include "signal.h"
 
@@ -50,25 +50,25 @@ void App::add_status(const std::string &msg) {
 
 bool App::init_window() {
   auto cfg = Config::ConfigManager::load("config.json");
-  auto level = cfg ? cfg->log_level : LogLevel::Info;
-  Logger::instance().set_min_level(level);
+  auto level = cfg ? cfg->log_level : Core::LogLevel::Info;
+  Core::Logger::instance().set_min_level(level);
   bool console = cfg ? cfg->log_to_console : true;
   bool file = cfg ? cfg->log_to_file : true;
-  Logger::instance().enable_console_output(console);
+  Core::Logger::instance().enable_console_output(console);
   if (file)
-    Logger::instance().set_file(cfg ? cfg->log_file : "terminal.log");
+    Core::Logger::instance().set_file(cfg ? cfg->log_file : "terminal.log");
   else
-    Logger::instance().set_file("");
-  Logger::instance().info("Application started");
+    Core::Logger::instance().set_file("");
+  Core::Logger::instance().info("Application started");
   status_ = AppStatus{};
 
   if (!glfwInit()) {
-    Logger::instance().error("Failed to initialize GLFW");
+    Core::Logger::instance().error("Failed to initialize GLFW");
     return false;
   }
   window_ = glfwCreateWindow(1280, 720, "Trading Terminal", NULL, NULL);
   if (!window_) {
-    Logger::instance().error("Failed to create GLFW window");
+    Core::Logger::instance().error("Failed to create GLFW window");
     glfwTerminate();
     return false;
   }
@@ -87,7 +87,7 @@ void App::load_config() {
     this->ctx_->candles_limit = static_cast<int>(cfg->candles_limit);
     this->ctx_->streaming_enabled = cfg->enable_streaming;
   } else {
-    Logger::instance().warn("Using default configuration");
+    Core::Logger::instance().warn("Using default configuration");
     this->ctx_->candles_limit = 5000;
     this->ctx_->streaming_enabled = false;
   }
@@ -301,7 +301,7 @@ void App::process_events() {
       } else {
         status_.error_message = "Failed to fetch " + it->pair + " " +
                                 it->interval + ", retrying";
-        Logger::instance().error(status_.error_message);
+        Core::Logger::instance().error(status_.error_message);
         add_status(status_.error_message);
         int miss = this->ctx_->candles_limit -
                    static_cast<int>(this->ctx_->all_candles[it->pair][it->interval].size());
@@ -316,7 +316,7 @@ void App::process_events() {
       if (std::chrono::steady_clock::now() - it->start > this->ctx_->request_timeout) {
         status_.error_message = "Timeout fetching " + it->pair + " " +
                                 it->interval + ", retrying";
-        Logger::instance().error(status_.error_message);
+        Core::Logger::instance().error(status_.error_message);
         add_status(status_.error_message);
         int miss = this->ctx_->candles_limit -
                    static_cast<int>(this->ctx_->all_candles[it->pair][it->interval].size());
@@ -338,7 +338,7 @@ void App::process_events() {
 void App::schedule_retry(long long now_ms, const std::string &msg) {
   if (!msg.empty()) {
     status_.error_message = msg;
-    Logger::instance().error(status_.error_message);
+    Core::Logger::instance().error(status_.error_message);
     add_status(status_.error_message);
   }
   long long retry =
@@ -512,7 +512,7 @@ void App::cleanup() {
     window_ = nullptr;
   }
   glfwTerminate();
-  Logger::instance().info("Application exiting");
+  Core::Logger::instance().info("Application exiting");
 }
 
 int App::run() {

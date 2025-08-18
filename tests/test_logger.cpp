@@ -1,4 +1,4 @@
-#include "logger.h"
+#include "core/logger.h"
 #include <gtest/gtest.h>
 #include <chrono>
 #include <filesystem>
@@ -7,11 +7,11 @@
 
 TEST(LoggerAsync, NonBlockingLogging) {
     auto tmp = std::filesystem::temp_directory_path() / "async_log_test.log";
-    Logger::instance().set_file(tmp.string());
-    Logger::instance().enable_console_output(false);
+    Core::Logger::instance().set_file(tmp.string());
+    Core::Logger::instance().enable_console_output(false);
     auto start = std::chrono::steady_clock::now();
     for (int i = 0; i < 1000; ++i) {
-        Logger::instance().info("message" + std::to_string(i));
+        Core::Logger::instance().info("message" + std::to_string(i));
     }
     auto end = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -24,6 +24,6 @@ TEST(LoggerAsync, NonBlockingLogging) {
         ++count;
     EXPECT_EQ(count, 1000);
     in.close();
-    Logger::instance().set_file("");
+    Core::Logger::instance().set_file("");
     std::filesystem::remove(tmp);
 }

@@ -37,7 +37,7 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
     src/core/backtester.cpp
     src/core/kline_stream.cpp
     src/core/iwebsocket.cpp
-    src/logger.cpp
+    src/core/logger.cpp
     src/journal.cpp
     src/services/data_service.cpp
     src/services/journal_service.cpp
@@ -87,7 +87,7 @@ add_executable(test_candle_manager
   src/core/candle_manager.cpp
   src/core/interval_utils.cpp
   src/candle.cpp
-  src/logger.cpp
+  src/core/logger.cpp
 )
 target_include_directories(test_candle_manager PRIVATE src include)
 target_link_libraries(test_candle_manager PRIVATE GTest::gtest_main)
@@ -100,7 +100,7 @@ add_executable(test_signal
   src/services/signal_bot.cpp
   src/config_manager.cpp
   src/config_schema.cpp
-  src/logger.cpp
+  src/core/logger.cpp
 )
 target_include_directories(test_signal PRIVATE src include)
 target_link_libraries(test_signal PRIVATE GTest::gtest_main)
@@ -111,7 +111,7 @@ add_executable(test_data_fetcher
   src/core/data_fetcher.cpp
   src/core/interval_utils.cpp
   src/candle.cpp
-  src/logger.cpp
+  src/core/logger.cpp
 )
 target_include_directories(test_data_fetcher PRIVATE src include)
 target_link_libraries(test_data_fetcher PRIVATE GTest::gtest_main)
@@ -141,7 +141,7 @@ add_executable(test_kline_stream
   src/core/candle_manager.cpp
   src/core/interval_utils.cpp
   src/candle.cpp
-  src/logger.cpp
+  src/core/logger.cpp
 )
 target_include_directories(test_kline_stream PRIVATE src include)
 target_link_libraries(test_kline_stream PRIVATE GTest::gtest_main)
@@ -149,7 +149,7 @@ add_test(NAME test_kline_stream COMMAND test_kline_stream)
 
 add_executable(test_logger
   tests/test_logger.cpp
-  src/logger.cpp
+  src/core/logger.cpp
 )
 target_include_directories(test_logger PRIVATE src include)
 target_link_libraries(test_logger PRIVATE GTest::gtest_main)

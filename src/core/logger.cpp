@@ -1,4 +1,4 @@
-#include "logger.h"
+#include "core/logger.h"
 
 #include <chrono>
 #include <ctime>
@@ -6,6 +6,8 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+
+namespace Core {
 
 Logger &Logger::instance() {
   static Logger inst;
@@ -137,3 +139,4 @@ void Logger::process_queue() {
   }
 }
 
+} // namespace Core

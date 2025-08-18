@@ -27,11 +27,11 @@ std::optional<ConfigData> ConfigSchema::parse(const nlohmann::json &j,
         }
         std::string level = j["log_level"].get<std::string>();
         if (level == "INFO")
-            cfg.log_level = LogLevel::Info;
+            cfg.log_level = Core::LogLevel::Info;
         else if (level == "WARN" || level == "WARNING")
-            cfg.log_level = LogLevel::Warning;
+            cfg.log_level = Core::LogLevel::Warning;
         else if (level == "ERROR")
-            cfg.log_level = LogLevel::Error;
+            cfg.log_level = Core::LogLevel::Error;
         else {
             error = "Unknown log level '" + level + "'";
             return std::nullopt;
