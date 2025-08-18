@@ -2,7 +2,7 @@
 
 #include <GLFW/glfw3.h>
 
-// Manages ImGui/ImPlot initialization and per-frame rendering.
+// Manages ImGui initialization and per-frame rendering.
 class UiManager {
 public:
   bool setup(GLFWwindow *window);
