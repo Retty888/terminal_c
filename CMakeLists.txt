@@ -10,14 +10,14 @@ add_compile_definitions(GTEST_USE_STD_FORMAT=0)
 option(BUILD_TRADING_TERMINAL "Build the TradingTerminal application" ON)
 
 find_package(GTest CONFIG REQUIRED)
+find_package(imgui CONFIG QUIET)
+find_package(implot CONFIG QUIET)
 find_package(cpr CONFIG QUIET)
 if(NOT cpr_FOUND)
   message(WARNING "cpr not found, skipping targets that require it")
 endif()
 
 if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
-  find_package(imgui CONFIG REQUIRED)
-  find_package(implot CONFIG REQUIRED)
   find_package(glfw3 CONFIG REQUIRED)
   find_package(OpenGL REQUIRED)
 
@@ -155,7 +155,25 @@ target_include_directories(test_logger PRIVATE src include)
 target_link_libraries(test_logger PRIVATE GTest::gtest_main)
 add_test(NAME test_logger COMMAND test_logger)
 
+if(imgui_FOUND AND implot_FOUND)
+  add_executable(test_chart_render tests/test_chart_render.cpp)
+  target_link_libraries(test_chart_render PRIVATE GTest::gtest_main imgui::imgui implot::implot)
+else()
+  add_executable(test_chart_render
+    tests/test_chart_render.cpp
+    third_party/imgui/imgui.cpp
+    third_party/imgui/imgui_draw.cpp
+    third_party/imgui/imgui_tables.cpp
+    third_party/imgui/imgui_widgets.cpp
+    third_party/implot/implot.cpp
+    third_party/implot/implot_items.cpp
+  )
+  target_include_directories(test_chart_render PRIVATE third_party/imgui third_party/implot)
+  target_link_libraries(test_chart_render PRIVATE GTest::gtest_main)
+endif()
+add_test(NAME test_chart_render COMMAND test_chart_render)
+
 add_custom_target(ctest COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-  DEPENDS test_backtester test_candle_manager test_signal test_scheduler test_kline_stream test_data_fetcher test_interval_utils test_logger
+  DEPENDS test_backtester test_candle_manager test_signal test_scheduler test_kline_stream test_data_fetcher test_interval_utils test_logger test_chart_render
 )
 
