@@ -50,7 +50,7 @@ void DrawControlPanel(
     std::map<std::string, std::map<std::string, std::vector<Candle>>>
         &all_candles,
     const std::function<void()> &save_pairs,
-    const std::vector<std::string> &exchange_pairs, const AppStatus &status,
+    const std::vector<std::string> &exchange_pairs, AppStatus &status,
     DataService &data_service,
     const std::function<void(const std::string &)> &cancel_pair) {
   ImGui::Begin("Control Panel");
@@ -269,6 +269,24 @@ void DrawControlPanel(
         cancel_pair(removed);
       save_pairs();
     } else {
+      for (const auto &interval : intervals) {
+        ImGui::SameLine();
+        if (ImGui::SmallButton(
+                (std::string("Reload##") + it->name + "_" + interval).c_str())) {
+          bool ok = data_service.reload_candles(it->name, interval);
+          if (ok) {
+            all_candles[it->name][interval] =
+                data_service.load_candles(it->name, interval);
+            status.log.push_back("Reloaded " + it->name + " " + interval);
+          } else {
+            status.log.push_back("Reload failed for " + it->name + " " +
+                                  interval);
+          }
+          if (status.log.size() > 50)
+            status.log.pop_front();
+          InvalidateCache(it->name, interval);
+        }
+      }
       ++it;
     }
   }

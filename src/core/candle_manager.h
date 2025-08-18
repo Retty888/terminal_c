@@ -25,6 +25,9 @@ public:
     // Removes all files with the given symbol prefix (symbol_*).
     bool remove_candles(const std::string& symbol) const;
 
+    // Removes candle data for a specific symbol and interval.
+    bool clear_interval(const std::string& symbol, const std::string& interval) const;
+
     // Lists all locally stored candle data files (symbol_interval.csv).
     std::vector<std::string> list_stored_data() const;
 
