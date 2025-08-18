@@ -6,7 +6,6 @@
 #include <GLFW/glfw3.h>
 #include "ui/echarts_window.h"
 #include "core/candle_manager.h"
-#include "ui/echarts_serializer.h"
 
 #include <nlohmann/json.hpp>
 #include <thread>
@@ -23,8 +22,8 @@ bool UiManager::setup(GLFWwindow *window) {
   echarts_window_ = std::make_unique<EChartsWindow>("resources/chart.html");
 
   Core::CandleManager cm;
-  auto candles = cm.load_candles("BTCUSDT", "1m");
-  echarts_window_->SetInitData(SerializeCandles(candles));
+  auto data = cm.load_candles_json("BTCUSDT", "1m");
+  echarts_window_->SetInitData(std::move(data));
 
   echarts_window_->SetHandler([this](const nlohmann::json &req) {
     if (req.contains("interval")) {

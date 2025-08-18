@@ -5,6 +5,7 @@
 #include <vector>
 #include <filesystem>
 #include <mutex>
+#include <nlohmann/json.hpp>
 
 namespace Core {
 
@@ -21,6 +22,11 @@ public:
 
     // Loads candles from a CSV file into a vector.
     std::vector<Candle> load_candles(const std::string& symbol, const std::string& interval) const;
+
+    // Loads candles and converts them to JSON with timestamps "x" and
+    // OHLC arrays "y" for candlestick charts.
+    nlohmann::json load_candles_json(const std::string& symbol,
+                                     const std::string& interval) const;
 
     // Removes all files with the given symbol prefix (symbol_*).
     bool remove_candles(const std::string& symbol) const;

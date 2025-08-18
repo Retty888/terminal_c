@@ -364,6 +364,18 @@ std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const
     return candles;
 }
 
+nlohmann::json CandleManager::load_candles_json(const std::string& symbol,
+                                                const std::string& interval) const {
+    auto candles = load_candles(symbol, interval);
+    nlohmann::json x = nlohmann::json::array();
+    nlohmann::json y = nlohmann::json::array();
+    for (const auto& c : candles) {
+        x.push_back(c.open_time);
+        y.push_back({c.open, c.close, c.low, c.high});
+    }
+    return nlohmann::json{{"x", std::move(x)}, {"y", std::move(y)}};
+}
+
 
 bool CandleManager::remove_candles(const std::string& symbol) const {
     std::lock_guard<std::mutex> lock(mutex_);
