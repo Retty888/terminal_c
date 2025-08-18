@@ -3,6 +3,12 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include <GLFW/glfw3.h>
+#include "ui/echarts_window.h"
+
+#include <nlohmann/json.hpp>
+#include <thread>
+#include <utility>
 
 bool UiManager::setup(GLFWwindow *window) {
   IMGUI_CHECKVERSION();
@@ -12,6 +18,16 @@ bool UiManager::setup(GLFWwindow *window) {
   ImGui::StyleColorsDark();
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 130");
+  echarts_window_ = std::make_unique<EChartsWindow>("resources/chart.html");
+  echarts_window_->SetHandler([this](const nlohmann::json &req) {
+    if (req.contains("interval")) {
+      if (on_interval_changed_) {
+        on_interval_changed_(req.at("interval").get<std::string>());
+      }
+    }
+    return nlohmann::json{};
+  });
+  echarts_thread_ = std::thread([this]() { echarts_window_->Show(); });
   return true;
 }
 
@@ -19,6 +35,21 @@ void UiManager::begin_frame() {
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplGlfw_NewFrame();
   ImGui::NewFrame();
+}
+
+void UiManager::draw_echarts_panel(const std::string &selected_interval) {
+  ImGui::Begin("Chart");
+  if (echarts_window_ && selected_interval != current_interval_) {
+    echarts_window_->SendToJs(nlohmann::json{{"interval", selected_interval}});
+    current_interval_ = selected_interval;
+  }
+  ImGui::Text("ECharts window running...");
+  ImGui::End();
+}
+
+void UiManager::set_interval_callback(
+    std::function<void(const std::string &)> cb) {
+  on_interval_changed_ = std::move(cb);
 }
 
 void UiManager::end_frame(GLFWwindow *window) {
@@ -33,6 +64,9 @@ void UiManager::end_frame(GLFWwindow *window) {
 }
 
 void UiManager::shutdown() {
+  if (echarts_thread_.joinable()) {
+    echarts_thread_.join();
+  }
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
