@@ -1,47 +1,31 @@
 # Project Log: C++ Trading Terminal
 
 ## Session Start: 2025-08-07 (Approximate)
+_Updated to reflect the current ECharts-based implementation._
 
-### Project Goal:
-Создание высокопроизводительного десктопного приложения на C++ для Windows, которое будет служить терминалом для анализа, бэктестинга и тестирования алгоритмической торговли.
+### Project Goal
+Create a high-performance C++ desktop application for Windows that serves as a terminal for analysis, backtesting, and algorithmic trading experiments.
 
-### Chosen Technology Stack:
-*   **Язык:** C++20
-*   **Система сборки:** CMake
-*   **Управление зависимостями:** vcpkg
-*   **GUI:** Dear ImGui
-*   **Графики:** ImPlot
-*   **Сетевые запросы (API):** CPR (C++ Requests)
-*   **Работа с JSON:** nlohmann/json
-*   **Работа с Parquet/данными:** Apache Arrow C++
+### Chosen Technology Stack
+- **Language:** C++20
+- **Build system:** CMake
+- **Dependency management:** vcpkg
+- **GUI:** Dear ImGui
+- **Charting:** Apache ECharts embedded via webview
+- **Networking:** CPR (C++ Requests)
+- **JSON handling:** nlohmann/json
 
-### Current Progress:
-1.  Создана базовая структура каталогов проекта (`trading_terminal_cpp/src`, `core`, `gui`, `indicators`, `strategies`, `utils`).
-2.  Создан базовый `CMakeLists.txt` с объявлением проекта, стандартом C++20 и инструкциями для поиска основных зависимостей.
-3.  Создан минимальный `src/main.cpp` для проверки сборки.
-4.  Установлены основные зависимости через `vcpkg` (imgui, implot, cpr, nlohmann-json, apache-arrow).
-5.  Возникла проблема с поиском `nlohmann_json` CMake'ом, которая была решена переустановкой пакета через `vcpkg`.
-6.  Возникла проблема с поиском `Arrow` CMake'ом, которая была решена установкой пакета `arrow` через `vcpkg`.
-7.  `src/main.cpp` был обновлен для инициализации ImGui с использованием DirectX 11.
-8.  `CMakeLists.txt` был обновлен для линковки с библиотеками DirectX (`d3d11.lib`, `dxgi.lib`).
+### Current Progress
+1. Established a modular project structure (`src`, `include`, `resources`, `tests`).
+2. Configured `CMakeLists.txt` for C++20, dependency discovery, and unit tests.
+3. Created `main.cpp` that launches an ImGui interface with an ECharts-powered candlestick chart.
+4. Implemented HTTP fetching of candlesticks and optional WebSocket streaming from Binance.
+5. Added services for journaling, signal bots, and serialization utilities for ECharts.
+6. Added comprehensive unit tests covering core logic and chart serialization.
 
-### Current Issues:
-*   **ImGui Feature Support:** При сборке `main.cpp` возникли ошибки, связанные с отсутствием поддержки `ImGuiConfigFlags_DockingEnable`, `ImGuiConfigFlags_ViewportsEnable` и `ImGui::UpdatePlatformWindows()` и `ImGui::RenderPlatformWindowsDefault()`. Это указывало на то, что текущая версия ImGui, предоставляемая `vcpkg`, не включала эти опциональные функции по умолчанию, или они назывались по-другому. Обновление `vcpkg` не решило проблему.
+### Current Issues
+No outstanding issues recorded in this log.
 
-### Changes Made in Current Session:
-1.  Удалены неработающие флаги `ImGuiConfigFlags_DockingEnable` и `ImGuiConfigFlags_ViewportsEnable` из `src/main.cpp`.
-2.  Удалены вызовы `ImGui::UpdatePlatformWindows()` и `ImGui::RenderPlatformWindowsDefault()` из `src/main.cpp`.
-
-### Next Steps (for User):
-Теперь, когда изменения внесены, вам нужно будет снова:
-1.  **Сконфигурировать проект CMake** в **Developer Command Prompt for VS**:
-    ```bash
-    cd C:\Users\User\trading_terminal_cpp\build
-    cmake .. -DCMAKE_TOOLCHAIN_FILE=C:\Users\User\vcpkg\scripts\buildsystems\vcpkg.cmake
-    ```
-2.  **Собрать проект** в той же командной строве:
-    ```bash
-    cmake --build .
-    ```
-3.  **Запустить исполняемый файл** `TradingTerminal.exe` из `build\Debug` (или `build\Release`).
-
+### Next Steps
+1. Configure the project with CMake using the vcpkg toolchain.
+2. Build and run the unit tests via `ctest`.
