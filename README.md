@@ -1,6 +1,6 @@
 # terminal-c
 
-Standalone C++ trading terminal using ImGui and other dependencies. The project relies on packages provided by `vcpkg` and `find_package` in CMake.
+Standalone C++ trading terminal using ImGui with an embedded chart powered by [Apache ECharts](https://echarts.apache.org/). The project relies on packages provided by `vcpkg` and `find_package` in CMake.
 
 ## Состав
 
@@ -8,9 +8,10 @@ Standalone C++ trading terminal using ImGui and other dependencies. The project 
 - Поддержка нескольких торговых пар
 - Загрузка свечей с Binance API
 - Потоковое обновление свечей через WebSocket Binance
+- Интеграция графиков на Apache ECharts
 - Импортированные библиотеки:
   - ImGui
-  - ImPlot
+  - ECharts (через встроенный webview)
   - CPR (встроен)
   - JSON (встроен)
 - `CMakeLists.txt` использует `find_package()` для зависимостей через `vcpkg`
@@ -37,12 +38,9 @@ Standalone C++ trading terminal using ImGui and other dependencies. The project 
    ```
 4. Готовый исполняемый файл `TradingTerminal` (или `TradingTerminal.exe` на Windows) появится в каталоге `build`.
 
-## Инструменты графика
+## График
 
-- **Add Line / Add Rect** – нажмите кнопку инструмента, затем кликните первую точку на графике и второй клик завершит фигуру. Правый клик удаляет ближайшую фигуру.
-- **Measure** – измерение между двумя точками: выберите инструмент, кликните старт и затем конечную точку.
-- **SMA7** – на график нанесена простая скользящая средняя с периодом 7 для дополнительного анализа.
-- **Колёсико мыши** – масштабирует оси. Удерживайте `Ctrl`/`Shift` или наведите курсор на ось Y, чтобы изменять только вертикальную шкалу. Перетаскивание левой кнопкой сдвигает график по времени, а за область оси Y – по цене. При вертикальном скролле отображается стрелка-индикатор.
+График свечей отображается через ECharts. Доступны стандартные возможности масштабирования и прокрутки; пользовательские инструменты рисования пока не поддерживаются.
 
 ## Streaming
 
