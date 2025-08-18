@@ -405,7 +405,7 @@ void DrawChartWindow(
       ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
       ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
       ImPlot::SetupLegend(ImPlotLocation_South, ImPlotLegendFlags_Outside);
-
+      ImPlotRect cur_limits;
       cur_limits = ImPlot::GetPlotLimits();
       int pixel_width = static_cast<int>(ImPlot::GetPlotSize().x);
       if (cached.times.empty()) {
@@ -484,7 +484,7 @@ void DrawChartWindow(
         }
       }
 
-      ImPlotRect cur_limits = ImPlot::GetPlotLimits();
+      cur_limits = ImPlot::GetPlotLimits();
       ImVec2 mouse_pos = ImGui::GetMousePos();
       ImVec2 plot_pos = ImPlot::GetPlotPos();
       ImVec2 plot_size = ImPlot::GetPlotSize();
