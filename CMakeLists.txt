@@ -11,7 +11,18 @@ add_compile_definitions(GTEST_HAS_STD_WSTRING=0)
 option(BUILD_TRADING_TERMINAL "Build the TradingTerminal application" ON)
 
 find_package(GTest CONFIG REQUIRED)
-  find_package(imgui CONFIG QUIET)
+find_package(imgui CONFIG QUIET)
+if(NOT imgui_FOUND)
+  message(WARNING "imgui not found, using bundled sources")
+  add_library(imgui
+    third_party/imgui/imgui.cpp
+    third_party/imgui/imgui_draw.cpp
+    third_party/imgui/imgui_tables.cpp
+    third_party/imgui/imgui_widgets.cpp
+  )
+  target_include_directories(imgui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
+  add_library(imgui::imgui ALIAS imgui)
+endif()
 find_package(cpr CONFIG QUIET)
 find_package(webview CONFIG QUIET)
 if(NOT cpr_FOUND)
@@ -47,12 +58,14 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
       src/ui/analytics_window.cpp
       src/ui/journal_window.cpp
       src/ui/ui_manager.cpp
-      src/ui/echarts_window.cpp
       src/ui/echarts_serializer.cpp
   )
 
     if(webview_FOUND)
+      target_sources(TradingTerminal PRIVATE src/ui/echarts_window.cpp)
       target_link_libraries(TradingTerminal PRIVATE webview::webview)
+    else()
+      message(WARNING "webview not found, disabling ECharts window")
     endif()
 
   target_sources(TradingTerminal PRIVATE
