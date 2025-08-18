@@ -22,7 +22,10 @@
     window.receiveFromCpp = function(data) {
       try {
         const obj = JSON.parse(data);
-        chart.setOption(obj);
+        chart.setOption({
+          xAxis: { data: obj.x },
+          series: [{ data: obj.y }]
+        });
       } catch (e) {
         console.error('Invalid JSON from C++', e);
       }
@@ -30,14 +33,7 @@
 
     function sendToCpp(obj) {
       if (window.bridge) {
-        window.bridge(JSON.stringify(obj)).then(function(res) {
-          try {
-            const reply = JSON.parse(res);
-            chart.setOption(reply);
-          } catch (e) {
-            console.error('Invalid JSON from C++ response', e);
-          }
-        });
+        window.bridge(JSON.stringify(obj));
       }
     }
 
