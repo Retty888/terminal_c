@@ -9,6 +9,7 @@
     "arrow",
     "glfw3",
     "opengl",
+    "webview",
     "gtest"
   ]
 }

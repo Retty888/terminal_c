@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ECharts</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.2/echarts.min.js"></script>
+  <style>
+    html, body, #chart { height:100%; width:100%; margin:0; }
+  </style>
+</head>
+<body>
+  <div id="chart"></div>
+  <script>
+    const chart = echarts.init(document.getElementById('chart'));
+    chart.setOption({
+      title: { text: 'ECharts' },
+      xAxis: { type: 'category', data: [] },
+      yAxis: { type: 'value' },
+      series: [{ type: 'line', data: [] }]
+    });
+
+    window.receiveFromCpp = function(data) {
+      try {
+        const obj = JSON.parse(data);
+        chart.setOption(obj);
+      } catch (e) {
+        console.error('Invalid JSON from C++', e);
+      }
+    };
+
+    function sendToCpp(obj) {
+      if (window.bridge) {
+        window.bridge(JSON.stringify(obj)).then(function(res) {
+          try {
+            const reply = JSON.parse(res);
+            chart.setOption(reply);
+          } catch (e) {
+            console.error('Invalid JSON from C++ response', e);
+          }
+        });
+      }
+    }
+
+    window.onload = function() {
+      sendToCpp({ request: 'init' });
+    };
+  </script>
+</body>
+</html>
