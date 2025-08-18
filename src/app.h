@@ -47,6 +47,7 @@ private:
   void render_ui();
   void cleanup();
   void update_next_fetch_time(long long candidate);
+  void schedule_retry(long long now_ms, const std::string &msg = "");
 
   struct AppContext {
     struct TradeEvent {

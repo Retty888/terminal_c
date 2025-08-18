@@ -261,24 +261,11 @@ void App::process_events() {
             long long boundary = vec.back().open_time + p.count();
             update_next_fetch_time(boundary);
           } else {
-            long long retry =
-                result_now +
-                std::chrono::duration_cast<std::chrono::milliseconds>(
-                    this->ctx_->fetch_backoff)
-                    .count();
-            update_next_fetch_time(retry);
+            schedule_retry(result_now);
           }
           add_status("Updated " + it->first);
         } else {
-          status_.error_message = "Update failed for " + it->first;
-          Logger::instance().error(status_.error_message);
-          add_status(status_.error_message);
-          long long retry =
-              result_now +
-              std::chrono::duration_cast<std::chrono::milliseconds>(
-                  this->ctx_->fetch_backoff)
-                  .count();
-          update_next_fetch_time(retry);
+          schedule_retry(result_now, "Update failed for " + it->first);
         }
         it = this->ctx_->pending_fetches.erase(it);
       } else {
@@ -346,6 +333,20 @@ void App::process_events() {
                                ? static_cast<float>(this->ctx_->completed_fetches) /
                                      static_cast<float>(this->ctx_->total_fetches)
                                : 1.0f;
+}
+
+void App::schedule_retry(long long now_ms, const std::string &msg) {
+  if (!msg.empty()) {
+    status_.error_message = msg;
+    Logger::instance().error(status_.error_message);
+    add_status(status_.error_message);
+  }
+  long long retry =
+      now_ms +
+      std::chrono::duration_cast<std::chrono::milliseconds>(
+          this->ctx_->fetch_backoff)
+          .count();
+  update_next_fetch_time(retry);
 }
 
 void App::update_next_fetch_time(long long candidate) {
