@@ -43,6 +43,7 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
       src/core/candle_manager.cpp
     src/core/data_fetcher.cpp
     src/core/interval_utils.cpp
+    src/core/candle_utils.cpp
     src/core/net/token_bucket_rate_limiter.cpp
     src/core/net/cpr_http_client.cpp
     src/core/backtester.cpp
@@ -126,6 +127,7 @@ add_executable(test_data_fetcher
   tests/test_data_fetcher.cpp
   src/core/data_fetcher.cpp
   src/core/interval_utils.cpp
+  src/core/candle_utils.cpp
   src/candle.cpp
   src/core/logger.cpp
 )
