@@ -14,6 +14,8 @@
 #include <map>
 #include <string>
 #include <limits>
+#include <chrono>
+#include "core/logger.h"
 
 using namespace Core;
 
@@ -199,7 +201,8 @@ void DrawChartWindow(
     const std::vector<std::string> &interval_list, bool show_on_chart,
     const std::vector<AppContext::TradeEvent> &trades,
     const Journal::Journal &journal, const Core::BacktestResult &last_result) {
-  ImGui::Begin("Chart");
+  if (ImGui::Begin("Chart")) {
+    auto start = std::chrono::steady_clock::now();
 
   static char pair_filter[64] = "";
   ImGui::InputText("##pair_filter", pair_filter, IM_ARRAYSIZE(pair_filter));
@@ -1061,6 +1064,10 @@ void DrawChartWindow(
       }
     }
     ImPlot::EndSubplots();
+  }
+    auto end = std::chrono::steady_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    Core::Logger::instance().info("DrawChartWindow took " + std::to_string(ms) + " ms");
   }
   ImGui::End();
 }
