@@ -76,8 +76,28 @@ Core::KlinesResult DataService::fetch_klines(
 Core::KlinesResult DataService::fetch_klines_alt(
     const std::string &symbol, const std::string &interval, int limit,
     int max_retries, std::chrono::milliseconds retry_delay) const {
-  return fetcher_.fetch_klines_alt(symbol, interval, limit, max_retries,
-                                   retry_delay);
+  auto cfg = Config::ConfigManager::load("config.json");
+  std::string fallback = cfg ? cfg->fallback_provider : "";
+  std::chrono::milliseconds current_delay = retry_delay;
+  Core::KlinesResult res;
+  for (int attempt = 0; attempt < max_retries; ++attempt) {
+    res = fetcher_.fetch_klines_alt(symbol, interval, limit, 1, current_delay);
+    if (res.error == Core::FetchError::None)
+      return res;
+
+    if (!fallback.empty()) {
+      auto fb = fetcher_.fetch_klines(symbol, interval, limit, 1, current_delay);
+      if (fb.error == Core::FetchError::None)
+        return fb;
+      res = fb;
+    }
+
+    if (attempt < max_retries - 1) {
+      std::this_thread::sleep_for(current_delay);
+      current_delay *= 2;
+    }
+  }
+  return res;
 }
 
 Core::KlinesResult DataService::fetch_range(
@@ -101,6 +121,7 @@ Core::KlinesResult DataService::fetch_range(
           std::to_string(start_time / 1000) + "&to=" +
           std::to_string((batch_end + interval_ms) / 1000);
       bool success = false;
+      auto current_delay = retry_delay;
       for (int attempt = 0; attempt < max_retries; ++attempt) {
         rate_limiter_->acquire();
         Core::HttpResponse r = http_client_->get(url);
@@ -108,7 +129,8 @@ Core::KlinesResult DataService::fetch_range(
           Core::Logger::instance().error("Alt range request error: " +
                                          r.error_message);
           if (attempt < max_retries - 1) {
-            std::this_thread::sleep_for(retry_delay);
+            std::this_thread::sleep_for(current_delay);
+            current_delay *= 2;
             continue;
           }
           return {Core::FetchError::NetworkError, 0, r.error_message, {}};
@@ -148,7 +170,8 @@ Core::KlinesResult DataService::fetch_range(
             "Alt range HTTP Request failed with status code: " +
             std::to_string(r.status_code));
         if (attempt < max_retries - 1) {
-          std::this_thread::sleep_for(retry_delay);
+          std::this_thread::sleep_for(current_delay);
+          current_delay *= 2;
         } else {
           return {Core::FetchError::HttpError, r.status_code, r.error_message,
                   {}};
@@ -170,6 +193,7 @@ Core::KlinesResult DataService::fetch_range(
                         "&endTime=" + std::to_string(batch_end) +
                         "&limit=1000";
       bool success = false;
+      auto current_delay = retry_delay;
       for (int attempt = 0; attempt < max_retries; ++attempt) {
         rate_limiter_->acquire();
         Core::HttpResponse r = http_client_->get(url);
@@ -177,7 +201,8 @@ Core::KlinesResult DataService::fetch_range(
           Core::Logger::instance().error("Range request error: " +
                                          r.error_message);
           if (attempt < max_retries - 1) {
-            std::this_thread::sleep_for(retry_delay);
+            std::this_thread::sleep_for(current_delay);
+            current_delay *= 2;
             continue;
           }
           return {Core::FetchError::NetworkError, 0, r.error_message, {}};
@@ -218,7 +243,8 @@ Core::KlinesResult DataService::fetch_range(
             "Range HTTP Request failed with status code: " +
             std::to_string(r.status_code));
         if (attempt < max_retries - 1) {
-          std::this_thread::sleep_for(retry_delay);
+          std::this_thread::sleep_for(current_delay);
+          current_delay *= 2;
         } else {
           return {Core::FetchError::HttpError, r.status_code, r.error_message,
                   {}};

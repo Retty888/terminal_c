@@ -124,7 +124,8 @@ void DrawControlPanel(
                     load_error.clear();
                   } else {
                     failed = true;
-                    load_error = "Failed to load gap for " + symbol;
+                    load_error = "Gap load failed for " + symbol +
+                                 " " + interval + ": " + gap_res.message;
                   }
                   expected = gap_end + interval_ms;
                 }
@@ -143,6 +144,10 @@ void DrawControlPanel(
                 }
                 InvalidateCache(symbol, interval);
               }
+            } else if (fetched.error != FetchError::None) {
+              failed = true;
+              load_error = "Load failed for " + symbol + " " + interval +
+                           ": " + fetched.message;
             }
           }
           if (candles.empty()) {
@@ -151,7 +156,8 @@ void DrawControlPanel(
             all_candles[symbol][interval] = candles;
           }
         }
-        load_error = failed ? "Failed to load " + symbol : "";
+        if (failed && load_error.empty())
+          load_error = "Failed to load " + symbol;
       }
     }
   }

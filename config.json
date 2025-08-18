@@ -6,6 +6,8 @@
   "log_file": "terminal.log",
   "candles_limit": 5000,
   "enable_streaming": true,
+  "primary_provider": "binance",
+  "fallback_provider": "gateio",
   "signal": {
     "type": "sma_crossover",
     "short_period": 2,

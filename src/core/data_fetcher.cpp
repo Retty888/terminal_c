@@ -191,16 +191,17 @@ KlinesResult DataFetcher::fetch_klines_alt(
           return {FetchError::None, r.status_code, "", candles};
         } catch (const std::exception &e) {
           Logger::instance().error(std::string("Alt kline parse error: ") +
-                                   e.what());
+                                   e.what() + " Body: " + r.text);
           return {FetchError::ParseError, r.status_code, e.what(), {}};
         }
       }
-      Logger::instance().error("Alt HTTP Request failed with status code: " +
-                               std::to_string(r.status_code));
+      Logger::instance().error("Alt HTTP Request failed. Status: " +
+                               std::to_string(r.status_code) +
+                               ", body: " + r.text);
       if (attempt < max_retries - 1)
         std::this_thread::sleep_for(retry_delay);
       else
-        return {FetchError::HttpError, r.status_code, r.error_message, {}};
+        return {FetchError::HttpError, r.status_code, r.text, {}};
     }
     return {FetchError::HttpError, 0, "Max retries exceeded", {}};
   }
