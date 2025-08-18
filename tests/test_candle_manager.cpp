@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
 
 TEST(CandleManagerTest, SaveLoadAndAppend) {
     using namespace Core;
@@ -69,5 +70,31 @@ TEST(CandleManagerTest, SaveLoadAndAppend) {
     idx.close();
 
     std::filesystem::remove_all(test_dir);
+}
+
+TEST(CandleManagerTest, LoadCandlesJsonReturnsOHLC) {
+    using namespace Core;
+    std::filesystem::path dir = std::filesystem::temp_directory_path() / "cm_json_test";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    CandleManager cm(dir);
+
+    std::vector<Candle> candles = {
+        {0,10.0,20.0,5.0,15.0,0.0,59999,0.0,0,0.0,0.0,0.0},
+        {60000,12.0,22.0,8.0,18.0,0.0,119999,0.0,0,0.0,0.0,0.0}
+    };
+    cm.save_candles("TEST","1m",candles);
+
+    auto json = cm.load_candles_json("TEST","1m");
+    nlohmann::json expected = {
+        {"x", {0, 60000}},
+        {"y", {
+            {10.0, 15.0, 5.0, 20.0},
+            {12.0, 18.0, 8.0, 22.0}
+        }}
+    };
+    EXPECT_EQ(json, expected);
+
+    std::filesystem::remove_all(dir);
 }
 
