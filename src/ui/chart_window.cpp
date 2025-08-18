@@ -175,6 +175,7 @@ void DrawChartWindow(
 
   static ImPlotRect manual_limits;
   static bool apply_manual_limits = false;
+  static float y_scroll_indicator_timer = 0.0f;
   static ImPlotRange volume_limits{0.0, 0.0};
 
   if (ImGui::Button("Reset")) {
@@ -270,6 +271,11 @@ void DrawChartWindow(
     ImGui::Text("Rect: click first corner, then click again to finish");
   else if (measure_mode)
     ImGui::Text("Measure: click start point and click again to end");
+  else {
+    ImGui::Text(
+        "Mouse wheel zooms. Hold Ctrl/Shift or hover Y axis for vertical zoom.");
+    ImGui::Text("Drag Y axis to pan vertically.");
+  }
 
   ImPlotFlags plot_flags = ImPlotFlags_Crosshairs;
   ImPlotSubplotFlags subplot_flags = ImPlotSubplotFlags_LinkAllX;
@@ -353,30 +359,57 @@ void DrawChartWindow(
       }
 
       ImPlotRect cur_limits = ImPlot::GetPlotLimits();
+      ImVec2 mouse_pos = ImGui::GetMousePos();
+      ImVec2 plot_pos = ImPlot::GetPlotPos();
+      ImVec2 plot_size = ImPlot::GetPlotSize();
+      bool over_y_axis = mouse_pos.x < plot_pos.x && mouse_pos.y >= plot_pos.y &&
+                         mouse_pos.y <= plot_pos.y + plot_size.y;
 
-      if (ImPlot::IsPlotHovered()) {
+      if (ImPlot::IsPlotHovered() || over_y_axis) {
         ImGuiIO &io = ImGui::GetIO();
         ImPlotPoint mouse = ImPlot::GetPlotMousePos();
         if (io.MouseWheel != 0.0f && !adding_line && !adding_rect &&
             !measure_mode) {
           double zoom = io.MouseWheel > 0 ? 0.9 : 1.1;
-          manual_limits.X.Min = mouse.x - (mouse.x - cur_limits.X.Min) * zoom;
-          manual_limits.X.Max = mouse.x + (cur_limits.X.Max - mouse.x) * zoom;
-          manual_limits.Y.Min = mouse.y - (mouse.y - cur_limits.Y.Min) * zoom;
-          manual_limits.Y.Max = mouse.y + (cur_limits.Y.Max - mouse.y) * zoom;
+          bool vertical_only = io.KeyCtrl || io.KeyShift || over_y_axis;
+          if (vertical_only) {
+            manual_limits.Y.Min =
+                mouse.y - (mouse.y - cur_limits.Y.Min) * zoom;
+            manual_limits.Y.Max =
+                mouse.y + (cur_limits.Y.Max - mouse.y) * zoom;
+            y_scroll_indicator_timer = 1.0f;
+          } else {
+            manual_limits.X.Min =
+                mouse.x - (mouse.x - cur_limits.X.Min) * zoom;
+            manual_limits.X.Max =
+                mouse.x + (cur_limits.X.Max - mouse.x) * zoom;
+            manual_limits.Y.Min =
+                mouse.y - (mouse.y - cur_limits.Y.Min) * zoom;
+            manual_limits.Y.Max =
+                mouse.y + (cur_limits.Y.Max - mouse.y) * zoom;
+          }
           apply_manual_limits = true;
         }
         if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) && !adding_line &&
             !adding_rect && !measure_mode) {
           ImVec2 drag = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
-          ImPlotPoint p0 = ImPlot::PixelsToPlot(ImVec2(0, 0));
-          ImPlotPoint p1 = ImPlot::PixelsToPlot(drag);
-          double dx = p0.x - p1.x;
-          double dy = p0.y - p1.y;
-          manual_limits.X.Min += dx;
-          manual_limits.X.Max += dx;
-          manual_limits.Y.Min += dy;
-          manual_limits.Y.Max += dy;
+          if (over_y_axis) {
+            ImPlotPoint p0 = ImPlot::PixelsToPlot(ImVec2(0, 0));
+            ImPlotPoint p1 = ImPlot::PixelsToPlot(ImVec2(0, drag.y));
+            double dy = p0.y - p1.y;
+            manual_limits.Y.Min += dy;
+            manual_limits.Y.Max += dy;
+            y_scroll_indicator_timer = 1.0f;
+          } else {
+            ImPlotPoint p0 = ImPlot::PixelsToPlot(ImVec2(0, 0));
+            ImPlotPoint p1 = ImPlot::PixelsToPlot(drag);
+            double dx = p0.x - p1.x;
+            double dy = p0.y - p1.y;
+            manual_limits.X.Min += dx;
+            manual_limits.X.Max += dx;
+            manual_limits.Y.Min += dy;
+            manual_limits.Y.Max += dy;
+          }
           ImGui::ResetMouseDragDelta(ImGuiMouseButton_Left);
           apply_manual_limits = true;
         }
@@ -482,6 +515,14 @@ void DrawChartWindow(
         }
       }
 
+      if (y_scroll_indicator_timer > 0.0f) {
+        ImVec2 arrow_pos = ImVec2(
+            plot_pos.x - 20,
+            plot_pos.y + plot_size.y * 0.5f - ImGui::GetFontSize() * 0.5f);
+        ImGui::GetWindowDrawList()->AddText(
+            arrow_pos, IM_COL32(255, 255, 0, 255), u8"↕");
+        y_scroll_indicator_timer -= ImGui::GetIO().DeltaTime;
+      }
       if (!apply_manual_limits) {
         manual_limits = cur_limits;
       }
