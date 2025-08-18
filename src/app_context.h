@@ -59,6 +59,7 @@ struct AppContext {
     std::chrono::steady_clock::time_point start;
   };
   std::deque<FetchTask> fetch_queue;
+  std::mutex fetch_mutex;
   std::size_t total_fetches = 0;
   std::size_t completed_fetches = 0;
   std::atomic<long long> next_fetch_time{0};

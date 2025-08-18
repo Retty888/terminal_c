@@ -15,6 +15,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <thread>
 
 struct AppStatus {
   float candle_progress = 0.0f;
@@ -43,6 +44,8 @@ private:
   void cleanup();
   void update_next_fetch_time(long long candidate);
   void schedule_retry(long long now_ms, const std::string &msg = "");
+  void start_fetch_thread();
+  void stop_fetch_thread();
 
   std::unique_ptr<AppContext> ctx_;
   DataService data_service_;
@@ -51,4 +54,6 @@ private:
   mutable std::mutex status_mutex_;
   GLFWwindow *window_ = nullptr;
   UiManager ui_manager_;
+  std::thread fetch_thread_;
+  std::atomic<bool> fetch_running_{false};
 };
