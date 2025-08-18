@@ -364,6 +364,28 @@ std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const
     return candles;
 }
 
+bool CandleManager::remove_candles(const std::string& symbol) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    bool success = true;
+    if (std::filesystem::exists(data_dir_) && std::filesystem::is_directory(data_dir_)) {
+        std::string prefix = symbol + "_";
+        for (const auto& entry : std::filesystem::directory_iterator(data_dir_)) {
+            if (!entry.is_regular_file()) continue;
+            const auto& path = entry.path();
+            std::string filename = path.filename().string();
+            if (filename.rfind(prefix, 0) == 0) {
+                std::error_code ec;
+                std::filesystem::remove(path, ec);
+                if (ec) {
+                    Logger::instance().warn("Failed to remove " + path.string() + ": " + ec.message());
+                    success = false;
+                }
+            }
+        }
+    }
+    return success;
+}
+
 std::vector<std::string> CandleManager::list_stored_data() const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<std::string> stored_files;

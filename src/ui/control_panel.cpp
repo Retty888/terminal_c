@@ -264,6 +264,7 @@ void DrawControlPanel(
           std::remove(selected_pairs.begin(), selected_pairs.end(), removed),
           selected_pairs.end());
       Config::ConfigManager::save_selected_pairs("config.json", selected_pairs);
+      data_service.remove_candles(removed);
       if (cancel_pair)
         cancel_pair(removed);
       save_pairs();

@@ -258,6 +258,10 @@ void DataService::append_candles(
   candle_manager_.append_candles(pair, interval, candles);
 }
 
+bool DataService::remove_candles(const std::string &pair) const {
+  return candle_manager_.remove_candles(pair);
+}
+
 std::vector<std::string> DataService::list_stored_data() const {
   return candle_manager_.list_stored_data();
 }
