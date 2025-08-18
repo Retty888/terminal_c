@@ -647,8 +647,9 @@ void DrawChartWindow(
         ImVec2 arrow_pos = ImVec2(
             plot_pos.x - 20,
             plot_pos.y + plot_size.y * 0.5f - ImGui::GetFontSize() * 0.5f);
+        const char *arrow = reinterpret_cast<const char *>(u8"↕");
         ImGui::GetWindowDrawList()->AddText(
-            arrow_pos, IM_COL32(255, 255, 0, 255), u8"↕");
+            arrow_pos, IM_COL32(255, 255, 0, 255), arrow);
         y_scroll_indicator_timer -= ImGui::GetIO().DeltaTime;
       }
       if (!apply_manual_limits) {
