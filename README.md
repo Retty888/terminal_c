@@ -48,3 +48,7 @@ Standalone C++ trading terminal using ImGui and other dependencies. The project 
 
 Файл `config.json` содержит флаг `enable_streaming`. При значении `true` приложение подключается к `wss://stream.binance.com:9443/ws/{symbol}@kline_{interval}` и обновляет свечи в реальном времени. Если флаг выключен или потоковый канал отключается, используется обычный HTTP-поллинг.
 
+## Лицензии
+
+- Проект использует [Apache ECharts](https://echarts.apache.org/), распространяемый по лицензии [Apache 2.0](third_party/echarts/LICENSE).
+
