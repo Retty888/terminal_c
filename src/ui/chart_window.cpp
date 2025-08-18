@@ -175,6 +175,7 @@ void DrawChartWindow(
 
   static ImPlotRect manual_limits;
   static bool apply_manual_limits = false;
+  static ImPlotRange volume_limits{0.0, 0.0};
 
   if (ImGui::Button("Reset")) {
     if (!times.empty()) {
@@ -185,11 +186,21 @@ void DrawChartWindow(
       manual_limits.Y.Min = *std::min_element(lows.begin(), lows.end());
       manual_limits.Y.Max = *std::max_element(highs.begin(), highs.end());
     }
+    if (!volumes.empty()) {
+      double max_vol = *std::max_element(volumes.begin(), volumes.end());
+      volume_limits.Min = 0.0;
+      volume_limits.Max = max_vol * 1.1;
+    }
     apply_manual_limits = true;
   }
   ImGui::SameLine();
   if (ImGui::Button("Fit")) {
     ImPlot::SetNextAxesToFit();
+    if (!volumes.empty()) {
+      double max_vol = *std::max_element(volumes.begin(), volumes.end());
+      volume_limits.Min = 0.0;
+      volume_limits.Max = max_vol * 1.1;
+    }
     apply_manual_limits = false;
   }
   ImGui::SameLine();
@@ -689,11 +700,18 @@ void DrawChartWindow(
     }
     if (!times.empty() && !volumes.empty()) {
       double max_vol = *std::max_element(volumes.begin(), volumes.end());
-      ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max, 0.0,
-                                max_vol * 1.1, ImGuiCond_Always);
+      if (volume_limits.Max == 0.0 || volume_limits.Max < max_vol * 1.1) {
+        volume_limits.Min = 0.0;
+        volume_limits.Max = max_vol * 1.1;
+      }
+      ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max,
+                                volume_limits.Min, volume_limits.Max,
+                                ImGuiCond_Always);
       if (ImPlot::BeginPlot("Volume", ImVec2(-1, -1),
-                            ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
-        ImPlot::SetupAxes("Time", "Volume");
+                            ImPlotFlags_NoLegend)) {
+        ImPlot::SetupAxes("Time", "Volume",
+                          ImPlotAxisFlags_NoPan | ImPlotAxisFlags_NoZoom,
+                          ImPlotAxisFlags_None);
         ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
         ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
         double bar_width = times.size() > 1
@@ -701,14 +719,25 @@ void DrawChartWindow(
                                : volume_bar_width;
         ImPlot::PlotBars("Volume", times.data(), volumes.data(),
                          static_cast<int>(volumes.size()), bar_width);
+        ImPlotRect cur_limits = ImPlot::GetPlotLimits();
+        volume_limits.Min = cur_limits.Y.Min;
+        volume_limits.Max = cur_limits.Y.Max;
         ImPlot::EndPlot();
       }
     } else {
+      ImPlot::SetNextAxesLimits(manual_limits.X.Min, manual_limits.X.Max,
+                                volume_limits.Min, volume_limits.Max,
+                                ImGuiCond_Always);
       if (ImPlot::BeginPlot("Volume", ImVec2(-1, -1),
-                            ImPlotFlags_NoLegend | ImPlotFlags_NoInputs)) {
-        ImPlot::SetupAxes("Time", "Volume");
+                            ImPlotFlags_NoLegend)) {
+        ImPlot::SetupAxes("Time", "Volume",
+                          ImPlotAxisFlags_NoPan | ImPlotAxisFlags_NoZoom,
+                          ImPlotAxisFlags_None);
         ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
         ImPlot::SetupAxisFormat(ImAxis_X1, "%H:%M:%S");
+        ImPlotRect cur_limits = ImPlot::GetPlotLimits();
+        volume_limits.Min = cur_limits.Y.Min;
+        volume_limits.Max = cur_limits.Y.Max;
         ImPlot::EndPlot();
       }
     }
