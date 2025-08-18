@@ -5,7 +5,9 @@
 #include <string>
 
 #include <nlohmann/json.hpp>
+#ifdef USE_WEBVIEW
 #include <webview.h>
+#endif
 
 // EChartsWindow embeds a webview to display a chart powered by ECharts and
 // provides a simple JSON-based bridge between C++ and JavaScript.
@@ -33,7 +35,17 @@ class EChartsWindow {
   std::string html_path_;
   bool debug_;
   JsonHandler handler_;
+#ifdef USE_WEBVIEW
   std::unique_ptr<webview::webview> view_;
+#endif
   nlohmann::json init_data_{};
 };
+
+#ifndef USE_WEBVIEW
+inline EChartsWindow::EChartsWindow(const std::string&, bool) {}
+inline void EChartsWindow::SetHandler(JsonHandler) {}
+inline void EChartsWindow::SetInitData(nlohmann::json) {}
+inline void EChartsWindow::Show() {}
+inline void EChartsWindow::SendToJs(const nlohmann::json&) {}
+#endif
 

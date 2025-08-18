@@ -2,6 +2,7 @@
 set PROJECT_DIR=%~dp0
 set BUILD_DIR=%PROJECT_DIR%\build
 set VCPKG_TOOLCHAIN_FILE=%PROJECT_DIR%vcpkg\scripts\buildsystems\vcpkg.cmake
+set VCPKG_OVERLAY_PORTS=%PROJECT_DIR%ports
 
 echo Creating build directory if it doesn't exist...
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
@@ -10,7 +11,7 @@ echo Changing to build directory...
 cd "%BUILD_DIR%"
 
 echo Running CMake configuration...
-cmake .. -DBUILD_TRADING_TERMINAL=ON -DCMAKE_TOOLCHAIN_FILE="%VCPKG_TOOLCHAIN_FILE%"
+cmake .. -DBUILD_TRADING_TERMINAL=ON -DCMAKE_TOOLCHAIN_FILE="%VCPKG_TOOLCHAIN_FILE%" -DVCPKG_OVERLAY_PORTS="%VCPKG_OVERLAY_PORTS%"
 if %errorlevel% neq 0 (
     echo CMake configuration failed!
     goto :eof
