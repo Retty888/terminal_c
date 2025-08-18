@@ -37,6 +37,10 @@ Standalone C++ trading terminal using ImGui with an embedded chart powered by [A
    cmake --build build
    ```
 4. Готовый исполняемый файл `TradingTerminal` (или `TradingTerminal.exe` на Windows) появится в каталоге `build`.
+5. Скопируйте директории `resources` и `third_party/echarts` рядом с исполняемым файлом, чтобы график мог загрузить `echarts.min.js`:
+   ```
+   cp -r resources third_party/echarts build/
+   ```
 
 ## График
 
