@@ -2,14 +2,14 @@
 
 #include <filesystem>
 #include <utility>
-#include "core/candle_manager.h"
-#include "ui/echarts_serializer.h"
 
 EChartsWindow::EChartsWindow(const std::string &html_path, bool debug)
     : html_path_(html_path), debug_(debug),
       view_(std::make_unique<webview::webview>(debug, nullptr)) {}
 
 void EChartsWindow::SetHandler(JsonHandler handler) { handler_ = std::move(handler); }
+
+void EChartsWindow::SetInitData(nlohmann::json data) { init_data_ = std::move(data); }
 
 void EChartsWindow::Show() {
   if (!view_) {
@@ -20,12 +20,16 @@ void EChartsWindow::Show() {
   view_->set_size(800, 600, WEBVIEW_HINT_NONE);
 
   view_->bind("bridge", [this](std::string req) -> std::string {
-    auto json = nlohmann::json::parse(req, nullptr, false);
+    nlohmann::json json;
+    try {
+      json = nlohmann::json::parse(req);
+    } catch (const nlohmann::json::parse_error &) {
+      return nlohmann::json{{"error", "invalid json"}}.dump();
+    }
     if (json.contains("request") && json["request"] == "init") {
-      Core::CandleManager cm;
-      auto candles = cm.load_candles("BTCUSDT", "1m");
-      auto data = SerializeCandles(candles);
-      SendToJs(data);
+      if (!init_data_.is_null()) {
+        SendToJs(init_data_);
+      }
     }
     if (handler_) {
       auto resp = handler_(json);
