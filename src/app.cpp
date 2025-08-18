@@ -150,6 +150,50 @@ void App::load_config() {
     for (const auto &interval : this->ctx_->intervals) {
       this->ctx_->all_candles[pair][interval] =
           data_service_.load_candles(pair, interval);
+      auto &candles = this->ctx_->all_candles[pair][interval];
+      long long interval_ms = parse_interval(interval).count();
+      if (interval_ms > 0 && candles.size() > 1) {
+        bool fixed = false;
+        for (std::size_t i = 0; i + 1 < candles.size(); ++i) {
+          const auto &cur = candles[i];
+          const auto &next = candles[i + 1];
+          long long expected = cur.open_time + interval_ms;
+          if (next.open_time - cur.open_time > interval_ms) {
+            auto res = data_service_.fetch_range(
+                pair, interval, expected, next.open_time - interval_ms);
+            if (res.error == FetchError::None && !res.candles.empty()) {
+              candles.insert(candles.begin() + i + 1, res.candles.begin(),
+                             res.candles.end());
+              data_service_.append_candles(pair, interval, res.candles);
+              i += res.candles.size();
+              fixed = true;
+            }
+          }
+        }
+        if (fixed) {
+          auto fill_missing = [](std::vector<Candle> &vec,
+                                 long long period_ms) {
+            if (vec.size() < 2 || period_ms <= 0)
+              return;
+            std::vector<Candle> filled;
+            filled.reserve(vec.size());
+            for (std::size_t j = 0; j + 1 < vec.size(); ++j) {
+              const auto &c = vec[j];
+              const auto &n = vec[j + 1];
+              filled.push_back(c);
+              long long exp = c.open_time + period_ms;
+              while (exp < n.open_time) {
+                filled.emplace_back(exp, c.close, c.close, c.close, c.close, 0.0,
+                                   exp + period_ms - 1, 0.0, 0, 0.0, 0.0, 0.0);
+                exp += period_ms;
+              }
+            }
+            filled.push_back(vec.back());
+            vec = std::move(filled);
+          };
+          fill_missing(candles, interval_ms);
+        }
+      }
     }
   }
   auto &initial = this->ctx_->all_candles[this->ctx_->active_pair][this->ctx_->active_interval];
