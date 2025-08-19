@@ -27,6 +27,10 @@ class EChartsWindow {
   // Show the window and start the event loop.
   void Show();
 
+  // Close the window and terminate the event loop so the hosting thread
+  // can exit without user interaction.
+  void Close();
+
   // Send JSON data to the JavaScript side. JS should implement
   // `window.receiveFromCpp` to receive it.
   void SendToJs(const nlohmann::json &data);
@@ -46,6 +50,7 @@ inline EChartsWindow::EChartsWindow(const std::string&, bool) {}
 inline void EChartsWindow::SetHandler(JsonHandler) {}
 inline void EChartsWindow::SetInitData(nlohmann::json) {}
 inline void EChartsWindow::Show() {}
+inline void EChartsWindow::Close() {}
 inline void EChartsWindow::SendToJs(const nlohmann::json&) {}
 #endif
 
