@@ -478,7 +478,7 @@ void App::render_ui() {
                       this->ctx_->active_pair, this->ctx_->selected_interval, status_);
 
     DrawAnalyticsWindow(this->ctx_->all_candles, this->ctx_->active_pair, this->ctx_->selected_interval);
-    DrawJournalWindow(journal_service_.journal());
+    DrawJournalWindow(journal_service_);
   }
 
   ui_manager_.draw_echarts_panel(this->ctx_->selected_interval);

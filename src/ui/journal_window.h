@@ -1,6 +1,6 @@
 #pragma once
 
-#include "journal.h"
+#include "services/journal_service.h"
 
-void DrawJournalWindow(Journal::Journal& journal);
+void DrawJournalWindow(JournalService &service);
 
