@@ -44,6 +44,19 @@ Standalone C++ trading terminal using ImGui with an embedded chart powered by [A
    ```
    cp -r resources third_party/echarts build/
    ```
+   После копирования убедитесь, что файлы `resources/chart.html` и
+   `third_party/echarts/echarts.min.js` находятся рядом с исполняемым
+   файлом, например:
+
+   ```
+   build/
+   ├── TradingTerminal
+   ├── resources/
+   │   └── chart.html
+   └── third_party/
+       └── echarts/
+           └── echarts.min.js
+   ```
 
 ## График
 

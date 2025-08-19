@@ -28,10 +28,18 @@ bool UiManager::setup(GLFWwindow *window) {
   const std::filesystem::path html_path{"resources/chart.html"};
   const std::filesystem::path js_path{"../third_party/echarts/echarts.min.js"};
 
+  const auto html_abs = std::filesystem::absolute(html_path);
+  const auto js_abs = std::filesystem::absolute(js_path);
+  Core::Logger::instance().info("Checking chart resources at " +
+                                html_abs.string() + " and " +
+                                js_abs.string());
+
   resources_available_ =
-      std::filesystem::exists(html_path) && std::filesystem::exists(js_path);
+      std::filesystem::exists(html_abs) && std::filesystem::exists(js_abs);
   if (!resources_available_) {
-    Core::Logger::instance().error("Chart resources missing");
+    Core::Logger::instance().error("Chart resources missing. Checked '" +
+                                   html_abs.string() + "' and '" +
+                                   js_abs.string() + "'");
   } else {
     echarts_window_ = std::make_unique<EChartsWindow>(html_path.string());
 
@@ -66,7 +74,8 @@ void UiManager::draw_echarts_panel(const std::string &selected_interval) {
   ImGui::Begin("Chart");
 #if USE_WEBVIEW
   if (!resources_available_) {
-    ImGui::Text("Chart resources missing");
+    ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
+                       "Chart resources missing");
   } else if (echarts_window_) {
     if (selected_interval != current_interval_) {
       echarts_window_->SendToJs(
