@@ -5,9 +5,9 @@
 #include <string>
 #include <thread>
 
-struct GLFWwindow;
+#include "ui/echarts_window.h"
 
-class EChartsWindow;
+struct GLFWwindow;
 
 // Manages ImGui initialization and per-frame rendering and hosts auxiliary
 // UI panels such as the ECharts webview container.
