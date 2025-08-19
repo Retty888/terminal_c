@@ -8,6 +8,8 @@
 #include <future>
 #include <nlohmann/json.hpp>
 #include <set>
+#include <unordered_map>
+#include <unordered_set>
 #include <thread>
 
 namespace {
@@ -18,6 +20,18 @@ std::string to_gate_symbol(const std::string &symbol) {
   std::string base = symbol.substr(0, symbol.size() - 4);
   std::string quote = symbol.substr(symbol.size() - 4);
   return base + "_" + quote;
+}
+
+std::string map_gate_interval(const std::string &interval) {
+  static const std::unordered_map<std::string, std::string> mapping{{"5s", "10s"}};
+  static const std::unordered_set<std::string> supported{
+      "10s", "15s", "30s", "1m", "5m", "15m", "30m", "1h", "4h",
+      "1d", "1w", "1M"};
+
+  auto it = mapping.find(interval);
+  if (it != mapping.end())
+    return it->second;
+  return supported.count(interval) ? interval : std::string{};
 }
 
 } // namespace
@@ -133,11 +147,27 @@ KlinesResult DataFetcher::fetch_klines(
 KlinesResult DataFetcher::fetch_klines_alt(
     const std::string &symbol, const std::string &interval, int limit,
     int max_retries, std::chrono::milliseconds retry_delay) const {
-  if (interval == "5s" || interval == "15s") {
-    std::string pair = to_gate_symbol(symbol);
+  std::string mapped = map_gate_interval(interval);
+  if (mapped.empty())
+    return {FetchError::HttpError, 0, "Unsupported interval", {}};
+
+  std::string pair = to_gate_symbol(symbol);
+  std::vector<Candle> all_candles;
+  auto interval_ms = parse_interval(mapped).count();
+  long long end_ts =
+      std::chrono::duration_cast<std::chrono::seconds>(
+          std::chrono::system_clock::now().time_since_epoch())
+          .count();
+  int http_status = 0;
+
+  while (static_cast<int>(all_candles.size()) < limit) {
+    int batch_limit = std::min(1000, limit - static_cast<int>(all_candles.size()));
     std::string url =
         "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=" +
-        pair + "&limit=" + std::to_string(limit) + "&interval=" + interval;
+        pair + "&limit=" + std::to_string(batch_limit) + "&interval=" + mapped +
+        "&to=" + std::to_string(end_ts);
+
+    bool success = false;
     for (int attempt = 0; attempt < max_retries; ++attempt) {
       rate_limiter_->acquire();
       HttpResponse r = http_client_->get(url);
@@ -149,11 +179,11 @@ KlinesResult DataFetcher::fetch_klines_alt(
         }
         return {FetchError::NetworkError, 0, r.error_message, {}};
       }
+      http_status = r.status_code;
       if (r.status_code == 200) {
         try {
           std::vector<Candle> candles;
           auto json_data = nlohmann::json::parse(r.text);
-          auto interval_ms = parse_interval(interval).count();
           for (const auto &kline : json_data) {
             long long ts =
                 static_cast<long long>(std::stoll(kline[0].get<std::string>())) *
@@ -166,9 +196,16 @@ KlinesResult DataFetcher::fetch_klines_alt(
             candles.emplace_back(ts, open, high, low, close, volume,
                                  ts + interval_ms - 1, 0.0, 0, 0.0, 0.0, 0.0);
           }
-          std::reverse(candles.begin(), candles.end());
-          fill_missing(candles, interval_ms);
-          return {FetchError::None, r.status_code, "", candles};
+          if (candles.empty()) {
+            fill_missing(all_candles, interval_ms);
+            return {FetchError::None, http_status, "", all_candles};
+          }
+          all_candles.insert(all_candles.begin(), candles.begin(),
+                             candles.end());
+          end_ts = candles.front().open_time / 1000 -
+                   (interval_ms / 1000);
+          success = true;
+          break;
         } catch (const std::exception &e) {
           Logger::instance().error(std::string("Alt kline parse error: ") +
                                    e.what() + " Body: " + r.text);
@@ -183,12 +220,12 @@ KlinesResult DataFetcher::fetch_klines_alt(
       else
         return {FetchError::HttpError, r.status_code, r.text, {}};
     }
-    return {FetchError::HttpError, 0, "Max retries exceeded", {}};
+    if (!success) {
+      return {FetchError::HttpError, http_status, "Max retries exceeded", {}};
+    }
   }
-
-  return fetch_klines_from_api(
-      "https://api.binance.us/api/v3/klines?symbol=", symbol, interval, limit,
-      max_retries, retry_delay);
+  fill_missing(all_candles, interval_ms);
+  return {FetchError::None, http_status, "", all_candles};
 }
 
 std::future<KlinesResult> DataFetcher::fetch_klines_async(
