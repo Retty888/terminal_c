@@ -54,6 +54,7 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
     src/core/data_fetcher.cpp
     src/core/interval_utils.cpp
     src/core/candle_utils.cpp
+    src/core/data_dir.cpp
     src/core/net/token_bucket_rate_limiter.cpp
     src/core/net/cpr_http_client.cpp
     src/core/backtester.cpp
@@ -122,6 +123,7 @@ add_test(NAME test_backtester COMMAND test_backtester)
 add_executable(test_candle_manager
   tests/test_candle_manager.cpp
   src/core/candle_manager.cpp
+  src/core/data_dir.cpp
   src/core/interval_utils.cpp
   src/candle.cpp
   src/core/logger.cpp
@@ -179,6 +181,7 @@ add_executable(test_kline_stream
   src/core/kline_stream.cpp
   src/core/iwebsocket.cpp
   src/core/candle_manager.cpp
+  src/core/data_dir.cpp
   src/core/interval_utils.cpp
   src/candle.cpp
   src/core/logger.cpp
