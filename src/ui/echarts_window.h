@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <atomic>
 #include <memory>
 #include <string>
 
@@ -26,6 +27,12 @@ class EChartsWindow {
 
   // Show the window and start the event loop.
   void Show();
+  // Retrieve the native window handle so it can be embedded inside an
+  // ImGui region.
+  void *GetNativeHandle() const;
+
+  // Resize the underlying webview to match the available ImGui space.
+  void SetSize(int width, int height);
 
   // Close the window and terminate the event loop so the hosting thread
   // can exit without user interaction.
@@ -41,6 +48,7 @@ class EChartsWindow {
   JsonHandler handler_;
 #if USE_WEBVIEW
   std::unique_ptr<webview::webview> view_;
+  std::atomic<void *> native_handle_{nullptr};
 #endif
   nlohmann::json init_data_{};
 };
@@ -52,5 +60,7 @@ inline void EChartsWindow::SetInitData(nlohmann::json) {}
 inline void EChartsWindow::Show() {}
 inline void EChartsWindow::Close() {}
 inline void EChartsWindow::SendToJs(const nlohmann::json&) {}
+inline void *EChartsWindow::GetNativeHandle() const { return nullptr; }
+inline void EChartsWindow::SetSize(int, int) {}
 #endif
 

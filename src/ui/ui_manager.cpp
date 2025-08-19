@@ -50,7 +50,8 @@ bool UiManager::setup(GLFWwindow *window) {
     echarts_thread_ = std::thread([this]() { echarts_window_->Show(); });
   }
 #else
-  Core::Logger::instance().warn("ECharts disabled: webview library not found");
+  Core::Logger::instance().warn(
+      "ECharts disabled: install the webview dependency and rebuild with USE_WEBVIEW enabled");
 #endif
   return true;
 }
@@ -66,16 +67,27 @@ void UiManager::draw_echarts_panel(const std::string &selected_interval) {
 #if USE_WEBVIEW
   if (!resources_available_) {
     ImGui::Text("Chart resources missing");
-  } else {
-    if (echarts_window_ && selected_interval != current_interval_) {
+  } else if (echarts_window_) {
+    if (selected_interval != current_interval_) {
       echarts_window_->SendToJs(
           nlohmann::json{{"interval", selected_interval}});
       current_interval_ = selected_interval;
     }
-    ImGui::Text("ECharts window running...");
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+    echarts_window_->SetSize(static_cast<int>(avail.x),
+                             static_cast<int>(avail.y));
+    ImGui::BeginChild("EChartsView", ImVec2(0, 0), false,
+                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+    if (void *handle = echarts_window_->GetNativeHandle()) {
+      ImGui::Image(reinterpret_cast<ImTextureID>(handle), avail);
+    } else {
+      ImGui::Text("Loading chart...");
+    }
+    ImGui::EndChild();
   }
 #else
-  ImGui::Text("ECharts disabled: webview library not found");
+  ImGui::Text(
+      "ECharts disabled. Please install/enable the webview dependency (USE_WEBVIEW)");
 #endif
   ImGui::End();
 }
