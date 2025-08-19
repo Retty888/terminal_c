@@ -1,15 +1,15 @@
 #include "ui_manager.h"
 
-#include "imgui.h"
-#include "imgui_impl_glfw.h"
-#include "imgui_impl_opengl3.h"
 #include <GLFW/glfw3.h>
-#include "ui/echarts_window.h"
-#include "core/candle_manager.h"
-
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <utility>
+
+#include "core/candle_manager.h"
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+#include "ui/echarts_window.h"
 
 UiManager::~UiManager() = default;
 
