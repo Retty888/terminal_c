@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "core/candle_manager.h"
+#include "core/logger.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
@@ -21,6 +22,7 @@ bool UiManager::setup(GLFWwindow *window) {
   ImGui::StyleColorsDark();
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 130");
+#if USE_WEBVIEW
   echarts_window_ = std::make_unique<EChartsWindow>("resources/chart.html");
 
   Core::CandleManager cm;
@@ -36,6 +38,10 @@ bool UiManager::setup(GLFWwindow *window) {
     return nlohmann::json{};
   });
   echarts_thread_ = std::thread([this]() { echarts_window_->Show(); });
+#else
+  Core::Logger::instance().warn(
+      "ECharts disabled: webview library not found");
+#endif
   return true;
 }
 
@@ -47,11 +53,16 @@ void UiManager::begin_frame() {
 
 void UiManager::draw_echarts_panel(const std::string &selected_interval) {
   ImGui::Begin("Chart");
+#if USE_WEBVIEW
   if (echarts_window_ && selected_interval != current_interval_) {
-    echarts_window_->SendToJs(nlohmann::json{{"interval", selected_interval}});
+    echarts_window_->SendToJs(
+        nlohmann::json{{"interval", selected_interval}});
     current_interval_ = selected_interval;
   }
   ImGui::Text("ECharts window running...");
+#else
+  ImGui::Text("ECharts disabled: webview library not found");
+#endif
   ImGui::End();
 }
 

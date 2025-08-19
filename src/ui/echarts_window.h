@@ -5,7 +5,7 @@
 #include <string>
 
 #include <nlohmann/json.hpp>
-#ifdef USE_WEBVIEW
+#if USE_WEBVIEW
 #include <webview.h>
 #endif
 
@@ -35,13 +35,13 @@ class EChartsWindow {
   std::string html_path_;
   bool debug_;
   JsonHandler handler_;
-#ifdef USE_WEBVIEW
+#if USE_WEBVIEW
   std::unique_ptr<webview::webview> view_;
 #endif
   nlohmann::json init_data_{};
 };
 
-#ifndef USE_WEBVIEW
+#if !USE_WEBVIEW
 inline EChartsWindow::EChartsWindow(const std::string&, bool) {}
 inline void EChartsWindow::SetHandler(JsonHandler) {}
 inline void EChartsWindow::SetInitData(nlohmann::json) {}
