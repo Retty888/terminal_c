@@ -8,6 +8,7 @@
     "arrow",
     "glfw3",
     "opengl",
-    "gtest"
+    "gtest",
+    { "name": "webview2", "platform": "windows" }
   ]
 }
