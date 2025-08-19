@@ -2,6 +2,8 @@
 
 #include <fstream>
 #include <iomanip>
+#include <sstream>
+#include <ctime>
 #include <cstdlib>
 #include <charconv>
 #include <string_view>
@@ -370,7 +372,14 @@ nlohmann::json CandleManager::load_candles_json(const std::string& symbol,
     nlohmann::json x = nlohmann::json::array();
     nlohmann::json y = nlohmann::json::array();
     for (const auto& c : candles) {
-        x.push_back(c.open_time);
+        long long ms = c.open_time;
+        std::time_t sec = ms / 1000;
+        int millis = static_cast<int>(ms % 1000);
+        std::tm tm = *std::gmtime(&sec);
+        std::ostringstream oss;
+        oss << std::put_time(&tm, "%FT%T") << '.'
+            << std::setw(3) << std::setfill('0') << millis << 'Z';
+        x.push_back(oss.str());
         y.push_back({c.open, c.close, c.low, c.high});
     }
     return nlohmann::json{{"x", std::move(x)}, {"y", std::move(y)}};
