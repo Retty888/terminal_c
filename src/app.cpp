@@ -448,7 +448,7 @@ void App::render_ui() {
     ImGui::DockBuilderDockWindow("Analytics", dock_bottom);
     ImGui::DockBuilderFinish(dockspace_id);
   }
-  ImGui::DockSpaceOverViewport(dockspace_id, ImGui::GetMainViewport());
+  ImGui::DockSpaceOverViewport(ImGui::GetMainViewport(), dockspace_id);
 
   {
     std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
