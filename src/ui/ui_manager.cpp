@@ -11,6 +11,8 @@
 #include <thread>
 #include <utility>
 
+UiManager::~UiManager() = default;
+
 bool UiManager::setup(GLFWwindow *window) {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
