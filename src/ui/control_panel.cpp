@@ -126,18 +126,6 @@ bool RenderPairRow(
     const std::function<void()> &save_pairs, DataService &data_service,
     AppStatus &status,
     const std::function<void(const std::string &)> &cancel_pair) {
-  std::string checkbox_id = item.name + "##checkbox_" + item.name;
-  if (ImGui::Checkbox(checkbox_id.c_str(), &item.visible)) {
-    if (!item.visible && active_pair == item.name) {
-      auto new_active =
-          std::find_if(pairs.begin(), pairs.end(),
-                       [](const PairItem &p) { return p.visible; });
-      active_pair = new_active != pairs.end() ? new_active->name : std::string();
-    } else if (item.visible && active_pair.empty()) {
-      active_pair = item.name;
-    }
-  }
-
   bool missing_data = false;
   std::vector<TooltipStat> stats;
   size_t sel_count = 0;
@@ -181,16 +169,30 @@ bool RenderPairRow(
   }
   std::string label =
       sel_start + "–" + sel_end + " (" + std::to_string(sel_count) + ")";
-  ImGui::SameLine();
+
+  // Column 1: visibility checkbox and pair name
+  ImGui::TableNextColumn();
+  std::string checkbox_id = item.name + "##checkbox_" + item.name;
+  if (ImGui::Checkbox(checkbox_id.c_str(), &item.visible)) {
+    if (!item.visible && active_pair == item.name) {
+      auto new_active =
+          std::find_if(pairs.begin(), pairs.end(),
+                       [](const PairItem &p) { return p.visible; });
+      active_pair = new_active != pairs.end() ? new_active->name : std::string();
+    } else if (item.visible && active_pair.empty()) {
+      active_pair = item.name;
+    }
+  }
+
+  // Column 2: candle stats and progress bar
+  ImGui::TableNextColumn();
   ImGui::Text("%s %s", emoji, label.c_str());
-  ImGui::SameLine();
   float progress = EXPECTED_CANDLES
                        ? static_cast<float>(sel_count) / EXPECTED_CANDLES
                        : 0.0f;
   ImGui::PushStyleColor(ImGuiCol_PlotHistogram, color);
   ImGui::ProgressBar(progress, ImVec2(100.0f, 0.0f));
   ImGui::PopStyleColor();
-
   if (ImGui::IsItemHovered()) {
     ImGui::BeginTooltip();
     for (const auto &s : stats) {
@@ -203,7 +205,10 @@ bool RenderPairRow(
     ImGui::SameLine();
     ImGui::TextColored(COLOR_LOW, "!");
   }
-  ImGui::SameLine();
+
+  // Column 3: action buttons
+  ImGui::TableNextColumn();
+  bool removed = false;
   if (ImGui::SmallButton((std::string("X##remove_") + item.name).c_str())) {
     all_candles.erase(item.name);
     if (active_pair == item.name) {
@@ -220,26 +225,31 @@ bool RenderPairRow(
     if (cancel_pair)
       cancel_pair(item.name);
     save_pairs();
-    return true;
+    removed = true;
+  }
+  ImGui::SameLine();
+  if (ImGui::Button((std::string("Reload##") + item.name).c_str())) {
+    ImGui::OpenPopup((std::string("ReloadPopup##") + item.name).c_str());
+  }
+  if (ImGui::BeginPopup((std::string("ReloadPopup##") + item.name).c_str())) {
+    for (const auto &interval : intervals) {
+      if (ImGui::Selectable(interval.c_str())) {
+        bool ok = data_service.reload_candles(item.name, interval);
+        if (ok) {
+          all_candles[item.name][interval] =
+              data_service.load_candles(item.name, interval);
+          status.log.push_back("Reloaded " + item.name + " " + interval);
+        } else {
+          status.log.push_back("Reload failed for " + item.name + " " + interval);
+        }
+        if (status.log.size() > 50)
+          status.log.pop_front();
+      }
+    }
+    ImGui::EndPopup();
   }
 
-  for (const auto &interval : intervals) {
-    ImGui::SameLine();
-    if (ImGui::SmallButton(
-            (std::string("Reload##") + item.name + "_" + interval).c_str())) {
-      bool ok = data_service.reload_candles(item.name, interval);
-      if (ok) {
-        all_candles[item.name][interval] =
-            data_service.load_candles(item.name, interval);
-        status.log.push_back("Reloaded " + item.name + " " + interval);
-      } else {
-        status.log.push_back("Reload failed for " + item.name + " " + interval);
-      }
-      if (status.log.size() > 50)
-        status.log.pop_front();
-    }
-  }
-  return false;
+  return removed;
 }
 } // namespace
 
@@ -315,14 +325,18 @@ static void RenderPairSelector(
     const std::function<void()> &save_pairs, DataService &data_service,
     AppStatus &status,
     const std::function<void(const std::string &)> &cancel_pair) {
-  for (auto it = pairs.begin(); it != pairs.end();) {
-    if (RenderPairRow(pairs, *it, selected_pairs, active_pair, intervals,
-                      selected_interval, all_candles, save_pairs, data_service,
-                      status, cancel_pair)) {
-      it = pairs.erase(it);
-    } else {
-      ++it;
+  if (ImGui::BeginTable("pairs_table", 3, ImGuiTableFlags_SizingStretchProp)) {
+    for (auto it = pairs.begin(); it != pairs.end();) {
+      ImGui::TableNextRow();
+      if (RenderPairRow(pairs, *it, selected_pairs, active_pair, intervals,
+                        selected_interval, all_candles, save_pairs, data_service,
+                        status, cancel_pair)) {
+        it = pairs.erase(it);
+      } else {
+        ++it;
+      }
     }
+    ImGui::EndTable();
   }
 }
 
