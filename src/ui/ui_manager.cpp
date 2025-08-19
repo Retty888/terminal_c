@@ -2,6 +2,7 @@
 
 #include <GLFW/glfw3.h>
 #include <filesystem>
+#include <exception>
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <utility>
@@ -97,6 +98,14 @@ void UiManager::end_frame(GLFWwindow *window) {
 
 void UiManager::shutdown() {
   if (echarts_thread_.joinable()) {
+    if (echarts_window_) {
+      try {
+        echarts_window_->Close();
+      } catch (const std::exception &e) {
+        Core::Logger::instance().error(
+            std::string("Failed to close ECharts window: ") + e.what());
+      }
+    }
     echarts_thread_.join();
   }
   ImGui_ImplOpenGL3_Shutdown();

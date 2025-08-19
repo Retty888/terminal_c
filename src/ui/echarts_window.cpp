@@ -53,3 +53,10 @@ void EChartsWindow::SendToJs(const nlohmann::json &data) {
   }
 }
 
+void EChartsWindow::Close() {
+  if (view_) {
+    // Terminate the webview event loop so the hosting thread can finish.
+    view_->terminate();
+  }
+}
+
