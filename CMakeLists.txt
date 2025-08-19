@@ -47,6 +47,7 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
     src/app.cpp
     src/config_manager.cpp
     src/config_schema.cpp
+    src/config_path.cpp
       src/candle.cpp
       src/signal.cpp
       src/core/candle_manager.cpp
@@ -123,6 +124,7 @@ add_executable(test_candle_manager
   src/core/interval_utils.cpp
   src/candle.cpp
   src/core/logger.cpp
+  src/config_path.cpp
 )
 target_include_directories(test_candle_manager PRIVATE src include)
 target_link_libraries(test_candle_manager PRIVATE GTest::gtest_main)
@@ -136,6 +138,7 @@ add_executable(test_signal
   src/config_manager.cpp
   src/config_schema.cpp
   src/core/logger.cpp
+  src/config_path.cpp
 )
 target_include_directories(test_signal PRIVATE src include)
 target_link_libraries(test_signal PRIVATE GTest::gtest_main)
@@ -178,6 +181,7 @@ add_executable(test_kline_stream
   src/core/interval_utils.cpp
   src/candle.cpp
   src/core/logger.cpp
+  src/config_path.cpp
 )
 target_include_directories(test_kline_stream PRIVATE src include)
 target_link_libraries(test_kline_stream PRIVATE GTest::gtest_main)
