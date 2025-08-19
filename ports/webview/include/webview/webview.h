@@ -20,6 +20,8 @@ class webview {
   void run() {}
   void eval(const std::string&) {}
   void bind(const std::string&, std::function<std::string(std::string)>) {}
+  void terminate() {}
+  void *window() { return nullptr; }
 };
 
 } // namespace webview
