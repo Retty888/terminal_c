@@ -13,6 +13,7 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "ui/echarts_window.h"
+#include "core/path_utils.h"
 
 UiManager::~UiManager() = default;
 
@@ -25,21 +26,23 @@ bool UiManager::setup(GLFWwindow *window) {
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 130");
 #if USE_WEBVIEW
-  const std::filesystem::path html_path{"resources/chart.html"};
-  const std::filesystem::path js_path{"../third_party/echarts/echarts.min.js"};
+  const auto html_path = Core::path_from_executable("resources/chart.html");
+  const auto js_path =
+      Core::path_from_executable("third_party/echarts/echarts.min.js");
 
-  const auto html_abs = std::filesystem::absolute(html_path);
-  const auto js_abs = std::filesystem::absolute(js_path);
   Core::Logger::instance().info("Checking chart resources at " +
-                                html_abs.string() + " and " +
-                                js_abs.string());
+                                html_path.string() + " and " +
+                                js_path.string());
 
   resources_available_ =
-      std::filesystem::exists(html_abs) && std::filesystem::exists(js_abs);
+      std::filesystem::exists(html_path) && std::filesystem::exists(js_path);
   if (!resources_available_) {
     Core::Logger::instance().error("Chart resources missing. Checked '" +
-                                   html_abs.string() + "' and '" +
-                                   js_abs.string() + "'");
+                                   html_path.string() + "' and '" +
+                                   js_path.string() + "'");
+    Core::Logger::instance().warn(
+        "Expected directory layout relative to the executable:\n"
+        "  resources/chart.html\n  third_party/echarts/echarts.min.js");
   } else {
     echarts_window_ = std::make_unique<EChartsWindow>(html_path.string());
 
@@ -76,6 +79,9 @@ void UiManager::draw_echarts_panel(const std::string &selected_interval) {
   if (!resources_available_) {
     ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
                        "Chart resources missing");
+    ImGui::TextWrapped(
+        "Expected layout relative to the executable:\n"
+        "  resources/chart.html\n  third_party/echarts/echarts.min.js");
   } else if (echarts_window_) {
     if (selected_interval != current_interval_) {
       echarts_window_->SendToJs(
