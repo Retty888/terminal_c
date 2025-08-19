@@ -13,6 +13,7 @@ class EChartsWindow;
 // UI panels such as the ECharts webview container.
 class UiManager {
 public:
+  ~UiManager();
   bool setup(GLFWwindow *window);
   void begin_frame();
   // Draw docked panels each frame. Currently hosts the ECharts window and
