@@ -87,7 +87,7 @@ TEST(CandleManagerTest, LoadCandlesJsonReturnsOHLC) {
 
     auto json = cm.load_candles_json("TEST","1m");
     nlohmann::json expected = {
-        {"x", {0, 60000}},
+        {"x", {"1970-01-01T00:00:00.000Z", "1970-01-01T00:01:00.000Z"}},
         {"y", {
             {10.0, 15.0, 5.0, 20.0},
             {12.0, 18.0, 8.0, 22.0}

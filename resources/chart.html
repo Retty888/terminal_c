@@ -43,8 +43,9 @@
     window.receiveFromCpp = function(obj) {
       try {
         if (Array.isArray(obj.x) && Array.isArray(obj.y)) {
+          const formatted = obj.x.map(s => new Date(s).toLocaleString());
           chart.setOption({
-            xAxis: { data: obj.x },
+            xAxis: { data: formatted },
             series: [{
               name: 'Candlestick',
               type: 'candlestick',
