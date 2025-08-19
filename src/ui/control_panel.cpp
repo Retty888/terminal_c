@@ -2,6 +2,7 @@
 #include "app.h"
 
 #include "config_manager.h"
+#include "config_path.h"
 #include "core/data_fetcher.h"
 #include "core/interval_utils.h"
 #include "imgui.h"
@@ -16,7 +17,7 @@ using namespace Core;
 
 namespace {
 const size_t EXPECTED_CANDLES = [] {
-  auto cfg = Config::ConfigManager::load("config.json");
+  auto cfg = Config::ConfigManager::load(resolve_config_path().string());
   return cfg ? cfg->candles_limit : 5000u;
 }();
 constexpr size_t THRESHOLD_LOW = 100;
@@ -220,7 +221,7 @@ bool RenderPairRow(
     selected_pairs.erase(std::remove(selected_pairs.begin(), selected_pairs.end(),
                                      item.name),
                          selected_pairs.end());
-    Config::ConfigManager::save_selected_pairs("config.json", selected_pairs);
+    Config::ConfigManager::save_selected_pairs(resolve_config_path().string(), selected_pairs);
     data_service.remove_candles(item.name);
     if (cancel_pair)
       cancel_pair(item.name);
@@ -302,7 +303,7 @@ static void RenderLoadControls(
       if (std::find(selected_pairs.begin(), selected_pairs.end(), symbol) ==
           selected_pairs.end()) {
         selected_pairs.push_back(symbol);
-        Config::ConfigManager::save_selected_pairs("config.json", selected_pairs);
+        Config::ConfigManager::save_selected_pairs(resolve_config_path().string(), selected_pairs);
       }
       if (!LoadInitialCandles(data_service, symbol, intervals, all_candles,
                               load_error)) {

@@ -5,6 +5,7 @@
 #include "core/logger.h"
 #include "core/candle_utils.h"
 #include "config_manager.h"
+#include "config_path.h"
 
 #include <algorithm>
 #include <nlohmann/json.hpp>
@@ -56,7 +57,7 @@ Core::KlinesResult DataService::fetch_klines(
 Core::KlinesResult DataService::fetch_klines_alt(
     const std::string &symbol, const std::string &interval, int limit,
     int max_retries, std::chrono::milliseconds retry_delay) const {
-  auto cfg = Config::ConfigManager::load("config.json");
+  auto cfg = Config::ConfigManager::load(resolve_config_path().string());
   std::string fallback = cfg ? cfg->fallback_provider : "";
   std::chrono::milliseconds current_delay = retry_delay;
   Core::KlinesResult res;
@@ -271,7 +272,7 @@ bool DataService::remove_candles(const std::string &pair) const {
 
 bool DataService::reload_candles(const std::string &pair, const std::string &interval) const {
   candle_manager_.clear_interval(pair, interval);
-  auto cfg = Config::ConfigManager::load("config.json");
+  auto cfg = Config::ConfigManager::load(resolve_config_path().string());
   int limit = cfg ? static_cast<int>(cfg->candles_limit) : 1000;
   auto res = fetch_klines(pair, interval, limit);
   if (res.error == Core::FetchError::None && !res.candles.empty()) {

@@ -1,6 +1,7 @@
 #include "app.h"
 
 #include "config_manager.h"
+#include "config_path.h"
 #include "core/backtester.h"
 #include "core/candle.h"
 #include "core/candle_manager.h"
@@ -47,7 +48,7 @@ void App::add_status(const std::string &msg) {
 }
 
 bool App::init_window() {
-  auto cfg = Config::ConfigManager::load("config.json");
+  auto cfg = Config::ConfigManager::load(resolve_config_path().string());
   auto level = cfg ? cfg->log_level : Core::LogLevel::Info;
   Core::Logger::instance().set_min_level(level);
   bool console = cfg ? cfg->log_to_console : true;
@@ -82,7 +83,7 @@ void App::setup_imgui() {
 }
 
 void App::load_config() {
-  auto cfg = Config::ConfigManager::load("config.json");
+  auto cfg = Config::ConfigManager::load(resolve_config_path().string());
   std::vector<std::string> pair_names;
   if (cfg) {
     pair_names = cfg->pairs;
@@ -133,7 +134,7 @@ void App::load_config() {
     std::vector<std::string> names;
     for (const auto &p : this->ctx_->pairs)
       names.push_back(p.name);
-    Config::ConfigManager::save_selected_pairs("config.json", names);
+    Config::ConfigManager::save_selected_pairs(resolve_config_path().string(), names);
   };
   this->ctx_->selected_pairs = pair_names;
   this->ctx_->active_pair = this->ctx_->selected_pairs[0];

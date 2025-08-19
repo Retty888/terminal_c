@@ -4,13 +4,15 @@
 #include <nlohmann/json.hpp>
 
 #include "config_schema.h"
+#include "config_path.h"
 
 namespace Config {
 
 std::optional<ConfigData> ConfigManager::load(const std::string &filename) {
-    std::ifstream in(filename);
+    auto path = resolve_config_path(filename);
+    std::ifstream in(path);
     if (!in.is_open()) {
-        Core::Logger::instance().error("Failed to open " + filename);
+        Core::Logger::instance().error("Failed to open " + path.string());
         return std::nullopt;
     }
     try {
@@ -20,33 +22,34 @@ std::optional<ConfigData> ConfigManager::load(const std::string &filename) {
         std::string error;
         auto cfg = ConfigSchema::parse(j, error);
         if (!cfg) {
-            Core::Logger::instance().error(error + " in " + filename);
+            Core::Logger::instance().error(error + " in " + path.string());
             return std::nullopt;
         }
         return cfg;
     } catch (const std::exception &e) {
-        Core::Logger::instance().error(std::string("Failed to parse ") + filename + ": " + e.what());
+        Core::Logger::instance().error(std::string("Failed to parse ") + path.string() + ": " + e.what());
         return std::nullopt;
     }
 }
 
 bool ConfigManager::save_selected_pairs(const std::string &filename,
                                         const std::vector<std::string> &pairs) {
+    auto path = resolve_config_path(filename);
     nlohmann::json j;
     {
-        std::ifstream in(filename);
+        std::ifstream in(path);
         if (in.is_open()) {
             try {
                 in >> j;
             } catch (const std::exception &e) {
-                Core::Logger::instance().warn(std::string("Failed to parse existing ") + filename + ": " + e.what());
+                Core::Logger::instance().warn(std::string("Failed to parse existing ") + path.string() + ": " + e.what());
             }
         }
     }
     j["pairs"] = pairs;
-    std::ofstream out(filename);
+    std::ofstream out(path);
     if (!out.is_open()) {
-        Core::Logger::instance().error("Failed to open " + filename + " for writing");
+        Core::Logger::instance().error("Failed to open " + path.string() + " for writing");
         return false;
     }
     out << j.dump(4);
