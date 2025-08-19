@@ -26,6 +26,7 @@ public:
   void shutdown();
 
 private:
+  bool resources_available_ = true;
   std::unique_ptr<EChartsWindow> echarts_window_;
   std::thread echarts_thread_;
   std::string current_interval_;

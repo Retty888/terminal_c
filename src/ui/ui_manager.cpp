@@ -1,6 +1,7 @@
 #include "ui_manager.h"
 
 #include <GLFW/glfw3.h>
+#include <filesystem>
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <utility>
@@ -23,24 +24,32 @@ bool UiManager::setup(GLFWwindow *window) {
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 130");
 #if USE_WEBVIEW
-  echarts_window_ = std::make_unique<EChartsWindow>("resources/chart.html");
+  const std::filesystem::path html_path{"resources/chart.html"};
+  const std::filesystem::path js_path{"../third_party/echarts/echarts.min.js"};
 
-  Core::CandleManager cm;
-  auto data = cm.load_candles_json("BTCUSDT", "1m");
-  echarts_window_->SetInitData(std::move(data));
+  resources_available_ =
+      std::filesystem::exists(html_path) && std::filesystem::exists(js_path);
+  if (!resources_available_) {
+    Core::Logger::instance().error("Chart resources missing");
+  } else {
+    echarts_window_ = std::make_unique<EChartsWindow>(html_path.string());
 
-  echarts_window_->SetHandler([this](const nlohmann::json &req) {
-    if (req.contains("interval")) {
-      if (on_interval_changed_) {
-        on_interval_changed_(req.at("interval").get<std::string>());
+    Core::CandleManager cm;
+    auto data = cm.load_candles_json("BTCUSDT", "1m");
+    echarts_window_->SetInitData(std::move(data));
+
+    echarts_window_->SetHandler([this](const nlohmann::json &req) {
+      if (req.contains("interval")) {
+        if (on_interval_changed_) {
+          on_interval_changed_(req.at("interval").get<std::string>());
+        }
       }
-    }
-    return nlohmann::json{};
-  });
-  echarts_thread_ = std::thread([this]() { echarts_window_->Show(); });
+      return nlohmann::json{};
+    });
+    echarts_thread_ = std::thread([this]() { echarts_window_->Show(); });
+  }
 #else
-  Core::Logger::instance().warn(
-      "ECharts disabled: webview library not found");
+  Core::Logger::instance().warn("ECharts disabled: webview library not found");
 #endif
   return true;
 }
@@ -54,12 +63,16 @@ void UiManager::begin_frame() {
 void UiManager::draw_echarts_panel(const std::string &selected_interval) {
   ImGui::Begin("Chart");
 #if USE_WEBVIEW
-  if (echarts_window_ && selected_interval != current_interval_) {
-    echarts_window_->SendToJs(
-        nlohmann::json{{"interval", selected_interval}});
-    current_interval_ = selected_interval;
+  if (!resources_available_) {
+    ImGui::Text("Chart resources missing");
+  } else {
+    if (echarts_window_ && selected_interval != current_interval_) {
+      echarts_window_->SendToJs(
+          nlohmann::json{{"interval", selected_interval}});
+      current_interval_ = selected_interval;
+    }
+    ImGui::Text("ECharts window running...");
   }
-  ImGui::Text("ECharts window running...");
 #else
   ImGui::Text("ECharts disabled: webview library not found");
 #endif
