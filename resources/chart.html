@@ -9,15 +9,18 @@
   </style>
 </head>
 <body>
-  <select id="interval">
-    <option value="1m">1m</option>
-    <option value="5m">5m</option>
-    <option value="1h">1h</option>
-  </select>
+  <select id="interval"></select>
   <div id="chart" style="height:90%;"></div>
   <script>
     const chart = echarts.init(document.getElementById('chart'));
     const intervalSel = document.getElementById('interval');
+    const intervals = ['5s', '15s', '1m', '3m', '5m', '15m', '1h', '4h', '1d'];
+    intervals.forEach(iv => {
+      const opt = document.createElement('option');
+      opt.value = iv;
+      opt.textContent = iv;
+      intervalSel.appendChild(opt);
+    });
     intervalSel.addEventListener('change', function() {
       sendToCpp({ interval: intervalSel.value });
     });
@@ -54,6 +57,12 @@
           });
         }
         if (obj.interval) {
+          if (!intervals.includes(obj.interval)) {
+            const opt = document.createElement('option');
+            opt.value = obj.interval;
+            opt.textContent = obj.interval;
+            intervalSel.appendChild(opt);
+          }
           intervalSel.value = obj.interval;
         }
       } catch (e) {

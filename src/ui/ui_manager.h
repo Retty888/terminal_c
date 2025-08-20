@@ -22,6 +22,8 @@ public:
   // Set callback to be invoked when the JS side notifies about a new interval
   // selection.
   void set_interval_callback(std::function<void(const std::string &)> cb);
+  // Inform the JS side about the current interval during initialization.
+  void set_initial_interval(const std::string &interval);
   void end_frame(GLFWwindow *window);
   void shutdown();
 

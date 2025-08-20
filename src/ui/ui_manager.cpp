@@ -56,6 +56,12 @@ bool UiManager::setup(GLFWwindow *window) {
           on_interval_changed_(req.at("interval").get<std::string>());
         }
       }
+      if (req.contains("request") && req.at("request") == "init") {
+        if (!current_interval_.empty()) {
+          echarts_window_->SendToJs(
+              nlohmann::json{{"interval", current_interval_}});
+        }
+      }
       return nlohmann::json{};
     });
     echarts_thread_ = std::thread([this]() { echarts_window_->Show(); });
@@ -110,6 +116,15 @@ void UiManager::draw_echarts_panel(const std::string &selected_interval) {
 void UiManager::set_interval_callback(
     std::function<void(const std::string &)> cb) {
   on_interval_changed_ = std::move(cb);
+}
+
+void UiManager::set_initial_interval(const std::string &interval) {
+  current_interval_ = interval;
+#if USE_WEBVIEW
+  if (echarts_window_) {
+    echarts_window_->SendToJs(nlohmann::json{{"interval", interval}});
+  }
+#endif
 }
 
 void UiManager::end_frame(GLFWwindow *window) {
