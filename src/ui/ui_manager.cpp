@@ -58,9 +58,6 @@ bool UiManager::setup(GLFWwindow *window) {
       Core::Logger::instance().error(e.what());
     }
 
-    echarts_window_->SetHandleCallback(
-        [this](void *handle) { echarts_native_handle_.store(handle); });
-
     echarts_window_->SetErrorCallback([this](const std::string &msg) {
       {
         std::lock_guard<std::mutex> lock(echarts_mutex_);
@@ -154,15 +151,7 @@ void UiManager::draw_echarts_panel(const std::string &selected_interval) {
       ImVec2 avail = ImGui::GetContentRegionAvail();
       echarts_window_->SetSize(static_cast<int>(avail.x),
                                static_cast<int>(avail.y));
-      ImGui::BeginChild("EChartsView", ImVec2(0, 0), false,
-                        ImGuiWindowFlags_NoScrollbar |
-                            ImGuiWindowFlags_NoScrollWithMouse);
-      if (void *handle = echarts_native_handle_.load()) {
-        ImGui::Image(reinterpret_cast<ImTextureID>(handle), avail);
-      } else {
-        ImGui::Text("Loading chart...");
-      }
-      ImGui::EndChild();
+      ImGui::Text("Chart is displayed in a separate window.");
     } else {
       ImGui::Text("Loading chart...");
     }
