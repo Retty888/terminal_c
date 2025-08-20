@@ -52,7 +52,7 @@ class EChartsWindow {
   nlohmann::json init_data_{};
 };
 
-#if !USE_WEBVIEW
+#ifndef USE_WEBVIEW
 inline EChartsWindow::EChartsWindow(const std::string&, bool) {}
 inline void EChartsWindow::SetHandler(JsonHandler) {}
 inline void EChartsWindow::SetInitData(nlohmann::json) {}
