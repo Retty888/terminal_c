@@ -20,7 +20,8 @@ bool Journal::load_json(const std::string &filename) {
   std::stringstream buffer;
   buffer << f.rdbuf();
   std::string content = buffer.str();
-  if (content.empty()) {
+  auto first_non_ws = content.find_first_not_of(" \t\n\r");
+  if (first_non_ws == std::string::npos) {
     m_entries.clear();
     save_json(filename);
     return true;
