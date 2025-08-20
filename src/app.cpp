@@ -203,11 +203,15 @@ void App::load_config() {
   if (missing > 0) {
     {
       std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
-      this->ctx_->fetch_queue.push_back({this->ctx_->active_pair, this->ctx_->active_interval,
-                               data_service_.fetch_klines_async(this->ctx_->active_pair,
-                                                                this->ctx_->active_interval,
-                                                                missing),
-                               std::chrono::steady_clock::now()});
+      this->ctx_->fetch_queue.push_back({
+          this->ctx_->active_pair,
+          this->ctx_->active_interval,
+          data_service_.fetch_klines_async(this->ctx_->active_pair,
+                                           this->ctx_->active_interval,
+                                           missing,
+                                           this->ctx_->max_retries,
+                                           this->ctx_->retry_delay),
+          std::chrono::steady_clock::now()});
       this->ctx_->total_fetches = 1;
     }
     add_status("Fetching " + this->ctx_->active_pair + " " + this->ctx_->active_interval);
@@ -292,30 +296,70 @@ void App::start_fetch_thread() {
               ++this->ctx_->completed_fetches;
               it = this->ctx_->fetch_queue.erase(it);
             } else {
-              status_.error_message = "Failed to fetch " + it->pair + " " +
-                                      it->interval + ", retrying";
-              Core::Logger::instance().error(status_.error_message);
-              add_status(status_.error_message);
-              int miss = this->ctx_->candles_limit - static_cast<int>(this->ctx_->all_candles[it->pair][it->interval].size());
+              int miss = this->ctx_->candles_limit -
+                         static_cast<int>(this->ctx_->all_candles[it->pair]
+                                              [it->interval]
+                                              .size());
               if (miss <= 0)
                 miss = this->ctx_->candles_limit;
-              it->future = data_service_.fetch_klines_async(it->pair, it->interval, miss);
-              it->start = std::chrono::steady_clock::now();
-              ++it;
+              ++it->retries;
+              if (it->retries > this->ctx_->max_retries) {
+                status_.error_message =
+                    "Failed to fetch " + it->pair + " " + it->interval +
+                    " after " + std::to_string(this->ctx_->max_retries) +
+                    " retries";
+                Core::Logger::instance().error(status_.error_message);
+                add_status(status_.error_message);
+                ++this->ctx_->completed_fetches;
+                it = this->ctx_->fetch_queue.erase(it);
+              } else {
+                auto delay = this->ctx_->retry_delay;
+                if (this->ctx_->exponential_backoff)
+                  delay *= (1 << (it->retries - 1));
+                status_.error_message = "Failed to fetch " + it->pair +
+                                        " " + it->interval + ", retrying";
+                Core::Logger::instance().error(status_.error_message);
+                add_status(status_.error_message);
+                it->future = data_service_.fetch_klines_async(
+                    it->pair, it->interval, miss, this->ctx_->max_retries, delay);
+                it->start = std::chrono::steady_clock::now();
+                ++it;
+              }
             }
           } else {
             if (std::chrono::steady_clock::now() - it->start > this->ctx_->request_timeout) {
-              status_.error_message = "Timeout fetching " + it->pair + " " +
-                                      it->interval + ", retrying";
-              Core::Logger::instance().error(status_.error_message);
-              add_status(status_.error_message);
-              int miss = this->ctx_->candles_limit - static_cast<int>(this->ctx_->all_candles[it->pair][it->interval].size());
+              int miss = this->ctx_->candles_limit -
+                         static_cast<int>(this->ctx_->all_candles[it->pair]
+                                              [it->interval]
+                                              .size());
               if (miss <= 0)
                 miss = this->ctx_->candles_limit;
-              it->future = data_service_.fetch_klines_async(it->pair, it->interval, miss);
-              it->start = std::chrono::steady_clock::now();
+              ++it->retries;
+              if (it->retries > this->ctx_->max_retries) {
+                status_.error_message =
+                    "Timeout fetching " + it->pair + " " + it->interval +
+                    " after " + std::to_string(this->ctx_->max_retries) +
+                    " retries";
+                Core::Logger::instance().error(status_.error_message);
+                add_status(status_.error_message);
+                ++this->ctx_->completed_fetches;
+                it = this->ctx_->fetch_queue.erase(it);
+              } else {
+                auto delay = this->ctx_->retry_delay;
+                if (this->ctx_->exponential_backoff)
+                  delay *= (1 << (it->retries - 1));
+                status_.error_message = "Timeout fetching " + it->pair +
+                                        " " + it->interval + ", retrying";
+                Core::Logger::instance().error(status_.error_message);
+                add_status(status_.error_message);
+                it->future = data_service_.fetch_klines_async(
+                    it->pair, it->interval, miss, this->ctx_->max_retries, delay);
+                it->start = std::chrono::steady_clock::now();
+                ++it;
+              }
+            } else {
+              ++it;
             }
-            ++it;
           }
         }
       }
@@ -354,10 +398,13 @@ void App::process_events() {
     if (now_ms >= this->ctx_->next_fetch_time.load()) {
       for (const auto &item : this->ctx_->pairs) {
         const auto &pair = item.name;
-        if (this->ctx_->pending_fetches.find(pair) == this->ctx_->pending_fetches.end()) {
-          this->ctx_->pending_fetches[pair] = {this->ctx_->active_interval,
-                                       data_service_.fetch_klines_async(
-                                           pair, this->ctx_->active_interval, 1)};
+        if (this->ctx_->pending_fetches.find(pair) ==
+            this->ctx_->pending_fetches.end()) {
+          this->ctx_->pending_fetches[pair] = {
+              this->ctx_->active_interval,
+              data_service_.fetch_klines_async(
+                  pair, this->ctx_->active_interval, 1,
+                  this->ctx_->max_retries, this->ctx_->retry_delay)};
           add_status("Updating " + pair);
         }
       }
@@ -385,11 +432,12 @@ void App::process_events() {
             long long boundary = vec.back().open_time + p.count();
             update_next_fetch_time(boundary);
           } else {
-            schedule_retry(result_now);
+            schedule_retry(result_now, this->ctx_->retry_delay);
           }
           add_status("Updated " + it->first);
         } else {
-          schedule_retry(result_now, "Update failed for " + it->first);
+          schedule_retry(result_now, this->ctx_->retry_delay,
+                         "Update failed for " + it->first);
         }
         it = this->ctx_->pending_fetches.erase(it);
       } else {
@@ -406,17 +454,14 @@ void App::process_events() {
   }
 }
 
-void App::schedule_retry(long long now_ms, const std::string &msg) {
+void App::schedule_retry(long long now_ms, std::chrono::milliseconds delay,
+                         const std::string &msg) {
   if (!msg.empty()) {
     status_.error_message = msg;
     Core::Logger::instance().error(status_.error_message);
     add_status(status_.error_message);
   }
-  long long retry =
-      now_ms +
-      std::chrono::duration_cast<std::chrono::milliseconds>(
-          this->ctx_->fetch_backoff)
-          .count();
+  long long retry = now_ms + delay.count();
   update_next_fetch_time(retry);
 }
 

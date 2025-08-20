@@ -57,6 +57,7 @@ struct AppContext {
     std::string interval;
     std::future<Core::KlinesResult> future;
     std::chrono::steady_clock::time_point start;
+    int retries = 0;
   };
   std::deque<FetchTask> fetch_queue;
   std::mutex fetch_mutex;
@@ -69,6 +70,8 @@ struct AppContext {
   std::function<void(const std::string &)> cancel_pair;
   std::string last_active_pair;
   std::string last_active_interval;
-  const std::chrono::seconds fetch_backoff{5};
+  std::chrono::milliseconds retry_delay{5000};
+  int max_retries = 3;
+  bool exponential_backoff = true;
   const std::chrono::seconds request_timeout{10};
 };
