@@ -107,6 +107,19 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends
   )
+
+  add_custom_command(TARGET TradingTerminal POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            $<TARGET_FILE_DIR:TradingTerminal>/resources
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            $<TARGET_FILE_DIR:TradingTerminal>/third_party/echarts
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/resources/chart.html
+            $<TARGET_FILE_DIR:TradingTerminal>/resources/chart.html
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/third_party/echarts/echarts.min.js
+            $<TARGET_FILE_DIR:TradingTerminal>/third_party/echarts/echarts.min.js
+  )
 endif()
 
 enable_testing()
