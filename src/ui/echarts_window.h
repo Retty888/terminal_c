@@ -16,7 +16,8 @@ class EChartsWindow {
   using JsonHandler =
       std::function<nlohmann::json(const nlohmann::json &request)>;
 
-  explicit EChartsWindow(const std::string &html_path, bool debug = false);
+  explicit EChartsWindow(const std::string &html_path, void* parent_window,
+                         bool debug = false);
 
   // Set handler that will be invoked when JavaScript sends JSON via the bridge.
   void SetHandler(JsonHandler handler);
@@ -27,8 +28,8 @@ class EChartsWindow {
   // Show the window and start the event loop.
   void Show();
 
-  // Resize the underlying webview window.
-  void SetSize(int width, int height);
+  // Position and resize the underlying webview window relative to its parent.
+  void SetBounds(int x, int y, int width, int height);
 
   // Close the window and terminate the event loop so the hosting thread
   // can exit without user interaction.
@@ -44,6 +45,7 @@ class EChartsWindow {
  private:
   std::string html_path_;
   bool debug_;
+  void* parent_window_;
   JsonHandler handler_;
 #ifdef USE_WEBVIEW
   std::unique_ptr<webview::webview> view_;
@@ -53,13 +55,13 @@ class EChartsWindow {
 };
 
 #ifndef USE_WEBVIEW
-inline EChartsWindow::EChartsWindow(const std::string&, bool) {}
+inline EChartsWindow::EChartsWindow(const std::string&, void*, bool) {}
 inline void EChartsWindow::SetHandler(JsonHandler) {}
 inline void EChartsWindow::SetInitData(nlohmann::json) {}
 inline void EChartsWindow::Show() {}
 inline void EChartsWindow::Close() {}
 inline void EChartsWindow::SendToJs(const nlohmann::json&) {}
-inline void EChartsWindow::SetSize(int, int) {}
+inline void EChartsWindow::SetBounds(int, int, int, int) {}
 inline void EChartsWindow::SetErrorCallback(
     std::function<void(const std::string &)>) {}
 #endif

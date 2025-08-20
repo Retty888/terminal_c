@@ -34,6 +34,7 @@ public:
 private:
   bool resources_available_ = true;
   bool chart_enabled_ = true;
+  GLFWwindow* window_ = nullptr;
   std::unique_ptr<EChartsWindow> echarts_window_;
   std::thread echarts_thread_;
   std::string current_interval_;

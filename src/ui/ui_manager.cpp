@@ -1,6 +1,15 @@
 #include "ui_manager.h"
 
+#ifdef _WIN32
+#define GLFW_EXPOSE_NATIVE_WIN32
+#elif defined(__APPLE__)
+#define GLFW_EXPOSE_NATIVE_COCOA
+#else
+#define GLFW_EXPOSE_NATIVE_X11
+#endif
+
 #include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
 #include <exception>
 #include <filesystem>
 #include <nlohmann/json.hpp>
@@ -20,6 +29,7 @@
 UiManager::~UiManager() = default;
 
 bool UiManager::setup(GLFWwindow *window) {
+  window_ = window;
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   const auto ini_path = Core::path_from_executable("imgui.ini");
@@ -55,7 +65,16 @@ bool UiManager::setup(GLFWwindow *window) {
         "Expected directory layout relative to the executable:\n"
         "  resources/chart.html\n  third_party/echarts/echarts.min.js");
   } else {
-    echarts_window_ = std::make_unique<EChartsWindow>(html_path.string());
+    void* parent_handle = nullptr;
+#if defined(_WIN32)
+    parent_handle = glfwGetWin32Window(window);
+#elif defined(__APPLE__)
+    parent_handle = glfwGetCocoaWindow(window);
+#else
+    parent_handle = glfwGetX11Window(window);
+#endif
+    echarts_window_ =
+        std::make_unique<EChartsWindow>(html_path.string(), parent_handle);
 
     try {
       Core::CandleManager cm;
@@ -162,9 +181,16 @@ void UiManager::draw_echarts_panel(const std::string &selected_interval) {
         current_interval_ = selected_interval;
       }
       ImVec2 avail = ImGui::GetContentRegionAvail();
-      echarts_window_->SetSize(static_cast<int>(avail.x),
-                               static_cast<int>(avail.y));
-      ImGui::Text("Chart is displayed in a separate window.");
+      ImVec2 pos = ImGui::GetCursorScreenPos();
+      int win_x, win_y;
+      glfwGetWindowPos(window_, &win_x, &win_y);
+      int frame_l, frame_t, frame_r, frame_b;
+      glfwGetWindowFrameSize(window_, &frame_l, &frame_t, &frame_r, &frame_b);
+      int x = static_cast<int>(pos.x) - win_x - frame_l;
+      int y = static_cast<int>(pos.y) - win_y - frame_t;
+      echarts_window_->SetBounds(x, y, static_cast<int>(avail.x),
+                                 static_cast<int>(avail.y));
+      ImGui::Dummy(avail);
     } else {
       ImGui::Text("Loading chart...");
     }

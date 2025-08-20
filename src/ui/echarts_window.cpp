@@ -2,12 +2,28 @@
 
 #include <filesystem>
 #include <utility>
+#include <cstdint>
+
+// clang-format off
+#if defined(_WIN32)
+#include <windows.h>
+#elif defined(__APPLE__)
+#include <objc/objc.h>
+#include <objc/message.h>
+#include <objc/runtime.h>
+#include <CoreGraphics/CoreGraphics.h>
+#include <Cocoa/Cocoa.h>
+#else
+#include <X11/Xlib.h>
+#endif
+// clang-format on
 
 #include "core/logger.h"
 
-EChartsWindow::EChartsWindow(const std::string &html_path, bool debug)
-    : html_path_(html_path), debug_(debug),
-      view_(std::make_unique<webview::webview>(debug, nullptr)) {}
+EChartsWindow::EChartsWindow(const std::string &html_path, void* parent_window,
+                             bool debug)
+    : html_path_(html_path), debug_(debug), parent_window_(parent_window),
+      view_(std::make_unique<webview::webview>(debug, parent_window)) {}
 
 void EChartsWindow::SetHandler(JsonHandler handler) {
   handler_ = std::move(handler);
@@ -24,7 +40,7 @@ void EChartsWindow::SetErrorCallback(
 
 void EChartsWindow::Show() {
   if (!view_) {
-    view_ = std::make_unique<webview::webview>(debug_, nullptr);
+    view_ = std::make_unique<webview::webview>(debug_, parent_window_);
   }
 
   view_->set_title("ECharts");
@@ -72,10 +88,36 @@ void EChartsWindow::Close() {
   }
 }
 
-void EChartsWindow::SetSize(int width, int height) {
-  if (view_) {
-    view_->dispatch([this, width, height]() {
-      view_->set_size(width, height, WEBVIEW_HINT_NONE);
-    });
+void EChartsWindow::SetBounds(int x, int y, int width, int height) {
+  if (!view_) {
+    return;
   }
+  view_->dispatch([this, x, y, width, height]() {
+    view_->set_size(width, height, WEBVIEW_HINT_NONE);
+    void* handle = view_->window();
+#if defined(_WIN32)
+    HWND hwnd = static_cast<HWND>(handle);
+    if (hwnd) {
+      ::SetWindowPos(hwnd, nullptr, x, y, width, height,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+#elif defined(__APPLE__)
+    id nsview = (id)handle;
+    if (nsview) {
+      CGRect frame = CGRectMake(x, y, width, height);
+      SEL sel = sel_registerName("setFrame:");
+      using SetFrameFn = void (*)(id, SEL, CGRect);
+      auto fn = reinterpret_cast<SetFrameFn>(objc_msgSend);
+      fn(nsview, sel, frame);
+    }
+#else
+    Display* d = XOpenDisplay(nullptr);
+    if (d && handle) {
+      ::XMoveResizeWindow(d, static_cast<Window>(reinterpret_cast<uintptr_t>(handle)),
+                         x, y, static_cast<unsigned int>(width),
+                         static_cast<unsigned int>(height));
+      XCloseDisplay(d);
+    }
+#endif
+  });
 }
