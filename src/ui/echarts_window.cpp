@@ -83,14 +83,14 @@ void EChartsWindow::SendToJs(const nlohmann::json &data) {
   if (view_) {
     std::string script =
         std::string("window.receiveFromCpp(") + data.dump() + ");";
-    view_->eval(script);
+    view_->dispatch([s = std::move(script)](auto &wv) { wv.eval(s); });
   }
 }
 
 void EChartsWindow::Close() {
   if (view_) {
     // Terminate the webview event loop so the hosting thread can finish.
-    view_->terminate();
+    view_->dispatch([](auto &wv) { wv.terminate(); });
   }
 }
 
@@ -98,6 +98,8 @@ void *EChartsWindow::GetNativeHandle() const { return native_handle_.load(); }
 
 void EChartsWindow::SetSize(int width, int height) {
   if (view_) {
-    view_->set_size(width, height, WEBVIEW_HINT_NONE);
+    view_->dispatch([width, height](auto &wv) {
+      wv.set_size(width, height, WEBVIEW_HINT_NONE);
+    });
   }
 }
