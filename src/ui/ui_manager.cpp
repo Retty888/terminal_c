@@ -6,7 +6,6 @@
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <utility>
-#include <chrono>
 
 #include "core/candle_manager.h"
 #include "core/logger.h"
@@ -51,14 +50,16 @@ bool UiManager::setup(GLFWwindow *window) {
   } else {
     echarts_window_ = std::make_unique<EChartsWindow>(html_path.string());
 
-    candle_future_ = std::async(std::launch::async, []() {
+    try {
       Core::CandleManager cm;
-      return cm.load_candles_json("BTCUSDT", "1m");
-    });
+      auto data = cm.load_candles_json("BTCUSDT", "1m");
+      echarts_window_->SetInitData(data);
+    } catch (const std::exception &e) {
+      Core::Logger::instance().error(e.what());
+    }
 
-    echarts_window_->SetHandleCallback([this](void *handle) {
-      echarts_native_handle_.store(handle);
-    });
+    echarts_window_->SetHandleCallback(
+        [this](void *handle) { echarts_native_handle_.store(handle); });
 
     echarts_window_->SetErrorCallback([this](const std::string &msg) {
       {
@@ -140,25 +141,10 @@ void UiManager::draw_echarts_panel(const std::string &selected_interval) {
       std::lock_guard<std::mutex> lock(echarts_mutex_);
       err = echarts_error_;
     }
-    if (!candles_loaded_ && candle_future_.valid() &&
-        echarts_native_handle_.load()) {
-      if (candle_future_.wait_for(std::chrono::seconds(0)) ==
-          std::future_status::ready) {
-        try {
-          auto data = candle_future_.get();
-          echarts_window_->SendToJs(data);
-        } catch (const std::exception &e) {
-          Core::Logger::instance().error(e.what());
-        }
-        candles_loaded_ = true;
-      }
-    }
     if (!err.empty()) {
       ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
                          "Failed to load chart");
       ImGui::TextWrapped("%s", err.c_str());
-    } else if (!candles_loaded_) {
-      ImGui::Text("Loading...");
     } else if (echarts_window_) {
       if (selected_interval != current_interval_) {
         echarts_window_->SendToJs(

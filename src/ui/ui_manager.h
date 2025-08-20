@@ -4,10 +4,9 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <thread>
-#include <future>
-#include <nlohmann/json.hpp>
 
 #include "ui/echarts_window.h"
 
@@ -43,6 +42,4 @@ private:
   std::string echarts_error_;
   std::mutex echarts_mutex_;
   std::atomic<void *> echarts_native_handle_{nullptr};
-  std::future<nlohmann::json> candle_future_;
-  bool candles_loaded_ = false;
 };
