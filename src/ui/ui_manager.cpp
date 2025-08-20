@@ -35,7 +35,7 @@ bool UiManager::setup(GLFWwindow *window) {
   if (auto cfg = Config::ConfigManager::load(resolve_config_path().string())) {
     chart_enabled_ = cfg->enable_chart;
   }
-#if USE_WEBVIEW
+#ifdef USE_WEBVIEW
   if (chart_enabled_) {
   const auto html_path = Core::path_from_executable("resources/chart.html");
   const auto js_path =
@@ -134,7 +134,7 @@ void UiManager::begin_frame() {
 
 void UiManager::draw_echarts_panel(const std::string &selected_interval) {
   ImGui::Begin("Chart");
-#if USE_WEBVIEW
+#ifdef USE_WEBVIEW
   if (!chart_enabled_) {
     ImGui::Text("Chart disabled by configuration");
   } else if (!resources_available_) {
@@ -191,7 +191,7 @@ void UiManager::set_status_callback(
 
 void UiManager::set_initial_interval(const std::string &interval) {
   current_interval_ = interval;
-#if USE_WEBVIEW
+#ifdef USE_WEBVIEW
   if (echarts_window_) {
     echarts_window_->SendToJs(nlohmann::json{{"interval", interval}});
   }

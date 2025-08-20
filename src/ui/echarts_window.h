@@ -5,7 +5,7 @@
 #include <string>
 
 #include <nlohmann/json.hpp>
-#if USE_WEBVIEW
+#ifdef USE_WEBVIEW
 #include <webview.h>
 #endif
 
@@ -45,7 +45,7 @@ class EChartsWindow {
   std::string html_path_;
   bool debug_;
   JsonHandler handler_;
-#if USE_WEBVIEW
+#ifdef USE_WEBVIEW
   std::unique_ptr<webview::webview> view_;
 #endif
   std::function<void(const std::string &)> error_callback_;
