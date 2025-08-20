@@ -9,6 +9,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <set>
 #include <vector>
 
 #include "config_manager.h"
@@ -61,6 +62,7 @@ struct AppContext {
   };
   std::deque<FetchTask> fetch_queue;
   std::mutex fetch_mutex;
+  std::set<std::pair<std::string, std::string>> failed_fetches;
   std::size_t total_fetches = 0;
   std::size_t completed_fetches = 0;
   std::atomic<long long> next_fetch_time{0};
