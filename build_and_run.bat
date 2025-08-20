@@ -24,6 +24,15 @@ if %errorlevel% neq 0 (
     goto :eof
 )
 
+echo Copying resources...
+for %%c in (Debug Release) do (
+    if exist "%%c" (
+        echo Copying resources to %%c...
+        robocopy "%PROJECT_DIR%resources" "%%c\resources" "chart.html" >nul
+        robocopy "%PROJECT_DIR%third_party\echarts" "%%c\third_party\echarts" "echarts.min.js" >nul
+    )
+)
+
 echo Running the application...
 pushd "%BUILD_DIR%"
 if exist "Debug\TradingTerminal.exe" (

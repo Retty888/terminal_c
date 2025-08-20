@@ -44,8 +44,9 @@ Standalone C++ trading terminal using ImGui with an embedded chart powered by [A
    ```
    cp -r resources third_party/echarts build/
    ```
-   После копирования убедитесь, что файлы `resources/chart.html` и
-   `third_party/echarts/echarts.min.js` находятся рядом с исполняемым
+   При сборке в Windows скрипт `build_and_run.bat` автоматически копирует `resources/chart.html` и
+   `third_party/echarts/echarts.min.js` в каталоги `Debug` и `Release`, поэтому ручное копирование не требуется.
+   После копирования (или автоматического переноса) убедитесь, что файлы находятся рядом с исполняемым
    файлом, например:
 
    ```
