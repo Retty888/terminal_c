@@ -20,7 +20,11 @@ UiManager::~UiManager() = default;
 bool UiManager::setup(GLFWwindow *window) {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
+  const auto ini_path = Core::path_from_executable("imgui.ini");
+  std::filesystem::create_directories(ini_path.parent_path());
+  static std::string ini_path_str = ini_path.string();
   ImGuiIO &io = ImGui::GetIO();
+  io.IniFilename = ini_path_str.c_str();
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   ImGui::StyleColorsDark();
   ImGui_ImplGlfw_InitForOpenGL(window, true);

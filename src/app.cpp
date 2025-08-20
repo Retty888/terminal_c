@@ -514,9 +514,7 @@ void App::render_ui() {
 
   ImGuiViewport *viewport = ImGui::GetMainViewport();
   ImGuiID dockspace_id = ImGui::DockSpaceOverViewport(viewport->ID, viewport);
-  static bool dock_init = false;
-  if (!dock_init) {
-    dock_init = true;
+  if (ImGui::DockBuilderGetNode(dockspace_id) == nullptr) {
     ImGui::DockBuilderRemoveNode(dockspace_id);
     ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
     ImGuiID dock_main_top, dock_bottom;
