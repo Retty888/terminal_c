@@ -172,9 +172,9 @@ bool RenderPairRow(
       sel_start + "–" + sel_end + " (" + std::to_string(sel_count) + ")";
 
   // Column 1: visibility checkbox and pair name
+  ImGui::PushID(item.name.c_str());
   ImGui::TableNextColumn();
-  std::string checkbox_id = item.name + "##checkbox_" + item.name;
-  if (ImGui::Checkbox(checkbox_id.c_str(), &item.visible)) {
+  if (ImGui::Checkbox(item.name.c_str(), &item.visible)) {
     if (!item.visible && active_pair == item.name) {
       auto new_active =
           std::find_if(pairs.begin(), pairs.end(),
@@ -210,7 +210,7 @@ bool RenderPairRow(
   // Column 3: action buttons
   ImGui::TableNextColumn();
   bool removed = false;
-  if (ImGui::SmallButton((std::string("X##remove_") + item.name).c_str())) {
+  if (ImGui::SmallButton("X")) {
     all_candles.erase(item.name);
     if (active_pair == item.name) {
       auto new_active =
@@ -229,10 +229,10 @@ bool RenderPairRow(
     removed = true;
   }
   ImGui::SameLine();
-  if (ImGui::Button((std::string("Reload##") + item.name).c_str())) {
-    ImGui::OpenPopup((std::string("ReloadPopup##") + item.name).c_str());
+  if (ImGui::Button("Reload")) {
+    ImGui::OpenPopup("ReloadPopup");
   }
-  if (ImGui::BeginPopup((std::string("ReloadPopup##") + item.name).c_str())) {
+  if (ImGui::BeginPopup("ReloadPopup")) {
     for (const auto &interval : intervals) {
       if (ImGui::Selectable(interval.c_str())) {
         bool ok = data_service.reload_candles(item.name, interval);
@@ -250,6 +250,7 @@ bool RenderPairRow(
     ImGui::EndPopup();
   }
 
+  ImGui::PopID();
   return removed;
 }
 } // namespace
