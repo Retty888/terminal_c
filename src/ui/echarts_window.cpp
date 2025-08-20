@@ -5,9 +5,11 @@
 
 #include "core/logger.h"
 
-EChartsWindow::EChartsWindow(const std::string &html_path, bool debug)
-    : html_path_(html_path), debug_(debug),
-      view_(std::make_unique<webview::webview>(debug, nullptr)) {}
+EChartsWindow::EChartsWindow(const std::string &html_path,
+                             void *parent_window,
+                             bool debug)
+    : html_path_(html_path), parent_window_(parent_window), debug_(debug),
+      view_(std::make_unique<webview::webview>(debug, parent_window)) {}
 
 void EChartsWindow::SetHandler(JsonHandler handler) {
   handler_ = std::move(handler);
@@ -24,7 +26,7 @@ void EChartsWindow::SetErrorCallback(
 
 void EChartsWindow::Show() {
   if (!view_) {
-    view_ = std::make_unique<webview::webview>(debug_, nullptr);
+    view_ = std::make_unique<webview::webview>(debug_, parent_window_);
   }
 
   view_->set_title("ECharts");
