@@ -5,6 +5,7 @@
   "log_sinks": ["file", "console"],
   "log_file": "terminal.log",
   "candles_limit": 5000,
+  "enable_chart": true,
   "enable_streaming": true,
   "primary_provider": "binance",
   "fallback_provider": "gateio",

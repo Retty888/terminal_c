@@ -14,6 +14,8 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "ui/echarts_window.h"
+#include "config_manager.h"
+#include "config_path.h"
 
 UiManager::~UiManager() = default;
 
@@ -29,7 +31,12 @@ bool UiManager::setup(GLFWwindow *window) {
   ImGui::StyleColorsDark();
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 130");
+
+  if (auto cfg = Config::ConfigManager::load(resolve_config_path().string())) {
+    chart_enabled_ = cfg->enable_chart;
+  }
 #if USE_WEBVIEW
+  if (chart_enabled_) {
   const auto html_path = Core::path_from_executable("resources/chart.html");
   const auto js_path =
       Core::path_from_executable("third_party/echarts/echarts.min.js");
@@ -108,6 +115,8 @@ bool UiManager::setup(GLFWwindow *window) {
         }
       }
     });
+  } else {
+    Core::Logger::instance().info("Chart disabled by configuration");
   }
 #else
   Core::Logger::instance().warn(
@@ -126,7 +135,9 @@ void UiManager::begin_frame() {
 void UiManager::draw_echarts_panel(const std::string &selected_interval) {
   ImGui::Begin("Chart");
 #if USE_WEBVIEW
-  if (!resources_available_) {
+  if (!chart_enabled_) {
+    ImGui::Text("Chart disabled by configuration");
+  } else if (!resources_available_) {
     ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
                        "Chart resources missing");
     ImGui::TextWrapped(
@@ -157,8 +168,13 @@ void UiManager::draw_echarts_panel(const std::string &selected_interval) {
     }
   }
 #else
-  ImGui::Text("ECharts disabled. Please install/enable the webview dependency "
-              "(USE_WEBVIEW)");
+  if (!chart_enabled_) {
+    ImGui::Text("Chart disabled by configuration");
+  } else {
+    ImGui::Text(
+        "ECharts disabled. Please install/enable the webview dependency "
+        "(USE_WEBVIEW)");
+  }
 #endif
   ImGui::End();
 }

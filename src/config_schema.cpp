@@ -90,6 +90,14 @@ std::optional<ConfigData> ConfigSchema::parse(const nlohmann::json &j,
         cfg.enable_streaming = j["enable_streaming"].get<bool>();
     }
 
+    if (j.contains("enable_chart")) {
+        if (!j["enable_chart"].is_boolean()) {
+            error = "'enable_chart' must be a boolean";
+            return std::nullopt;
+        }
+        cfg.enable_chart = j["enable_chart"].get<bool>();
+    }
+
     if (j.contains("primary_provider")) {
         if (!j["primary_provider"].is_string()) {
             error = "'primary_provider' must be a string";
