@@ -5,11 +5,9 @@
 
 #include "core/logger.h"
 
-EChartsWindow::EChartsWindow(const std::string &html_path,
-                             void *parent_window,
+EChartsWindow::EChartsWindow(const std::string &html_path, void *parent_window,
                              bool debug)
-    : html_path_(html_path), parent_window_(parent_window), debug_(debug),
-      view_(std::make_unique<webview::webview>(debug, parent_window)) {}
+    : html_path_(html_path), parent_window_(parent_window), debug_(debug) {}
 
 void EChartsWindow::SetHandler(JsonHandler handler) {
   handler_ = std::move(handler);
@@ -57,6 +55,8 @@ void EChartsWindow::Show() {
   }
   view_->navigate(url);
   view_->run();
+  // After the event loop exits, free webview resources on this thread.
+  view_.reset();
 }
 
 void EChartsWindow::SendToJs(const nlohmann::json &data) {
