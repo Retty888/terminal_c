@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -39,4 +40,5 @@ private:
   std::function<void(const std::string &)> status_callback_;
   std::string echarts_error_;
   std::mutex echarts_mutex_;
+  std::atomic<void *> echarts_native_handle_{nullptr};
 };

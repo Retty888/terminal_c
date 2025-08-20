@@ -27,6 +27,7 @@ class EChartsWindow {
 
   // Show the window and start the event loop.
   void Show();
+
   // Retrieve the native window handle so it can be embedded inside an
   // ImGui region.
   void *GetNativeHandle() const;
@@ -42,6 +43,12 @@ class EChartsWindow {
   // `window.receiveFromCpp` to receive it.
   void SendToJs(const nlohmann::json &data);
 
+  // Set callback to receive the native handle once the window is ready.
+  void SetHandleCallback(std::function<void(void *)> cb);
+
+  // Set callback for reporting errors during initialization.
+  void SetErrorCallback(std::function<void(const std::string &)> cb);
+
  private:
   std::string html_path_;
   bool debug_;
@@ -50,6 +57,8 @@ class EChartsWindow {
   std::unique_ptr<webview::webview> view_;
   std::atomic<void *> native_handle_{nullptr};
 #endif
+  std::function<void(void *)> handle_callback_;
+  std::function<void(const std::string &)> error_callback_;
   nlohmann::json init_data_{};
 };
 
@@ -62,5 +71,8 @@ inline void EChartsWindow::Close() {}
 inline void EChartsWindow::SendToJs(const nlohmann::json&) {}
 inline void *EChartsWindow::GetNativeHandle() const { return nullptr; }
 inline void EChartsWindow::SetSize(int, int) {}
+inline void EChartsWindow::SetHandleCallback(std::function<void(void *)>) {}
+inline void EChartsWindow::SetErrorCallback(
+    std::function<void(const std::string &)>) {}
 #endif
 

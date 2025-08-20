@@ -54,6 +54,20 @@ bool UiManager::setup(GLFWwindow *window) {
     auto data = cm.load_candles_json("BTCUSDT", "1m");
     echarts_window_->SetInitData(std::move(data));
 
+    echarts_window_->SetHandleCallback([this](void *handle) {
+      echarts_native_handle_.store(handle);
+    });
+
+    echarts_window_->SetErrorCallback([this](const std::string &msg) {
+      {
+        std::lock_guard<std::mutex> lock(echarts_mutex_);
+        echarts_error_ = msg;
+      }
+      if (status_callback_) {
+        status_callback_(msg);
+      }
+    });
+
     echarts_window_->SetHandler([this](const nlohmann::json &req) {
       if (req.contains("interval")) {
         if (on_interval_changed_) {
@@ -140,7 +154,7 @@ void UiManager::draw_echarts_panel(const std::string &selected_interval) {
       ImGui::BeginChild("EChartsView", ImVec2(0, 0), false,
                         ImGuiWindowFlags_NoScrollbar |
                             ImGuiWindowFlags_NoScrollWithMouse);
-      if (void *handle = echarts_window_->GetNativeHandle()) {
+      if (void *handle = echarts_native_handle_.load()) {
         ImGui::Image(reinterpret_cast<ImTextureID>(handle), avail);
       } else {
         ImGui::Text("Loading chart...");
