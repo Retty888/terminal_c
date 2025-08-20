@@ -429,7 +429,7 @@ void App::update_next_fetch_time(long long candidate) {
 void App::render_ui() {
   ui_manager_.begin_frame();
 
-  ImGuiID dockspace_id = ImGui::GetID("MainDock");
+  ImGuiID dockspace_id = ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
   static bool dock_init = false;
   if (!dock_init) {
     dock_init = true;
@@ -449,7 +449,6 @@ void App::render_ui() {
     ImGui::DockBuilderDockWindow("Analytics", dock_bottom);
     ImGui::DockBuilderFinish(dockspace_id);
   }
-  ImGui::DockSpaceOverViewport(dockspace_id, ImGui::GetMainViewport());
 
   {
     std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
