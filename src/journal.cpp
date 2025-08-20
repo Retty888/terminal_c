@@ -21,8 +21,9 @@ bool Journal::load_json(const std::string &filename) {
   buffer << f.rdbuf();
   std::string content = buffer.str();
   if (content.empty()) {
-    Core::Logger::instance().error("Journal file is empty: " + filename);
-    return false;
+    m_entries.clear();
+    save_json(filename);
+    return true;
   }
   if (!nlohmann::json::accept(content)) {
     Core::Logger::instance().error("Invalid JSON format in journal file: " +
