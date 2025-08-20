@@ -1,19 +1,19 @@
 #include "ui_manager.h"
 
 #include <GLFW/glfw3.h>
-#include <filesystem>
 #include <exception>
+#include <filesystem>
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <utility>
 
 #include "core/candle_manager.h"
 #include "core/logger.h"
+#include "core/path_utils.h"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "ui/echarts_window.h"
-#include "core/path_utils.h"
 
 UiManager::~UiManager() = default;
 
@@ -64,11 +64,37 @@ bool UiManager::setup(GLFWwindow *window) {
       }
       return nlohmann::json{};
     });
-    echarts_thread_ = std::thread([this]() { echarts_window_->Show(); });
+    echarts_thread_ = std::thread([this]() {
+      try {
+        echarts_window_->Show();
+      } catch (const std::exception &e) {
+        const std::string msg =
+            std::string("Failed to run ECharts window: ") + e.what();
+        Core::Logger::instance().error(msg);
+        {
+          std::lock_guard<std::mutex> lock(echarts_mutex_);
+          echarts_error_ = msg;
+        }
+        if (status_callback_) {
+          status_callback_(msg);
+        }
+      } catch (...) {
+        const std::string msg = "Failed to run ECharts window: unknown error";
+        Core::Logger::instance().error(msg);
+        {
+          std::lock_guard<std::mutex> lock(echarts_mutex_);
+          echarts_error_ = msg;
+        }
+        if (status_callback_) {
+          status_callback_(msg);
+        }
+      }
+    });
   }
 #else
   Core::Logger::instance().warn(
-      "ECharts disabled: install the webview dependency and rebuild with USE_WEBVIEW enabled");
+      "ECharts disabled: install the webview dependency and rebuild with "
+      "USE_WEBVIEW enabled");
 #endif
   return true;
 }
@@ -88,27 +114,41 @@ void UiManager::draw_echarts_panel(const std::string &selected_interval) {
     ImGui::TextWrapped(
         "Expected layout relative to the executable:\n"
         "  resources/chart.html\n  third_party/echarts/echarts.min.js");
-  } else if (echarts_window_) {
-    if (selected_interval != current_interval_) {
-      echarts_window_->SendToJs(
-          nlohmann::json{{"interval", selected_interval}});
-      current_interval_ = selected_interval;
+  } else {
+    std::string err;
+    {
+      std::lock_guard<std::mutex> lock(echarts_mutex_);
+      err = echarts_error_;
     }
-    ImVec2 avail = ImGui::GetContentRegionAvail();
-    echarts_window_->SetSize(static_cast<int>(avail.x),
-                             static_cast<int>(avail.y));
-    ImGui::BeginChild("EChartsView", ImVec2(0, 0), false,
-                      ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    if (void *handle = echarts_window_->GetNativeHandle()) {
-      ImGui::Image(reinterpret_cast<ImTextureID>(handle), avail);
+    if (!err.empty()) {
+      ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
+                         "Failed to load chart");
+      ImGui::TextWrapped("%s", err.c_str());
+    } else if (echarts_window_) {
+      if (selected_interval != current_interval_) {
+        echarts_window_->SendToJs(
+            nlohmann::json{{"interval", selected_interval}});
+        current_interval_ = selected_interval;
+      }
+      ImVec2 avail = ImGui::GetContentRegionAvail();
+      echarts_window_->SetSize(static_cast<int>(avail.x),
+                               static_cast<int>(avail.y));
+      ImGui::BeginChild("EChartsView", ImVec2(0, 0), false,
+                        ImGuiWindowFlags_NoScrollbar |
+                            ImGuiWindowFlags_NoScrollWithMouse);
+      if (void *handle = echarts_window_->GetNativeHandle()) {
+        ImGui::Image(reinterpret_cast<ImTextureID>(handle), avail);
+      } else {
+        ImGui::Text("Loading chart...");
+      }
+      ImGui::EndChild();
     } else {
       ImGui::Text("Loading chart...");
     }
-    ImGui::EndChild();
   }
 #else
-  ImGui::Text(
-      "ECharts disabled. Please install/enable the webview dependency (USE_WEBVIEW)");
+  ImGui::Text("ECharts disabled. Please install/enable the webview dependency "
+              "(USE_WEBVIEW)");
 #endif
   ImGui::End();
 }
@@ -116,6 +156,11 @@ void UiManager::draw_echarts_panel(const std::string &selected_interval) {
 void UiManager::set_interval_callback(
     std::function<void(const std::string &)> cb) {
   on_interval_changed_ = std::move(cb);
+}
+
+void UiManager::set_status_callback(
+    std::function<void(const std::string &)> cb) {
+  status_callback_ = std::move(cb);
 }
 
 void UiManager::set_initial_interval(const std::string &interval) {
