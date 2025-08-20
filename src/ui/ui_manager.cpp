@@ -115,7 +115,9 @@ bool UiManager::setup(GLFWwindow *window) {
         }
       }
     });
-  } else {
+  }
+  }
+  else {
     Core::Logger::instance().info("Chart disabled by configuration");
   }
 #else
