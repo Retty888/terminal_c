@@ -1,7 +1,6 @@
 #pragma once
 
 #include <functional>
-#include <atomic>
 #include <memory>
 #include <string>
 
@@ -28,11 +27,7 @@ class EChartsWindow {
   // Show the window and start the event loop.
   void Show();
 
-  // Retrieve the native window handle so it can be embedded inside an
-  // ImGui region.
-  void *GetNativeHandle() const;
-
-  // Resize the underlying webview to match the available ImGui space.
+  // Resize the underlying webview window.
   void SetSize(int width, int height);
 
   // Close the window and terminate the event loop so the hosting thread
@@ -43,9 +38,6 @@ class EChartsWindow {
   // `window.receiveFromCpp` to receive it.
   void SendToJs(const nlohmann::json &data);
 
-  // Set callback to receive the native handle once the window is ready.
-  void SetHandleCallback(std::function<void(void *)> cb);
-
   // Set callback for reporting errors during initialization.
   void SetErrorCallback(std::function<void(const std::string &)> cb);
 
@@ -55,9 +47,7 @@ class EChartsWindow {
   JsonHandler handler_;
 #if USE_WEBVIEW
   std::unique_ptr<webview::webview> view_;
-  std::atomic<void *> native_handle_{nullptr};
 #endif
-  std::function<void(void *)> handle_callback_;
   std::function<void(const std::string &)> error_callback_;
   nlohmann::json init_data_{};
 };
@@ -69,9 +59,7 @@ inline void EChartsWindow::SetInitData(nlohmann::json) {}
 inline void EChartsWindow::Show() {}
 inline void EChartsWindow::Close() {}
 inline void EChartsWindow::SendToJs(const nlohmann::json&) {}
-inline void *EChartsWindow::GetNativeHandle() const { return nullptr; }
 inline void EChartsWindow::SetSize(int, int) {}
-inline void EChartsWindow::SetHandleCallback(std::function<void(void *)>) {}
 inline void EChartsWindow::SetErrorCallback(
     std::function<void(const std::string &)>) {}
 #endif

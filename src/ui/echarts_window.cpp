@@ -17,10 +17,6 @@ void EChartsWindow::SetInitData(nlohmann::json data) {
   init_data_ = std::move(data);
 }
 
-void EChartsWindow::SetHandleCallback(std::function<void(void *)> cb) {
-  handle_callback_ = std::move(cb);
-}
-
 void EChartsWindow::SetErrorCallback(
     std::function<void(const std::string &)> cb) {
   error_callback_ = std::move(cb);
@@ -33,24 +29,6 @@ void EChartsWindow::Show() {
 
   view_->set_title("ECharts");
   view_->set_size(800, 600, WEBVIEW_HINT_NONE);
-
-  view_->dispatch([this]() {
-    auto handle_result = view_->window();
-    if (handle_result.ok()) {
-      native_handle_.store(handle_result.value());
-      if (handle_callback_) {
-        handle_callback_(handle_result.value());
-      }
-    } else {
-      std::string msg =
-          std::string("Failed to get native window handle: ") +
-          handle_result.error().message();
-      Core::Logger::instance().error(msg);
-      if (error_callback_) {
-        error_callback_(msg);
-      }
-    }
-  });
 
   view_->bind("bridge", [this](std::string req) -> std::string {
     nlohmann::json json;
@@ -93,8 +71,6 @@ void EChartsWindow::Close() {
     view_->dispatch([](auto &wv) { wv.terminate(); });
   }
 }
-
-void *EChartsWindow::GetNativeHandle() const { return native_handle_.load(); }
 
 void EChartsWindow::SetSize(int width, int height) {
   if (view_) {
