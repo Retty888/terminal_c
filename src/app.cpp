@@ -474,7 +474,8 @@ void App::update_next_fetch_time(long long candidate) {
 void App::render_ui() {
   ui_manager_.begin_frame();
 
-  ImGuiID dockspace_id = ImGui::DockSpaceOverViewport(ImGui::GetMainViewport());
+  ImGuiViewport* viewport = ImGui::GetMainViewport();
+  ImGuiID dockspace_id = ImGui::DockSpaceOverViewport(viewport->ID, viewport);
   static bool dock_init = false;
   if (!dock_init) {
     dock_init = true;
