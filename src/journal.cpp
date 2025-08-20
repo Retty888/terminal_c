@@ -12,8 +12,9 @@ namespace Journal {
 bool Journal::load_json(const std::string &filename) {
   std::ifstream f(filename);
   if (!f.is_open()) {
-    Core::Logger::instance().error("Failed to open journal file: " + filename);
-    return false;
+    m_entries.clear();
+    save_json(filename);
+    return true;
   }
 
   std::stringstream buffer;

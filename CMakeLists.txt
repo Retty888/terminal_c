@@ -191,6 +191,15 @@ target_include_directories(test_kline_stream PRIVATE src include)
 target_link_libraries(test_kline_stream PRIVATE GTest::gtest_main)
 add_test(NAME test_kline_stream COMMAND test_kline_stream)
 
+add_executable(test_journal
+  tests/test_journal.cpp
+  src/journal.cpp
+  src/core/logger.cpp
+)
+target_include_directories(test_journal PRIVATE src include)
+target_link_libraries(test_journal PRIVATE GTest::gtest_main)
+add_test(NAME test_journal COMMAND test_journal)
+
   add_executable(test_logger
     tests/test_logger.cpp
     src/core/logger.cpp
@@ -202,6 +211,6 @@ add_test(NAME test_kline_stream COMMAND test_kline_stream)
   # test_echarts_serialization temporarily disabled due to build issues
 
   add_custom_target(ctest COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-      DEPENDS test_backtester test_candle_manager test_signal test_scheduler test_kline_stream test_data_fetcher test_interval_utils test_logger
+      DEPENDS test_backtester test_candle_manager test_signal test_scheduler test_kline_stream test_data_fetcher test_interval_utils test_logger test_journal
     )
 
