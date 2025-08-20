@@ -16,7 +16,9 @@ class EChartsWindow {
   using JsonHandler =
       std::function<nlohmann::json(const nlohmann::json &request)>;
 
-  explicit EChartsWindow(const std::string &html_path, bool debug = false);
+  explicit EChartsWindow(const std::string &html_path,
+                         void *parent_window,
+                         bool debug = false);
 
   // Set handler that will be invoked when JavaScript sends JSON via the bridge.
   void SetHandler(JsonHandler handler);
@@ -43,6 +45,7 @@ class EChartsWindow {
 
  private:
   std::string html_path_;
+  void *parent_window_;
   bool debug_;
   JsonHandler handler_;
 #ifdef USE_WEBVIEW
@@ -53,7 +56,7 @@ class EChartsWindow {
 };
 
 #ifndef USE_WEBVIEW
-inline EChartsWindow::EChartsWindow(const std::string&, bool) {}
+inline EChartsWindow::EChartsWindow(const std::string&, void*, bool) {}
 inline void EChartsWindow::SetHandler(JsonHandler) {}
 inline void EChartsWindow::SetInitData(nlohmann::json) {}
 inline void EChartsWindow::Show() {}

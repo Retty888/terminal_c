@@ -1,6 +1,16 @@
 #include "ui_manager.h"
 
 #include <GLFW/glfw3.h>
+#if defined(_WIN32)
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
+#elif defined(__APPLE__)
+#define GLFW_EXPOSE_NATIVE_COCOA
+#include <GLFW/glfw3native.h>
+#elif defined(__linux__)
+#define GLFW_EXPOSE_NATIVE_X11
+#include <GLFW/glfw3native.h>
+#endif
 #include <exception>
 #include <filesystem>
 #include <nlohmann/json.hpp>
@@ -55,7 +65,17 @@ bool UiManager::setup(GLFWwindow *window) {
         "Expected directory layout relative to the executable:\n"
         "  resources/chart.html\n  third_party/echarts/echarts.min.js");
   } else {
-    echarts_window_ = std::make_unique<EChartsWindow>(html_path.string());
+    void *native_handle = nullptr;
+#if defined(_WIN32)
+    native_handle = glfwGetWin32Window(window);
+#elif defined(__APPLE__)
+    native_handle = glfwGetCocoaWindow(window);
+#elif defined(__linux__)
+    native_handle =
+        reinterpret_cast<void *>(glfwGetX11Window(window));
+#endif
+    echarts_window_ =
+        std::make_unique<EChartsWindow>(html_path.string(), native_handle);
 
     try {
       Core::CandleManager cm;
