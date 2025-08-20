@@ -145,7 +145,9 @@ void App::load_config() {
                             ? exchange_pairs_res.symbols
                             : std::vector<std::string>{};
 
-  this->ctx_->selected_interval = this->ctx_->intervals.empty() ? "1m" : this->ctx_->intervals[0];
+  this->ctx_->selected_interval =
+      this->ctx_->intervals.empty() ? "1m" : this->ctx_->intervals[0];
+  ui_manager_.set_initial_interval(this->ctx_->selected_interval);
   journal_service_.load("journal.json");
 
   for (const auto &pair : this->ctx_->selected_pairs) {
