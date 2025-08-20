@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -22,6 +23,8 @@ public:
   // Set callback to be invoked when the JS side notifies about a new interval
   // selection.
   void set_interval_callback(std::function<void(const std::string &)> cb);
+  // Set callback for reporting status messages to the application.
+  void set_status_callback(std::function<void(const std::string &)> cb);
   // Inform the JS side about the current interval during initialization.
   void set_initial_interval(const std::string &interval);
   void end_frame(GLFWwindow *window);
@@ -33,4 +36,7 @@ private:
   std::thread echarts_thread_;
   std::string current_interval_;
   std::function<void(const std::string &)> on_interval_changed_;
+  std::function<void(const std::string &)> status_callback_;
+  std::string echarts_error_;
+  std::mutex echarts_mutex_;
 };
