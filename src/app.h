@@ -34,6 +34,7 @@ public:
   int run();
   const AppStatus &status() const { return status_; }
   void add_status(const std::string &msg);
+  void clear_failed_fetches();
 
 private:
   bool init_window();

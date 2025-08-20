@@ -47,6 +47,12 @@ void App::add_status(const std::string &msg) {
     status_.log.pop_front();
 }
 
+void App::clear_failed_fetches() {
+  std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
+  this->ctx_->failed_fetches.clear();
+  add_status("Cleared failed fetches");
+}
+
 bool App::init_window() {
   auto cfg = Config::ConfigManager::load(resolve_config_path().string());
   auto level = cfg ? cfg->log_level : Core::LogLevel::Info;
@@ -272,6 +278,11 @@ void App::start_fetch_thread() {
       {
         std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
         for (auto it = this->ctx_->fetch_queue.begin(); it != this->ctx_->fetch_queue.end();) {
+          if (this->ctx_->failed_fetches.count({it->pair, it->interval})) {
+            ++this->ctx_->completed_fetches;
+            it = this->ctx_->fetch_queue.erase(it);
+            continue;
+          }
           auto status = it->future.wait_for(std::chrono::seconds(0));
           if (status == std::future_status::ready) {
             auto fetched = it->future.get();
@@ -306,12 +317,13 @@ void App::start_fetch_thread() {
                 miss = this->ctx_->candles_limit;
               ++it->retries;
               if (it->retries > this->ctx_->max_retries) {
+                this->ctx_->failed_fetches.insert({it->pair, it->interval});
                 status_.error_message =
                     "Failed to fetch " + it->pair + " " + it->interval +
                     " after " + std::to_string(this->ctx_->max_retries) +
                     " retries";
                 Core::Logger::instance().error(status_.error_message);
-                add_status(status_.error_message);
+                add_status("Failed to fetch " + it->pair + " " + it->interval);
                 ++this->ctx_->completed_fetches;
                 it = this->ctx_->fetch_queue.erase(it);
               } else {
@@ -338,12 +350,13 @@ void App::start_fetch_thread() {
                 miss = this->ctx_->candles_limit;
               ++it->retries;
               if (it->retries > this->ctx_->max_retries) {
+                this->ctx_->failed_fetches.insert({it->pair, it->interval});
                 status_.error_message =
                     "Timeout fetching " + it->pair + " " + it->interval +
                     " after " + std::to_string(this->ctx_->max_retries) +
                     " retries";
                 Core::Logger::instance().error(status_.error_message);
-                add_status(status_.error_message);
+                add_status("Failed to fetch " + it->pair + " " + it->interval);
                 ++this->ctx_->completed_fetches;
                 it = this->ctx_->fetch_queue.erase(it);
               } else {
@@ -400,6 +413,13 @@ void App::process_events() {
     if (now_ms >= this->ctx_->next_fetch_time.load()) {
       for (const auto &item : this->ctx_->pairs) {
         const auto &pair = item.name;
+        bool skip = false;
+        {
+          std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
+          skip = this->ctx_->failed_fetches.count({pair, this->ctx_->active_interval}) > 0;
+        }
+        if (skip)
+          continue;
         if (this->ctx_->pending_fetches.find(pair) ==
             this->ctx_->pending_fetches.end()) {
           this->ctx_->pending_fetches[pair] = {
@@ -609,6 +629,7 @@ void App::render_ui() {
       miss = this->ctx_->candles_limit - static_cast<int>(candles.size());
     }
     bool exists;
+    bool failed;
     {
       std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
       exists = std::any_of(
@@ -617,7 +638,9 @@ void App::render_ui() {
             return t.pair == this->ctx_->active_pair &&
                    t.interval == this->ctx_->active_interval;
           });
-      if (miss > 0 && !exists) {
+      failed = this->ctx_->failed_fetches.count({this->ctx_->active_pair,
+                                                this->ctx_->active_interval}) > 0;
+      if (miss > 0 && !exists && !failed) {
         this->ctx_->fetch_queue.push_back({this->ctx_->active_pair, this->ctx_->active_interval,
                                    data_service_.fetch_klines_async(
                                        this->ctx_->active_pair, this->ctx_->active_interval, miss),
@@ -625,7 +648,7 @@ void App::render_ui() {
         ++this->ctx_->total_fetches;
       }
     }
-    if (miss > 0 && !exists) {
+    if (miss > 0 && !exists && !failed) {
       add_status("Fetching " + this->ctx_->active_pair + " " + this->ctx_->active_interval);
     }
   }
