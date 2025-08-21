@@ -4,6 +4,7 @@
 #include "services/data_service.h"
 #include "services/journal_service.h"
 #include "ui/ui_manager.h"
+#include "core/glfw_context.h"
 
 #include <chrono>
 #include <deque>
@@ -15,6 +16,8 @@
 #include <string>
 #include <thread>
 #include <vector>
+
+struct GLFWwindow;
 
 struct AppStatus {
   float candle_progress = 0.0f;
@@ -65,7 +68,11 @@ private:
   JournalService journal_service_;
   AppStatus status_;
   mutable std::mutex status_mutex_;
-  GLFWwindow *window_ = nullptr;
+  struct WindowDeleter {
+    void operator()(GLFWwindow *window) const;
+  };
+  std::unique_ptr<Core::GlfwContext> glfw_context_;
+  std::unique_ptr<GLFWwindow, WindowDeleter> window_{nullptr};
   UiManager ui_manager_;
   std::jthread fetch_thread_;
 };
