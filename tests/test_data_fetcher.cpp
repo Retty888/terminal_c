@@ -3,19 +3,18 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 
-using namespace Core;
 
-class DummyLimiter : public IRateLimiter {
+class DummyLimiter : public Core::IRateLimiter {
 public:
   void acquire() override {}
 };
 
-class FakeHttpClient : public IHttpClient {
+class FakeHttpClient : public Core::IHttpClient {
 public:
-  std::vector<HttpResponse> responses;
+  std::vector<Core::HttpResponse> responses;
   std::vector<std::string> urls;
   size_t index{0};
-  HttpResponse get(const std::string &url) override {
+  Core::HttpResponse get(const std::string &url) override {
     urls.push_back(url);
     if (index < responses.size())
       return responses[index++];
@@ -38,9 +37,9 @@ TEST(DataFetcherTest, FetchKlinesParsesCandles) {
                              "[[0,\"1\",\"2\",\"3\",\"4\",\"5\",0,\"7\",0,\"9\",\"10\",\"11\"]]",
                              "", false});
   auto limiter = std::make_shared<DummyLimiter>();
-  DataFetcher fetcher(http, limiter);
+  Core::DataFetcher fetcher(http, limiter);
   auto res = fetcher.fetch_klines("BTCUSDT", "1m", 1);
-  EXPECT_EQ(res.error, FetchError::None);
+  EXPECT_EQ(res.error, Core::FetchError::None);
   ASSERT_EQ(res.candles.size(), 1u);
   EXPECT_EQ(res.candles[0].open_time, 0);
 }
@@ -49,9 +48,9 @@ TEST(DataFetcherTest, AltApiParsesCandles) {
   auto http = std::make_shared<FakeHttpClient>();
   http->responses.push_back({200, "[[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\"]]", "", false});
   auto limiter = std::make_shared<DummyLimiter>();
-  DataFetcher fetcher(http, limiter);
+  Core::DataFetcher fetcher(http, limiter);
   auto res = fetcher.fetch_klines_alt("BTCUSDT", "5s", 1);
-  EXPECT_EQ(res.error, FetchError::None);
+  EXPECT_EQ(res.error, Core::FetchError::None);
   ASSERT_EQ(res.candles.size(), 1u);
   EXPECT_EQ(res.candles[0].close_time - res.candles[0].open_time + 1,
             10000);
@@ -63,10 +62,10 @@ TEST(DataFetcherTest, AsyncDelegatesToSync) {
                              "[[0,\"1\",\"2\",\"3\",\"4\",\"5\",0,\"7\",0,\"9\",\"10\",\"11\"]]",
                              "", false});
   auto limiter = std::make_shared<DummyLimiter>();
-  DataFetcher fetcher(http, limiter);
+  Core::DataFetcher fetcher(http, limiter);
   auto fut = fetcher.fetch_klines_async("BTCUSDT", "1m", 1);
   auto res = fut.get();
-  EXPECT_EQ(res.error, FetchError::None);
+  EXPECT_EQ(res.error, Core::FetchError::None);
   ASSERT_EQ(res.candles.size(), 1u);
 }
 
@@ -75,9 +74,9 @@ TEST(DataFetcherTest, AltApiBatchesRequestsOverLimit) {
   http->responses.push_back({200, make_gate_response(10000, 1000, 10), "", false});
   http->responses.push_back({200, make_gate_response(5000, 500, 10), "", false});
   auto limiter = std::make_shared<DummyLimiter>();
-  DataFetcher fetcher(http, limiter);
+  Core::DataFetcher fetcher(http, limiter);
   auto res = fetcher.fetch_klines_alt("BTCUSDT", "5s", 1500);
-  EXPECT_EQ(res.error, FetchError::None);
+  EXPECT_EQ(res.error, Core::FetchError::None);
   EXPECT_EQ(res.candles.size(), 1500u);
   EXPECT_EQ(http->urls.size(), 2u);
 }
@@ -85,8 +84,8 @@ TEST(DataFetcherTest, AltApiBatchesRequestsOverLimit) {
 TEST(DataFetcherTest, AltApiRejectsUnsupportedInterval) {
   auto http = std::make_shared<FakeHttpClient>();
   auto limiter = std::make_shared<DummyLimiter>();
-  DataFetcher fetcher(http, limiter);
+  Core::DataFetcher fetcher(http, limiter);
   auto res = fetcher.fetch_klines_alt("BTCUSDT", "7s", 1);
-  EXPECT_EQ(res.error, FetchError::HttpError);
+  EXPECT_EQ(res.error, Core::FetchError::HttpError);
 }
 

@@ -5,10 +5,9 @@
 #include <algorithm>
 #include <vector>
 
-using namespace Core;
 
 void DrawAnalyticsWindow(
-    const std::map<std::string, std::map<std::string, std::vector<Candle>>>& all_candles,
+    const std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>& all_candles,
     const std::string& active_pair,
     const std::string& selected_interval) {
     ImGui::Begin("Analytics");

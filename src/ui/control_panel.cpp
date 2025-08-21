@@ -13,7 +13,6 @@
 #include <ctime>
 #include <numeric>
 
-using namespace Core;
 
 namespace {
 const size_t EXPECTED_CANDLES = [] {
@@ -54,9 +53,9 @@ struct TooltipStat {
 
 // Load candle history for a symbol across multiple intervals.
 bool LoadInitialCandles(
-    DataService &data_service, const std::string &symbol,
+    Core::DataService &data_service, const std::string &symbol,
     const std::vector<std::string> &intervals,
-    std::map<std::string, std::map<std::string, std::vector<Candle>>> &all_candles,
+    std::map<std::string, std::map<std::string, std::vector<Core::Candle>>> &all_candles,
     std::string &load_error) {
   bool failed = false;
   for (const auto &interval : intervals) {
@@ -65,16 +64,16 @@ bool LoadInitialCandles(
     if (candles.size() < EXPECTED_CANDLES) {
       int missing = EXPECTED_CANDLES - static_cast<int>(candles.size());
       auto fetched = data_service.fetch_klines(symbol, interval, missing);
-      if (fetched.error == FetchError::None && !fetched.candles.empty()) {
-        auto interval_ms = parse_interval(interval).count();
-        std::vector<Candle> to_append;
+      if (fetched.error == Core::FetchError::None && !fetched.candles.empty()) {
+        auto interval_ms = Core::parse_interval(interval).count();
+        std::vector<Core::Candle> to_append;
         long long expected = last_time + interval_ms;
         for (const auto &c : fetched.candles) {
           if (c.open_time > expected) {
             long long gap_end = c.open_time - interval_ms;
             auto gap_res = data_service.fetch_range(symbol, interval, expected,
                                                     gap_end);
-            if (gap_res.error == FetchError::None &&
+            if (gap_res.error == Core::FetchError::None &&
                 !gap_res.candles.empty()) {
               to_append.insert(to_append.end(), gap_res.candles.begin(),
                                gap_res.candles.end());
@@ -100,7 +99,7 @@ bool LoadInitialCandles(
             }
           }
         }
-      } else if (fetched.error != FetchError::None) {
+      } else if (fetched.error != Core::FetchError::None) {
         failed = true;
         load_error =
             "Load failed for " + symbol + " " + interval + ": " + fetched.message;
@@ -123,8 +122,8 @@ bool RenderPairRow(
     std::vector<PairItem> &pairs, PairItem &item,
     std::vector<std::string> &selected_pairs, std::string &active_pair,
     const std::vector<std::string> &intervals, std::string &selected_interval,
-    std::map<std::string, std::map<std::string, std::vector<Candle>>> &all_candles,
-    const std::function<void()> &save_pairs, DataService &data_service,
+    std::map<std::string, std::map<std::string, std::vector<Core::Candle>>> &all_candles,
+    const std::function<void()> &save_pairs, Core::DataService &data_service,
     AppStatus &status,
     const std::function<void(const std::string &)> &cancel_pair) {
   bool missing_data = false;
@@ -137,13 +136,13 @@ bool RenderPairRow(
     size_t count = candles.size();
     double volume =
         std::accumulate(candles.begin(), candles.end(), 0.0,
-                        [](double sum, const Candle &c) { return sum + c.volume; });
+                        [](double sum, const Core::Candle &c) { return sum + c.volume; });
     long long min_t = 0;
     long long max_t = 0;
     if (!candles.empty()) {
       auto [min_it, max_it] = std::minmax_element(
           candles.begin(), candles.end(),
-          [](const Candle &a, const Candle &b) { return a.open_time < b.open_time; });
+          [](const Core::Candle &a, const Core::Candle &b) { return a.open_time < b.open_time; });
       min_t = min_it->open_time;
       max_t = max_it->open_time;
     } else {
@@ -259,9 +258,9 @@ bool RenderPairRow(
 static void RenderLoadControls(
     std::vector<PairItem> &pairs, std::vector<std::string> &selected_pairs,
     const std::vector<std::string> &intervals,
-    std::map<std::string, std::map<std::string, std::vector<Candle>>> &all_candles,
+    std::map<std::string, std::map<std::string, std::vector<Core::Candle>>> &all_candles,
     const std::function<void()> &save_pairs,
-    const std::vector<std::string> &exchange_pairs, DataService &data_service) {
+    const std::vector<std::string> &exchange_pairs, Core::DataService &data_service) {
   ImGui::Text("Select pairs to load:");
   static std::string load_error;
 
@@ -323,8 +322,8 @@ static void RenderPairSelector(
     std::vector<PairItem> &pairs, std::vector<std::string> &selected_pairs,
     std::string &active_pair, const std::vector<std::string> &intervals,
     std::string &selected_interval,
-    std::map<std::string, std::map<std::string, std::vector<Candle>>> &all_candles,
-    const std::function<void()> &save_pairs, DataService &data_service,
+    std::map<std::string, std::map<std::string, std::vector<Core::Candle>>> &all_candles,
+    const std::function<void()> &save_pairs, Core::DataService &data_service,
     AppStatus &status,
     const std::function<void(const std::string &)> &cancel_pair) {
   if (ImGui::BeginTable("pairs_table", 3, ImGuiTableFlags_SizingStretchProp)) {
@@ -363,10 +362,10 @@ void DrawControlPanel(
     std::vector<PairItem> &pairs, std::vector<std::string> &selected_pairs,
     std::string &active_pair, const std::vector<std::string> &intervals,
     std::string &selected_interval,
-    std::map<std::string, std::map<std::string, std::vector<Candle>>> &all_candles,
+    std::map<std::string, std::map<std::string, std::vector<Core::Candle>>> &all_candles,
     const std::function<void()> &save_pairs,
     const std::vector<std::string> &exchange_pairs, AppStatus &status,
-    DataService &data_service,
+    Core::DataService &data_service,
     const std::function<void(const std::string &)> &cancel_pair) {
   ImGui::Begin("Control Panel");
 

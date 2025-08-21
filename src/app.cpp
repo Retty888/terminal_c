@@ -36,7 +36,6 @@
 #include "ui/journal_window.h"
 #include "ui/signals_window.h"
 
-using namespace Core;
 
 App::App() : ctx_(std::make_unique<AppContext>()) {}
 App::~App() = default;
@@ -108,7 +107,7 @@ void App::load_config() {
   this->ctx_->intervals = {"1m", "3m", "5m",  "15m", "1h",
                            "4h", "1d", "15s", "5s"};
   auto exchange_interval_res = data_service_.fetch_intervals();
-  if (exchange_interval_res.error == FetchError::None) {
+  if (exchange_interval_res.error == Core::FetchError::None) {
     this->ctx_->intervals.insert(this->ctx_->intervals.end(),
                                  exchange_interval_res.intervals.begin(),
                                  exchange_interval_res.intervals.end());
@@ -140,7 +139,7 @@ void App::load_pairs(std::vector<std::string> &pair_names) {
     pair_names.push_back("BTCUSDT");
   std::sort(this->ctx_->intervals.begin(), this->ctx_->intervals.end(),
             [](const std::string &a, const std::string &b) {
-              return parse_interval(a) < parse_interval(b);
+              return Core::parse_interval(a) < Core::parse_interval(b);
             });
   this->ctx_->intervals.erase(
       std::unique(this->ctx_->intervals.begin(), this->ctx_->intervals.end()),
@@ -160,7 +159,7 @@ void App::load_pairs(std::vector<std::string> &pair_names) {
       this->ctx_->intervals.empty() ? "1m" : this->ctx_->intervals[0];
 
   auto exchange_pairs_res = data_service_.fetch_all_symbols();
-  this->ctx_->exchange_pairs = exchange_pairs_res.error == FetchError::None
+  this->ctx_->exchange_pairs = exchange_pairs_res.error == Core::FetchError::None
                                    ? exchange_pairs_res.symbols
                                    : std::vector<std::string>{};
 
@@ -176,7 +175,7 @@ void App::load_existing_candles() {
       this->ctx_->all_candles[pair][interval] =
           data_service_.load_candles(pair, interval);
       auto &candles = this->ctx_->all_candles[pair][interval];
-      long long interval_ms = parse_interval(interval).count();
+      long long interval_ms = Core::parse_interval(interval).count();
       if (interval_ms > 0 && candles.size() > 1) {
         bool fixed = false;
         for (std::size_t i = 0; i + 1 < candles.size(); ++i) {
@@ -186,7 +185,7 @@ void App::load_existing_candles() {
           if (next.open_time - cur.open_time > interval_ms) {
             auto res = data_service_.fetch_range(pair, interval, expected,
                                                  next.open_time - interval_ms);
-            if (res.error == FetchError::None && !res.candles.empty()) {
+            if (res.error == Core::FetchError::None && !res.candles.empty()) {
               candles.insert(candles.begin() + i + 1, res.candles.begin(),
                              res.candles.end());
               data_service_.append_candles(pair, interval, res.candles);
@@ -196,11 +195,11 @@ void App::load_existing_candles() {
           }
         }
         if (fixed) {
-          auto fill_missing = [](std::vector<Candle> &vec,
+          auto fill_missing = [](std::vector<Core::Candle> &vec,
                                  long long period_ms) {
             if (vec.size() < 2 || period_ms <= 0)
               return;
-            std::vector<Candle> filled;
+            std::vector<Core::Candle> filled;
             filled.reserve(vec.size());
             for (std::size_t j = 0; j + 1 < vec.size(); ++j) {
               const auto &c = vec[j];
@@ -251,10 +250,10 @@ void App::start_initial_fetch_and_streams() {
       this->ctx_->active_interval != "15s") {
     for (const auto &p : this->ctx_->pairs) {
       std::string pair = p.name;
-      auto stream = std::make_unique<KlineStream>(
+      auto stream = std::make_unique<Core::KlineStream>(
           pair, this->ctx_->active_interval, data_service_.candle_manager());
       stream->start(
-          [this, pair](const Candle &c) {
+          [this, pair](const Core::Candle &c) {
             std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
             auto &vec =
                 this->ctx_->all_candles[pair][this->ctx_->active_interval];
@@ -312,13 +311,13 @@ void App::start_fetch_thread() {
         auto status = it->future.wait_for(std::chrono::seconds(0));
         if (status == std::future_status::ready) {
           auto fetched = it->future.get();
-          if (fetched.error == FetchError::None && !fetched.candles.empty()) {
+          if (fetched.error == Core::FetchError::None && !fetched.candles.empty()) {
             {
               std::lock_guard<std::mutex> lock_candles(
                   this->ctx_->candles_mutex);
               auto &vec = this->ctx_->all_candles[it->pair][it->interval];
               long long last_time = vec.empty() ? 0 : vec.back().open_time;
-              std::vector<Candle> new_candles;
+              std::vector<Core::Candle> new_candles;
               for (const auto &c : fetched.candles) {
                 if (c.open_time > last_time) {
                   vec.push_back(c);
@@ -422,7 +421,7 @@ void App::stop_fetch_thread() {
 
 void App::process_events() {
   glfwPollEvents();
-  auto period = parse_interval(this->ctx_->active_interval);
+  auto period = Core::parse_interval(this->ctx_->active_interval);
   auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::system_clock::now().time_since_epoch())
                     .count();
@@ -483,7 +482,7 @@ void App::handle_http_updates() {
       auto result_now = std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::system_clock::now().time_since_epoch())
                             .count();
-      if (latest.error == FetchError::None && !latest.candles.empty()) {
+      if (latest.error == Core::FetchError::None && !latest.candles.empty()) {
         std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
         auto &vec = this->ctx_->all_candles[it->first][it->second.interval];
         if (vec.empty() ||
@@ -491,7 +490,7 @@ void App::handle_http_updates() {
           vec.push_back(latest.candles.back());
           data_service_.append_candles(it->first, it->second.interval,
                                        {latest.candles.back()});
-          auto p = parse_interval(it->second.interval);
+          auto p = Core::parse_interval(it->second.interval);
           long long boundary = vec.back().open_time + p.count();
           update_next_fetch_time(boundary);
         } else {
