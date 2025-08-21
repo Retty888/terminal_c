@@ -1,4 +1,13 @@
 @echo off
+
+winget --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo winget is not installed.
+    echo Please install winget or download the Microsoft Edge WebView2 Runtime installer directly from:
+    echo https://go.microsoft.com/fwlink/p/?LinkId=2124703
+    exit /b 1
+)
+
 set SCRIPT_DIR=%~dp0
 set VCPKG_PATH=%SCRIPT_DIR%vcpkg
 
