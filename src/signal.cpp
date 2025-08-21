@@ -106,6 +106,10 @@ int rsi_signal(const std::vector<Core::Candle>& candles,
                std::size_t period,
                double oversold,
                double overbought) {
+    if (index + 1 < period) {
+        // RSI requires at least `period` candles before producing signals
+        return 0;
+    }
     double rsi = relative_strength_index(candles, index, period);
     if (rsi < oversold) {
         return 1;
@@ -113,7 +117,7 @@ int rsi_signal(const std::vector<Core::Candle>& candles,
     if (rsi > overbought) {
         return -1;
     }
-      return 0;
+    return 0;
   }
 
   // Calculates the MACD line (EMA(fast) - EMA(slow)).
