@@ -3,6 +3,7 @@
 #include "core/logger.h"
 #include "interval_utils.h"
 #include "candle_utils.h"
+#include "core/exchange_utils.h"
 #include <algorithm>
 #include <chrono>
 #include <future>
@@ -13,14 +14,6 @@
 #include <thread>
 
 namespace {
-
-std::string to_gate_symbol(const std::string &symbol) {
-  if (symbol.size() < 6)
-    return symbol;
-  std::string base = symbol.substr(0, symbol.size() - 4);
-  std::string quote = symbol.substr(symbol.size() - 4);
-  return base + "_" + quote;
-}
 
 std::string map_gate_interval(const std::string &interval) {
   static const std::unordered_map<std::string, std::string> mapping{{"5s", "10s"}};
