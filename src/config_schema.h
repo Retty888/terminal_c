@@ -1,9 +1,10 @@
 #pragma once
 
-#include "config_manager.h"
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
+
+#include "config_types.h"
 
 namespace Config {
 
