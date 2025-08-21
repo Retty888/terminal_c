@@ -23,6 +23,28 @@ void EChartsWindow::SetErrorCallback(
 }
 
 void EChartsWindow::Show() {
+  // Validate that required resources are present before launching the view.
+  if (!std::filesystem::exists(html_path_)) {
+    const std::string msg = "HTML file not found: " + html_path_;
+    if (error_callback_) {
+      error_callback_(msg);
+    } else {
+      Core::Logger::instance().error(msg);
+    }
+    return;
+  }
+
+  const std::filesystem::path js_path("third_party/echarts/echarts.min.js");
+  if (!std::filesystem::exists(js_path)) {
+    const std::string msg = "ECharts script not found: " + js_path.string();
+    if (error_callback_) {
+      error_callback_(msg);
+    } else {
+      Core::Logger::instance().error(msg);
+    }
+    return;
+  }
+
   if (!view_) {
     view_ = std::make_unique<webview::webview>(debug_, parent_window_);
   }
@@ -53,6 +75,7 @@ void EChartsWindow::Show() {
   if (url.rfind("file://", 0) != 0) {
     url = std::string("file://") + std::filesystem::absolute(url).string();
   }
+
   view_->navigate(url);
   view_->run();
   // After the event loop exits, free webview resources on this thread.
