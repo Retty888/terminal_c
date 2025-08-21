@@ -13,7 +13,6 @@
 #include "signal.h"
 
 #include <algorithm>
-#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <deque>
@@ -24,6 +23,7 @@
 #include <mutex>
 #include <optional>
 #include <set>
+#include <stop_token>
 #include <string>
 #include <thread>
 #include <vector>
@@ -292,15 +292,14 @@ void App::start_initial_fetch_and_streams() {
 }
 
 void App::start_fetch_thread() {
-  fetch_running_.store(true);
-  fetch_thread_ = std::thread([this]() {
+  fetch_thread_ = std::jthread([this](std::stop_token stoken) {
     std::unique_lock<std::mutex> lock(this->ctx_->fetch_mutex);
-    while (fetch_running_.load()) {
+    while (!stoken.stop_requested()) {
       if (this->ctx_->fetch_queue.empty()) {
-        this->ctx_->fetch_cv.wait(lock, [this]() {
-          return !fetch_running_.load() || !this->ctx_->fetch_queue.empty();
+        this->ctx_->fetch_cv.wait(lock, [&]() {
+          return stoken.stop_requested() || !this->ctx_->fetch_queue.empty();
         });
-        if (!fetch_running_.load())
+        if (stoken.stop_requested())
           break;
       }
       for (auto it = this->ctx_->fetch_queue.begin();
@@ -347,10 +346,10 @@ void App::start_fetch_thread() {
             ++it->retries;
             if (it->retries > this->ctx_->max_retries) {
               this->ctx_->failed_fetches.insert({it->pair, it->interval});
-              status_.error_message =
-                  "Failed to fetch " + it->pair + " " + it->interval +
-                  " after " + std::to_string(this->ctx_->max_retries) +
-                  " retries";
+              status_.error_message = "Failed to fetch " + it->pair + " " +
+                                      it->interval + " after " +
+                                      std::to_string(this->ctx_->max_retries) +
+                                      " retries";
               Core::Logger::instance().error(status_.error_message);
               add_status("Failed to fetch " + it->pair + " " + it->interval);
               ++this->ctx_->completed_fetches;
@@ -381,10 +380,10 @@ void App::start_fetch_thread() {
             ++it->retries;
             if (it->retries > this->ctx_->max_retries) {
               this->ctx_->failed_fetches.insert({it->pair, it->interval});
-              status_.error_message =
-                  "Timeout fetching " + it->pair + " " + it->interval +
-                  " after " + std::to_string(this->ctx_->max_retries) +
-                  " retries";
+              status_.error_message = "Timeout fetching " + it->pair + " " +
+                                      it->interval + " after " +
+                                      std::to_string(this->ctx_->max_retries) +
+                                      " retries";
               Core::Logger::instance().error(status_.error_message);
               add_status("Failed to fetch " + it->pair + " " + it->interval);
               ++this->ctx_->completed_fetches;
@@ -393,9 +392,8 @@ void App::start_fetch_thread() {
               auto delay = this->ctx_->retry_delay;
               if (this->ctx_->exponential_backoff)
                 delay *= (1 << (it->retries - 1));
-              status_.error_message =
-                  "Timeout fetching " + it->pair + " " + it->interval +
-                  ", retrying";
+              status_.error_message = "Timeout fetching " + it->pair + " " +
+                                      it->interval + ", retrying";
               Core::Logger::instance().error(status_.error_message);
               add_status(status_.error_message);
               it->future = data_service_.fetch_klines_async(
@@ -410,20 +408,16 @@ void App::start_fetch_thread() {
       }
       if (this->ctx_->fetch_queue.empty())
         continue;
-      this->ctx_->fetch_cv.wait_for(
-          lock, std::chrono::milliseconds(50),
-          [this]() {
-            return !fetch_running_.load() || !this->ctx_->fetch_queue.empty();
-          });
+      this->ctx_->fetch_cv.wait(lock, [&]() {
+        return stoken.stop_requested() || !this->ctx_->fetch_queue.empty();
+      });
     }
   });
 }
 
 void App::stop_fetch_thread() {
-  fetch_running_.store(false);
+  fetch_thread_.request_stop();
   this->ctx_->fetch_cv.notify_all();
-  if (fetch_thread_.joinable())
-    fetch_thread_.join();
 }
 
 void App::process_events() {
@@ -448,8 +442,7 @@ void App::schedule_http_updates(std::chrono::milliseconds period,
     auto pair_it = this->ctx_->all_candles.find(this->ctx_->active_pair);
     if (pair_it != this->ctx_->all_candles.end()) {
       auto interval_it = pair_it->second.find(this->ctx_->active_interval);
-      if (interval_it != pair_it->second.end() &&
-          !interval_it->second.empty())
+      if (interval_it != pair_it->second.end() && !interval_it->second.empty())
         update_next_fetch_time(interval_it->second.back().open_time +
                                period.count());
     }
@@ -471,9 +464,9 @@ void App::schedule_http_updates(std::chrono::milliseconds period,
           this->ctx_->pending_fetches.end()) {
         this->ctx_->pending_fetches[pair] = {
             this->ctx_->active_interval,
-            data_service_.fetch_klines_async(
-                pair, this->ctx_->active_interval, 1, this->ctx_->max_retries,
-                this->ctx_->retry_delay)};
+            data_service_.fetch_klines_async(pair, this->ctx_->active_interval,
+                                             1, this->ctx_->max_retries,
+                                             this->ctx_->retry_delay)};
         add_status("Updating " + pair);
       }
     }
@@ -488,8 +481,8 @@ void App::handle_http_updates() {
         std::future_status::ready) {
       auto latest = it->second.future.get();
       auto result_now = std::chrono::duration_cast<std::chrono::milliseconds>(
-                           std::chrono::system_clock::now().time_since_epoch())
-                           .count();
+                            std::chrono::system_clock::now().time_since_epoch())
+                            .count();
       if (latest.error == FetchError::None && !latest.candles.empty()) {
         std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
         auto &vec = this->ctx_->all_candles[it->first][it->second.interval];
@@ -518,10 +511,11 @@ void App::handle_http_updates() {
 
 void App::update_candle_progress() {
   std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
-  status_.candle_progress = this->ctx_->total_fetches > 0
-                               ? static_cast<float>(this->ctx_->completed_fetches) /
-                                     static_cast<float>(this->ctx_->total_fetches)
-                               : 1.0f;
+  status_.candle_progress =
+      this->ctx_->total_fetches > 0
+          ? static_cast<float>(this->ctx_->completed_fetches) /
+                static_cast<float>(this->ctx_->total_fetches)
+          : 1.0f;
 }
 
 void App::schedule_retry(long long now_ms, std::chrono::milliseconds delay,

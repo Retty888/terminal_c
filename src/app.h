@@ -5,7 +5,6 @@
 #include "services/journal_service.h"
 #include "ui/ui_manager.h"
 
-#include <atomic>
 #include <chrono>
 #include <deque>
 #include <functional>
@@ -14,8 +13,8 @@
 #include <memory>
 #include <mutex>
 #include <string>
-#include <vector>
 #include <thread>
+#include <vector>
 
 struct AppStatus {
   float candle_progress = 0.0f;
@@ -68,6 +67,5 @@ private:
   mutable std::mutex status_mutex_;
   GLFWwindow *window_ = nullptr;
   UiManager ui_manager_;
-  std::thread fetch_thread_;
-  std::atomic<bool> fetch_running_{false};
+  std::jthread fetch_thread_;
 };
