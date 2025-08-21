@@ -41,4 +41,5 @@ private:
   std::function<void(const std::string &)> status_callback_;
   std::string echarts_error_;
   std::mutex echarts_mutex_;
+  bool shutdown_called_ = false;
 };
