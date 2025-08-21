@@ -63,6 +63,7 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
     src/core/iwebsocket.cpp
     src/core/logger.cpp
     src/core/path_utils.cpp
+    src/core/glfw_context.cpp
     src/journal.cpp
     src/services/data_service.cpp
     src/services/journal_service.cpp

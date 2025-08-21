@@ -37,8 +37,13 @@
 #include "ui/signals_window.h"
 
 
+void App::WindowDeleter::operator()(GLFWwindow *window) const {
+  if (window)
+    glfwDestroyWindow(window);
+}
+
 App::App() : ctx_(std::make_unique<AppContext>()) {}
-App::~App() = default;
+App::~App() { cleanup(); }
 
 void App::add_status(const std::string &msg) {
   std::lock_guard<std::mutex> lock(status_mutex_);
@@ -67,25 +72,28 @@ bool App::init_window() {
   Core::Logger::instance().info("Application started");
   status_ = AppStatus{};
 
-  if (!glfwInit()) {
+  glfw_context_ = std::make_unique<Core::GlfwContext>();
+  if (!glfw_context_->initialized()) {
     Core::Logger::instance().error("Failed to initialize GLFW");
+    glfw_context_.reset();
     return false;
   }
   glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-  window_ = glfwCreateWindow(1280, 720, "Trading Terminal", NULL, NULL);
+  window_.reset(
+      glfwCreateWindow(1280, 720, "Trading Terminal", NULL, NULL));
   if (!window_) {
     Core::Logger::instance().error("Failed to create GLFW window");
-    glfwTerminate();
+    glfw_context_.reset();
     return false;
   }
-  glfwMakeContextCurrent(window_);
-  glfwSetWindowSize(window_, 1280, 720);
+  glfwMakeContextCurrent(window_.get());
+  glfwSetWindowSize(window_.get(), 1280, 720);
   glfwSwapInterval(1);
   return true;
 }
 
 void App::setup_imgui() {
-  ui_manager_.setup(window_);
+  ui_manager_.setup(window_.get());
   ui_manager_.set_interval_callback(
       [this](const std::string &iv) { this->ctx_->selected_interval = iv; });
   ui_manager_.set_status_callback(
@@ -541,7 +549,7 @@ void App::render_ui() {
   render_main_windows();
   render_backtest_panel();
   handle_active_pair_change();
-  ui_manager_.end_frame(window_);
+  ui_manager_.end_frame(window_.get());
 }
 
 void App::render_dockspace() {
@@ -719,11 +727,8 @@ void App::cleanup() {
   if (this->ctx_->save_pairs)
     this->ctx_->save_pairs();
   ui_manager_.shutdown();
-  if (window_) {
-    glfwDestroyWindow(window_);
-    window_ = nullptr;
-  }
-  glfwTerminate();
+  window_.reset();
+  glfw_context_.reset();
   Core::Logger::instance().info("Application exiting");
 }
 
@@ -733,10 +738,9 @@ int App::run() {
   setup_imgui();
   load_config();
   start_fetch_thread();
-  while (!glfwWindowShouldClose(window_)) {
+  while (!glfwWindowShouldClose(window_.get())) {
     process_events();
     render_ui();
   }
-  cleanup();
   return 0;
 }
