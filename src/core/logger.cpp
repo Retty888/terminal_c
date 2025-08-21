@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <system_error>
 
 namespace Core {
 
@@ -60,9 +61,24 @@ void Logger::set_file(const std::string &filename, std::size_t max_size) {
 #endif
     std::ostringstream oss;
     oss << filename << '.' << std::put_time(&tm, "%Y%m%d%H%M%S");
-    fs::rename(filename, oss.str());
+    std::error_code ec;
+    fs::rename(filename, oss.str(), ec);
+    if (ec) {
+      std::cerr << "Failed to rotate log file: " << ec.message() << std::endl;
+      filename_.clear();
+      return;
+    }
   }
-  out_.open(filename, std::ios::app);
+  try {
+    out_.open(filename, std::ios::app);
+    if (!out_.is_open())
+      throw std::ios_base::failure("open failed");
+  } catch (const std::exception &e) {
+    std::cerr << "Failed to open log file: " << e.what() << std::endl;
+    if (out_.is_open())
+      out_.close();
+    filename_.clear();
+  }
 }
 
 void Logger::enable_console_output(bool enable) {
