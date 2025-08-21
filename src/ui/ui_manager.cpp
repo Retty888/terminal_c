@@ -4,6 +4,7 @@
 #if defined(_WIN32)
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
+#include <Windows.h>
 #elif defined(__APPLE__)
 #define GLFW_EXPOSE_NATIVE_COCOA
 #include <GLFW/glfw3native.h>
@@ -120,6 +121,9 @@ bool UiManager::setup(GLFWwindow *window) {
         return nlohmann::json{};
       });
       echarts_thread_ = std::thread([this]() {
+#if defined(_WIN32)
+        CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+#endif
         try {
           echarts_window_->Show();
         } catch (const std::exception &e) {
@@ -156,6 +160,9 @@ bool UiManager::setup(GLFWwindow *window) {
             status_callback_(msg);
           }
         }
+#if defined(_WIN32)
+        CoUninitialize();
+#endif
       });
     }
   } else {
