@@ -5,9 +5,11 @@
 
 #include "core/logger.h"
 
-EChartsWindow::EChartsWindow(const std::string &html_path, void *parent_window,
-                             bool debug)
-    : html_path_(html_path), parent_window_(parent_window), debug_(debug) {}
+EChartsWindow::EChartsWindow(const std::string &html_path,
+                             const std::string &js_path,
+                             void *parent_window, bool debug)
+    : html_path_(html_path), js_path_(js_path), parent_window_(parent_window),
+      debug_(debug) {}
 
 void EChartsWindow::SetHandler(JsonHandler handler) {
   handler_ = std::move(handler);
@@ -34,7 +36,7 @@ void EChartsWindow::Show() {
     return;
   }
 
-  const std::filesystem::path js_path("third_party/echarts/echarts.min.js");
+  const std::filesystem::path js_path(js_path_);
   if (!std::filesystem::exists(js_path)) {
     const std::string msg = "ECharts script not found: " + js_path.string();
     if (error_callback_) {
