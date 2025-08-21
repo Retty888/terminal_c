@@ -2,6 +2,18 @@
 set SCRIPT_DIR=%~dp0
 set VCPKG_PATH=%SCRIPT_DIR%vcpkg
 
+REM Check for Microsoft Edge WebView2 Runtime
+reg query "HKLM\Software\Microsoft\EdgeUpdate\Clients" /s | findstr /I "WebView2" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Microsoft Edge WebView2 Runtime not found. Attempting installation...
+    winget install -e --id Microsoft.EdgeWebView2Runtime
+    if %errorlevel% neq 0 (
+        echo WebView2 installation failed!
+        pause
+        exit /b %errorlevel%
+    )
+)
+
 REM Determine vcpkg path
 if exist "%VCPKG_PATH%" (
     echo Found vcpkg in script directory.
