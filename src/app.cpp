@@ -72,6 +72,7 @@ bool App::init_window() {
     Core::Logger::instance().error("Failed to initialize GLFW");
     return false;
   }
+  glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
   window_ = glfwCreateWindow(1280, 720, "Trading Terminal", NULL, NULL);
   if (!window_) {
     Core::Logger::instance().error("Failed to create GLFW window");
@@ -79,6 +80,7 @@ bool App::init_window() {
     return false;
   }
   glfwMakeContextCurrent(window_);
+  glfwSetWindowSize(window_, 1280, 720);
   glfwSwapInterval(1);
   return true;
 }
