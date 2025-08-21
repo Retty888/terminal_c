@@ -20,6 +20,7 @@
 
 #include "config_manager.h"
 #include "config_path.h"
+#include "config_schema.h"
 #include "core/candle_manager.h"
 #include "core/logger.h"
 #include "core/path_utils.h"
@@ -50,12 +51,16 @@ bool UiManager::setup(GLFWwindow *window) {
 
   if (auto cfg = Config::ConfigManager::load(resolve_config_path().string())) {
     chart_enabled_ = cfg->enable_chart;
+    chart_html_path_ = cfg->chart_html_path;
+    echarts_js_path_ = cfg->echarts_js_path;
+  } else {
+    chart_html_path_ = Config::kDefaultChartHtmlPath;
+    echarts_js_path_ = Config::kDefaultEchartsJsPath;
   }
 #ifdef USE_WEBVIEW
   if (chart_enabled_) {
-    const auto html_path = Core::path_from_executable("resources/chart.html");
-    const auto js_path =
-        Core::path_from_executable("third_party/echarts/echarts.min.js");
+    const auto html_path = std::filesystem::path(chart_html_path_);
+    const auto js_path = std::filesystem::path(echarts_js_path_);
 
     Core::Logger::instance().info("Checking chart resources at " +
                                   html_path.string() + " and " +
@@ -67,9 +72,8 @@ bool UiManager::setup(GLFWwindow *window) {
       Core::Logger::instance().error("Chart resources missing. Checked '" +
                                      html_path.string() + "' and '" +
                                      js_path.string() + "'");
-      Core::Logger::instance().warn(
-          "Expected directory layout relative to the executable:\n"
-          "  resources/chart.html\n  third_party/echarts/echarts.min.js");
+      Core::Logger::instance().warn("Expected files:\n  " + chart_html_path_ +
+                                    "\n  " + echarts_js_path_);
     } else {
       void *native_handle = nullptr;
 #if defined(_WIN32)
@@ -166,9 +170,8 @@ void UiManager::draw_echarts_panel(const std::string &selected_interval) {
   } else if (!resources_available_) {
     ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
                        "Chart resources missing");
-    ImGui::TextWrapped(
-        "Expected layout relative to the executable:\n"
-        "  resources/chart.html\n  third_party/echarts/echarts.min.js");
+    ImGui::TextWrapped("Expected files:\n  %s\n  %s", chart_html_path_.c_str(),
+                       echarts_js_path_.c_str());
   } else {
     std::string err;
     {
