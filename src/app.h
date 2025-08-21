@@ -46,6 +46,18 @@ private:
   void update_next_fetch_time(long long candidate);
   void schedule_retry(long long now_ms, std::chrono::milliseconds delay,
                       const std::string &msg = "");
+  void load_pairs(std::vector<std::string> &pair_names);
+  void load_existing_candles();
+  void start_initial_fetch_and_streams();
+  void schedule_http_updates(std::chrono::milliseconds period,
+                             long long now_ms);
+  void handle_http_updates();
+  void update_candle_progress();
+  void render_dockspace();
+  void render_status_window();
+  void render_main_windows();
+  void render_backtest_panel();
+  void handle_active_pair_change();
   void start_fetch_thread();
   void stop_fetch_thread();
 

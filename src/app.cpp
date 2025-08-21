@@ -113,6 +113,12 @@ void App::load_config() {
                                  exchange_interval_res.intervals.begin(),
                                  exchange_interval_res.intervals.end());
   }
+  load_pairs(pair_names);
+  load_existing_candles();
+  start_initial_fetch_and_streams();
+}
+
+void App::load_pairs(std::vector<std::string> &pair_names) {
   if (pair_names.empty()) {
     auto stored = data_service_.list_stored_data();
     std::set<std::string> pairs_found;
@@ -139,9 +145,8 @@ void App::load_config() {
   this->ctx_->intervals.erase(
       std::unique(this->ctx_->intervals.begin(), this->ctx_->intervals.end()),
       this->ctx_->intervals.end());
-  for (const auto &name : pair_names) {
+  for (const auto &name : pair_names)
     this->ctx_->pairs.push_back({name, true});
-  }
   this->ctx_->save_pairs = [&]() {
     std::vector<std::string> names;
     for (const auto &p : this->ctx_->pairs)
@@ -163,7 +168,9 @@ void App::load_config() {
       this->ctx_->intervals.empty() ? "1m" : this->ctx_->intervals[0];
   ui_manager_.set_initial_interval(this->ctx_->selected_interval);
   journal_service_.load("journal.json");
+}
 
+void App::load_existing_candles() {
   for (const auto &pair : this->ctx_->selected_pairs) {
     for (const auto &interval : this->ctx_->intervals) {
       this->ctx_->all_candles[pair][interval] =
@@ -215,6 +222,9 @@ void App::load_config() {
       }
     }
   }
+}
+
+void App::start_initial_fetch_and_streams() {
   auto &initial =
       this->ctx_
           ->all_candles[this->ctx_->active_pair][this->ctx_->active_interval];
@@ -424,87 +434,94 @@ void App::process_events() {
                     .count();
   bool use_http =
       (!this->ctx_->streaming_enabled || this->ctx_->stream_failed.load());
-  if (use_http && period.count() > 0) {
-    if (this->ctx_->next_fetch_time.load() == 0) {
-      std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
-      auto pair_it = this->ctx_->all_candles.find(this->ctx_->active_pair);
-      if (pair_it != this->ctx_->all_candles.end()) {
-        auto interval_it = pair_it->second.find(this->ctx_->active_interval);
-        if (interval_it != pair_it->second.end() &&
-            !interval_it->second.empty())
-          update_next_fetch_time(interval_it->second.back().open_time +
-                                 period.count());
-      }
-      if (this->ctx_->next_fetch_time.load() == 0)
-        update_next_fetch_time(now_ms + period.count());
+  if (use_http && period.count() > 0)
+    schedule_http_updates(period, now_ms);
+  if (use_http)
+    handle_http_updates();
+  update_candle_progress();
+}
+
+void App::schedule_http_updates(std::chrono::milliseconds period,
+                                long long now_ms) {
+  if (this->ctx_->next_fetch_time.load() == 0) {
+    std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
+    auto pair_it = this->ctx_->all_candles.find(this->ctx_->active_pair);
+    if (pair_it != this->ctx_->all_candles.end()) {
+      auto interval_it = pair_it->second.find(this->ctx_->active_interval);
+      if (interval_it != pair_it->second.end() &&
+          !interval_it->second.empty())
+        update_next_fetch_time(interval_it->second.back().open_time +
+                               period.count());
     }
-    if (now_ms >= this->ctx_->next_fetch_time.load()) {
-      for (const auto &item : this->ctx_->pairs) {
-        const auto &pair = item.name;
-        bool skip = false;
-        {
-          std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
-          skip = this->ctx_->failed_fetches.count(
-                     {pair, this->ctx_->active_interval}) > 0;
-        }
-        if (skip)
-          continue;
-        if (this->ctx_->pending_fetches.find(pair) ==
-            this->ctx_->pending_fetches.end()) {
-          this->ctx_->pending_fetches[pair] = {
-              this->ctx_->active_interval,
-              data_service_.fetch_klines_async(
-                  pair, this->ctx_->active_interval, 1, this->ctx_->max_retries,
-                  this->ctx_->retry_delay)};
-          add_status("Updating " + pair);
-        }
-      }
+    if (this->ctx_->next_fetch_time.load() == 0)
       update_next_fetch_time(now_ms + period.count());
-    }
   }
-  if (use_http) {
-    for (auto it = this->ctx_->pending_fetches.begin();
-         it != this->ctx_->pending_fetches.end();) {
-      if (it->second.future.wait_for(std::chrono::seconds(0)) ==
-          std::future_status::ready) {
-        auto latest = it->second.future.get();
-        auto result_now =
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch())
-                .count();
-        if (latest.error == FetchError::None && !latest.candles.empty()) {
-          std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
-          auto &vec = this->ctx_->all_candles[it->first][it->second.interval];
-          if (vec.empty() ||
-              latest.candles.back().open_time > vec.back().open_time) {
-            vec.push_back(latest.candles.back());
-            data_service_.append_candles(it->first, it->second.interval,
-                                         {latest.candles.back()});
-            auto p = parse_interval(it->second.interval);
-            long long boundary = vec.back().open_time + p.count();
-            update_next_fetch_time(boundary);
-          } else {
-            schedule_retry(result_now, this->ctx_->retry_delay);
-          }
-          add_status("Updated " + it->first);
-        } else {
-          schedule_retry(result_now, this->ctx_->retry_delay,
-                         "Update failed for " + it->first);
-        }
-        it = this->ctx_->pending_fetches.erase(it);
-      } else {
-        ++it;
+  if (now_ms >= this->ctx_->next_fetch_time.load()) {
+    for (const auto &item : this->ctx_->pairs) {
+      const auto &pair = item.name;
+      bool skip = false;
+      {
+        std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
+        skip = this->ctx_->failed_fetches.count(
+                   {pair, this->ctx_->active_interval}) > 0;
+      }
+      if (skip)
+        continue;
+      if (this->ctx_->pending_fetches.find(pair) ==
+          this->ctx_->pending_fetches.end()) {
+        this->ctx_->pending_fetches[pair] = {
+            this->ctx_->active_interval,
+            data_service_.fetch_klines_async(
+                pair, this->ctx_->active_interval, 1, this->ctx_->max_retries,
+                this->ctx_->retry_delay)};
+        add_status("Updating " + pair);
       }
     }
+    update_next_fetch_time(now_ms + period.count());
   }
-  {
-    std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
-    status_.candle_progress =
-        this->ctx_->total_fetches > 0
-            ? static_cast<float>(this->ctx_->completed_fetches) /
-                  static_cast<float>(this->ctx_->total_fetches)
-            : 1.0f;
+}
+
+void App::handle_http_updates() {
+  for (auto it = this->ctx_->pending_fetches.begin();
+       it != this->ctx_->pending_fetches.end();) {
+    if (it->second.future.wait_for(std::chrono::seconds(0)) ==
+        std::future_status::ready) {
+      auto latest = it->second.future.get();
+      auto result_now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           std::chrono::system_clock::now().time_since_epoch())
+                           .count();
+      if (latest.error == FetchError::None && !latest.candles.empty()) {
+        std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
+        auto &vec = this->ctx_->all_candles[it->first][it->second.interval];
+        if (vec.empty() ||
+            latest.candles.back().open_time > vec.back().open_time) {
+          vec.push_back(latest.candles.back());
+          data_service_.append_candles(it->first, it->second.interval,
+                                       {latest.candles.back()});
+          auto p = parse_interval(it->second.interval);
+          long long boundary = vec.back().open_time + p.count();
+          update_next_fetch_time(boundary);
+        } else {
+          schedule_retry(result_now, this->ctx_->retry_delay);
+        }
+        add_status("Updated " + it->first);
+      } else {
+        schedule_retry(result_now, this->ctx_->retry_delay,
+                       "Update failed for " + it->first);
+      }
+      it = this->ctx_->pending_fetches.erase(it);
+    } else {
+      ++it;
+    }
   }
+}
+
+void App::update_candle_progress() {
+  std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
+  status_.candle_progress = this->ctx_->total_fetches > 0
+                               ? static_cast<float>(this->ctx_->completed_fetches) /
+                                     static_cast<float>(this->ctx_->total_fetches)
+                               : 1.0f;
 }
 
 void App::schedule_retry(long long now_ms, std::chrono::milliseconds delay,
@@ -526,7 +543,15 @@ void App::update_next_fetch_time(long long candidate) {
 
 void App::render_ui() {
   ui_manager_.begin_frame();
+  render_dockspace();
+  render_status_window();
+  render_main_windows();
+  render_backtest_panel();
+  handle_active_pair_change();
+  ui_manager_.end_frame(window_);
+}
 
+void App::render_dockspace() {
   ImGuiViewport *viewport = ImGui::GetMainViewport();
   ImGuiID dockspace_id = ImGui::DockSpaceOverViewport(viewport->ID, viewport);
   if (ImGui::DockBuilderGetNode(dockspace_id) == nullptr) {
@@ -546,22 +571,24 @@ void App::render_ui() {
     ImGui::DockBuilderDockWindow("Analytics", dock_bottom);
     ImGui::DockBuilderFinish(dockspace_id);
   }
+}
 
-  {
-    std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
-    if (this->ctx_->completed_fetches < this->ctx_->total_fetches) {
-      ImGui::Begin("Status", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
-      float progress = this->ctx_->total_fetches
-                           ? static_cast<float>(this->ctx_->completed_fetches) /
-                                 static_cast<float>(this->ctx_->total_fetches)
-                           : 1.0f;
-      ImGui::ProgressBar(progress, ImVec2(0.0f, 0.0f));
-      ImGui::Text("%zu / %zu", this->ctx_->completed_fetches,
-                  this->ctx_->total_fetches);
-      ImGui::End();
-    }
+void App::render_status_window() {
+  std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
+  if (this->ctx_->completed_fetches < this->ctx_->total_fetches) {
+    ImGui::Begin("Status", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+    float progress = this->ctx_->total_fetches
+                         ? static_cast<float>(this->ctx_->completed_fetches) /
+                               static_cast<float>(this->ctx_->total_fetches)
+                         : 1.0f;
+    ImGui::ProgressBar(progress, ImVec2(0.0f, 0.0f));
+    ImGui::Text("%zu / %zu", this->ctx_->completed_fetches,
+                this->ctx_->total_fetches);
+    ImGui::End();
   }
+}
 
+void App::render_main_windows() {
   {
     std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
     DrawControlPanel(this->ctx_->pairs, this->ctx_->selected_pairs,
@@ -580,9 +607,10 @@ void App::render_ui() {
                         this->ctx_->selected_interval);
     DrawJournalWindow(journal_service_);
   }
-
   ui_manager_.draw_echarts_panel(this->ctx_->selected_interval);
+}
 
+void App::render_backtest_panel() {
   ImGui::Begin("Backtest");
   ImGui::Text("Strategy: %s", this->ctx_->strategy.c_str());
   if (this->ctx_->strategy == "sma_crossover") {
@@ -646,7 +674,9 @@ void App::render_ui() {
     ImGui::Text("Average Loss: %.2f", this->ctx_->last_result.avg_loss);
   }
   ImGui::End();
+}
 
+void App::handle_active_pair_change() {
   if (this->ctx_->active_pair != this->ctx_->last_active_pair ||
       this->ctx_->active_interval != this->ctx_->last_active_interval) {
     this->ctx_->last_active_pair = this->ctx_->active_pair;
@@ -689,8 +719,6 @@ void App::render_ui() {
                  this->ctx_->active_interval);
     }
   }
-
-  ui_manager_.end_frame(window_);
 }
 
 void App::cleanup() {
