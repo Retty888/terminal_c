@@ -59,6 +59,11 @@ Standalone C++ trading terminal using ImGui with an embedded chart powered by [A
            └── echarts.min.js
    ```
 
+Пути к этим файлам можно переопределить в `config.json` с помощью параметров
+`chart_html_path` и `echarts_js_path`. Значения задаются относительно
+исполняемого файла и по умолчанию равны `resources/chart.html` и
+`third_party/echarts/echarts.min.js` соответственно.
+
 ## График
 
 График свечей отображается через ECharts. Доступны стандартные возможности масштабирования и прокрутки; пользовательские инструменты рисования пока не поддерживаются.
@@ -68,6 +73,9 @@ Standalone C++ trading terminal using ImGui with an embedded chart powered by [A
 ## Streaming
 
 Файл `config.json` содержит флаг `enable_streaming`. При значении `true` приложение подключается к `wss://stream.binance.com:9443/ws/{symbol}@kline_{interval}` и обновляет свечи в реальном времени. Если флаг выключен или потоковый канал отключается, используется обычный HTTP-поллинг.
+
+Этот же файл позволяет настроить расположение ресурсов графика через параметры
+`chart_html_path` и `echarts_js_path`.
 
 ## Лицензии
 

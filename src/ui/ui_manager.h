@@ -37,6 +37,8 @@ private:
   std::unique_ptr<EChartsWindow> echarts_window_;
   std::thread echarts_thread_;
   std::string current_interval_;
+  std::string chart_html_path_;
+  std::string echarts_js_path_;
   std::function<void(const std::string &)> on_interval_changed_;
   std::function<void(const std::string &)> status_callback_;
   std::string echarts_error_;

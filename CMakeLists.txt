@@ -155,6 +155,7 @@ add_executable(test_signal
   src/config_schema.cpp
   src/core/logger.cpp
   src/config_path.cpp
+  src/core/path_utils.cpp
 )
 target_include_directories(test_signal PRIVATE src include)
 target_link_libraries(test_signal PRIVATE GTest::gtest_main)
