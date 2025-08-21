@@ -17,6 +17,7 @@ class EChartsWindow {
       std::function<nlohmann::json(const nlohmann::json &request)>;
 
   explicit EChartsWindow(const std::string &html_path,
+                         const std::string &js_path,
                          void *parent_window,
                          bool debug = false);
 
@@ -45,6 +46,7 @@ class EChartsWindow {
 
  private:
   std::string html_path_;
+  std::string js_path_;
   void *parent_window_;
   bool debug_;
   JsonHandler handler_;
@@ -56,7 +58,7 @@ class EChartsWindow {
 };
 
 #ifndef USE_WEBVIEW
-inline EChartsWindow::EChartsWindow(const std::string&, void*, bool) {}
+inline EChartsWindow::EChartsWindow(const std::string&, const std::string&, void*, bool) {}
 inline void EChartsWindow::SetHandler(JsonHandler) {}
 inline void EChartsWindow::SetInitData(nlohmann::json) {}
 inline void EChartsWindow::Show() {}
