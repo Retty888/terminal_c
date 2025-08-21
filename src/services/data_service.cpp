@@ -6,22 +6,11 @@
 #include "core/candle_utils.h"
 #include "config_manager.h"
 #include "config_path.h"
+#include "core/exchange_utils.h"
 
 #include <algorithm>
 #include <nlohmann/json.hpp>
 #include <thread>
-
-namespace {
-
-std::string to_gate_symbol(const std::string &symbol) {
-  if (symbol.size() < 6)
-    return symbol;
-  std::string base = symbol.substr(0, symbol.size() - 4);
-  std::string quote = symbol.substr(symbol.size() - 4);
-  return base + "_" + quote;
-}
-
-} // namespace
 
 DataService::DataService()
     : http_client_(std::make_shared<Core::CprHttpClient>()),
