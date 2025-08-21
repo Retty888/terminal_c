@@ -62,6 +62,27 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
+echo Preparing chart resources...
+if not exist "%BUILD_DIR%\Debug" (
+    mkdir "%BUILD_DIR%\Debug"
+)
+call "%SCRIPT_DIR%prepare_chart_resources.bat" "%BUILD_DIR%\Debug"
+if %errorlevel% neq 0 (
+    echo Failed to prepare chart resources for Debug!
+    pause
+    exit /b %errorlevel%
+)
+
+if not exist "%BUILD_DIR%\Release" (
+    mkdir "%BUILD_DIR%\Release"
+)
+call "%SCRIPT_DIR%prepare_chart_resources.bat" "%BUILD_DIR%\Release"
+if %errorlevel% neq 0 (
+    echo Failed to prepare chart resources for Release!
+    pause
+    exit /b %errorlevel%
+)
+
 echo Launching the application...
 if exist "Debug\TradingTerminal.exe" (
     start "" "Debug\TradingTerminal.exe"
