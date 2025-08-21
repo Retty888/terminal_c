@@ -62,6 +62,10 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
+REM Ensure Python is available and install required packages
+where python >nul 2>nul
+if %errorlevel% neq 0 (
+    echo Python not found. Please install Python and ensure it is in your PATH.
 echo Preparing chart resources...
 if not exist "%BUILD_DIR%\Debug" (
     mkdir "%BUILD_DIR%\Debug"
@@ -73,6 +77,15 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
+python -m pip install --upgrade pip
+if %errorlevel% neq 0 (
+    echo Failed to upgrade pip.
+    pause
+    exit /b %errorlevel%
+)
+python -m pip install requests pandas mplfinance
+if %errorlevel% neq 0 (
+    echo Failed to install Python packages.
 if not exist "%BUILD_DIR%\Release" (
     mkdir "%BUILD_DIR%\Release"
 )
