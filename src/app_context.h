@@ -13,7 +13,7 @@
 #include <set>
 #include <vector>
 
-#include "config_manager.h"
+#include "config_types.h"
 #include "core/backtester.h"
 #include "core/candle.h"
 #include "core/data_fetcher.h"
