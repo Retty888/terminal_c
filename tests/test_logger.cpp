@@ -27,3 +27,30 @@ TEST(LoggerAsync, NonBlockingLogging) {
     Core::Logger::instance().set_file("");
     std::filesystem::remove(tmp);
 }
+
+TEST(LoggerFilesystem, OpenFailure) {
+    Core::Logger::instance().set_file("");
+    Core::Logger::instance().enable_console_output(false);
+    auto path = std::filesystem::path("/proc/forbidden.log");
+    testing::internal::CaptureStderr();
+    Core::Logger::instance().set_file(path.string());
+    auto err = testing::internal::GetCapturedStderr();
+    EXPECT_FALSE(err.empty());
+    Core::Logger::instance().info("test");
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    EXPECT_FALSE(std::filesystem::exists(path));
+    Core::Logger::instance().set_file("");
+}
+
+TEST(LoggerFilesystem, RotateFailure) {
+    Core::Logger::instance().set_file("");
+    Core::Logger::instance().enable_console_output(false);
+    auto path = std::filesystem::path("/proc/version");
+    ASSERT_TRUE(std::filesystem::exists(path));
+    testing::internal::CaptureStderr();
+    Core::Logger::instance().set_file(path.string(), 0);
+    auto err = testing::internal::GetCapturedStderr();
+    EXPECT_FALSE(err.empty());
+    EXPECT_TRUE(std::filesystem::exists(path));
+    Core::Logger::instance().set_file("");
+}
