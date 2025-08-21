@@ -24,6 +24,7 @@ Standalone C++ trading terminal using ImGui with an embedded chart powered by [A
 4. Запусти `TradingTerminal.exe`
 
 📌 Требуется установленный `vcpkg` и предварительная загрузка зависимостей
+📌 Для работы встроенного графика установите [Microsoft Edge WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/)
 
 ## Сборка
 
