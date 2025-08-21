@@ -124,11 +124,19 @@ bool UiManager::setup(GLFWwindow *window) {
           echarts_window_->Show();
         } catch (const std::exception &e) {
           std::string err = e.what();
+          const std::string type_name = typeid(e).name();
           if (err.empty()) {
-            err = typeid(e).name();
+            err = type_name;
           }
-          const std::string msg =
-              std::string("Failed to run ECharts window: ") + err;
+
+          std::string msg;
+          if (type_name.find("webview::exception") != std::string::npos) {
+            msg =
+                "WebView2 runtime not found. Install Microsoft Edge WebView2.";
+          } else {
+            msg = std::string("Failed to run ECharts window: ") + err;
+          }
+
           Core::Logger::instance().error(msg);
           {
             std::lock_guard<std::mutex> lock(echarts_mutex_);
