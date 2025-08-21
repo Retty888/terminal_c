@@ -7,9 +7,8 @@
 #include <vector>
 #include <chrono>
 
-using namespace Core;
 
-class MockWebSocket : public IWebSocket {
+class MockWebSocket : public Core::IWebSocket {
 public:
   explicit MockWebSocket(int &starts) : starts_(starts) {}
   void setUrl(const std::string &) override {}
@@ -36,7 +35,7 @@ private:
 
 TEST(KlineStreamTest, ReconnectsWithBackoff) {
   std::filesystem::path tmp = std::filesystem::temp_directory_path() / "kline_stream_test";
-  CandleManager mgr(tmp);
+  Core::CandleManager mgr(tmp);
   int starts = 0;
   auto factory = [&]() { return std::make_unique<MockWebSocket>(starts); };
   std::vector<int> delays;
@@ -46,7 +45,7 @@ TEST(KlineStreamTest, ReconnectsWithBackoff) {
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   };
 
-  KlineStream ks("btcusdt", "1m", mgr, factory, sleep_fn, std::chrono::milliseconds(1));
+  Core::KlineStream ks("btcusdt", "1m", mgr, factory, sleep_fn, std::chrono::milliseconds(1));
   std::atomic<int> errors{0};
   ks.start(nullptr, [&]() { errors++; });
   std::this_thread::sleep_for(std::chrono::milliseconds(20));
@@ -60,7 +59,7 @@ TEST(KlineStreamTest, ReconnectsWithBackoff) {
   }
 }
 
-class BlockingWebSocket : public IWebSocket {
+class BlockingWebSocket : public Core::IWebSocket {
 public:
   void setUrl(const std::string &) override {}
   void setOnMessage(MessageCallback) override {}
@@ -77,7 +76,7 @@ private:
 
 TEST(KlineStreamTest, StopsPromptly) {
   std::filesystem::path tmp = std::filesystem::temp_directory_path() / "kline_stream_test2";
-  CandleManager mgr(tmp);
+  Core::CandleManager mgr(tmp);
   auto factory = []() { return std::make_unique<BlockingWebSocket>(); };
   std::atomic<int> sleeps{0};
   auto sleep_fn = [&](std::chrono::milliseconds d) {
@@ -85,7 +84,7 @@ TEST(KlineStreamTest, StopsPromptly) {
     std::this_thread::sleep_for(d);
   };
 
-  KlineStream ks("btcusdt", "1m", mgr, factory, sleep_fn, std::chrono::milliseconds(1));
+  Core::KlineStream ks("btcusdt", "1m", mgr, factory, sleep_fn, std::chrono::milliseconds(1));
   ks.start(nullptr, nullptr);
   std::this_thread::sleep_for(std::chrono::milliseconds(5));
   auto t0 = std::chrono::steady_clock::now();
