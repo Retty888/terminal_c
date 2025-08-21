@@ -11,12 +11,15 @@
 #define GLFW_EXPOSE_NATIVE_X11
 #include <GLFW/glfw3native.h>
 #endif
+#include <cassert>
 #include <exception>
 #include <filesystem>
 #include <nlohmann/json.hpp>
 #include <thread>
 #include <utility>
 
+#include "config_manager.h"
+#include "config_path.h"
 #include "core/candle_manager.h"
 #include "core/logger.h"
 #include "core/path_utils.h"
@@ -24,10 +27,13 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "ui/echarts_window.h"
-#include "config_manager.h"
-#include "config_path.h"
 
-UiManager::~UiManager() = default;
+UiManager::~UiManager() {
+  if (echarts_thread_.joinable()) {
+    shutdown();
+  }
+  assert(!echarts_thread_.joinable());
+}
 
 bool UiManager::setup(GLFWwindow *window) {
   IMGUI_CHECKVERSION();
@@ -47,97 +53,95 @@ bool UiManager::setup(GLFWwindow *window) {
   }
 #ifdef USE_WEBVIEW
   if (chart_enabled_) {
-  const auto html_path = Core::path_from_executable("resources/chart.html");
-  const auto js_path =
-      Core::path_from_executable("third_party/echarts/echarts.min.js");
+    const auto html_path = Core::path_from_executable("resources/chart.html");
+    const auto js_path =
+        Core::path_from_executable("third_party/echarts/echarts.min.js");
 
-  Core::Logger::instance().info("Checking chart resources at " +
-                                html_path.string() + " and " +
-                                js_path.string());
+    Core::Logger::instance().info("Checking chart resources at " +
+                                  html_path.string() + " and " +
+                                  js_path.string());
 
-  resources_available_ =
-      std::filesystem::exists(html_path) && std::filesystem::exists(js_path);
-  if (!resources_available_) {
-    Core::Logger::instance().error("Chart resources missing. Checked '" +
-                                   html_path.string() + "' and '" +
-                                   js_path.string() + "'");
-    Core::Logger::instance().warn(
-        "Expected directory layout relative to the executable:\n"
-        "  resources/chart.html\n  third_party/echarts/echarts.min.js");
-  } else {
-    void *native_handle = nullptr;
+    resources_available_ =
+        std::filesystem::exists(html_path) && std::filesystem::exists(js_path);
+    if (!resources_available_) {
+      Core::Logger::instance().error("Chart resources missing. Checked '" +
+                                     html_path.string() + "' and '" +
+                                     js_path.string() + "'");
+      Core::Logger::instance().warn(
+          "Expected directory layout relative to the executable:\n"
+          "  resources/chart.html\n  third_party/echarts/echarts.min.js");
+    } else {
+      void *native_handle = nullptr;
 #if defined(_WIN32)
-    native_handle = glfwGetWin32Window(window);
+      native_handle = glfwGetWin32Window(window);
 #elif defined(__APPLE__)
-    native_handle = glfwGetCocoaWindow(window);
+      native_handle = glfwGetCocoaWindow(window);
 #elif defined(__linux__)
-    native_handle =
-        reinterpret_cast<void *>(glfwGetX11Window(window));
+      native_handle = reinterpret_cast<void *>(glfwGetX11Window(window));
 #endif
-    echarts_window_ =
-        std::make_unique<EChartsWindow>(html_path.string(), native_handle);
+      echarts_window_ =
+          std::make_unique<EChartsWindow>(html_path.string(), native_handle);
 
-    try {
-      Core::CandleManager cm;
-      auto data = cm.load_candles_json("BTCUSDT", "1m");
-      echarts_window_->SetInitData(data);
-    } catch (const std::exception &e) {
-      Core::Logger::instance().error(e.what());
-    }
-
-    echarts_window_->SetErrorCallback([this](const std::string &msg) {
-      {
-        std::lock_guard<std::mutex> lock(echarts_mutex_);
-        echarts_error_ = msg;
-      }
-      if (status_callback_) {
-        status_callback_(msg);
-      }
-    });
-
-    echarts_window_->SetHandler([this](const nlohmann::json &req) {
-      if (req.contains("interval")) {
-        if (on_interval_changed_) {
-          on_interval_changed_(req.at("interval").get<std::string>());
-        }
-      }
-      if (req.contains("request") && req.at("request") == "init") {
-        if (!current_interval_.empty()) {
-          echarts_window_->SendToJs(
-              nlohmann::json{{"interval", current_interval_}});
-        }
-      }
-      return nlohmann::json{};
-    });
-    echarts_thread_ = std::thread([this]() {
       try {
-        echarts_window_->Show();
+        Core::CandleManager cm;
+        auto data = cm.load_candles_json("BTCUSDT", "1m");
+        echarts_window_->SetInitData(data);
       } catch (const std::exception &e) {
-        const std::string msg =
-            std::string("Failed to run ECharts window: ") + e.what();
-        Core::Logger::instance().error(msg);
-        {
-          std::lock_guard<std::mutex> lock(echarts_mutex_);
-          echarts_error_ = msg;
-        }
-        if (status_callback_) {
-          status_callback_(msg);
-        }
-      } catch (...) {
-        const std::string msg = "Failed to run ECharts window: unknown error";
-        Core::Logger::instance().error(msg);
-        {
-          std::lock_guard<std::mutex> lock(echarts_mutex_);
-          echarts_error_ = msg;
-        }
-        if (status_callback_) {
-          status_callback_(msg);
-        }
+        Core::Logger::instance().error(e.what());
       }
-    });
-  }
-  }
-  else {
+
+      echarts_window_->SetErrorCallback([this](const std::string &msg) {
+        {
+          std::lock_guard<std::mutex> lock(echarts_mutex_);
+          echarts_error_ = msg;
+        }
+        if (status_callback_) {
+          status_callback_(msg);
+        }
+      });
+
+      echarts_window_->SetHandler([this](const nlohmann::json &req) {
+        if (req.contains("interval")) {
+          if (on_interval_changed_) {
+            on_interval_changed_(req.at("interval").get<std::string>());
+          }
+        }
+        if (req.contains("request") && req.at("request") == "init") {
+          if (!current_interval_.empty()) {
+            echarts_window_->SendToJs(
+                nlohmann::json{{"interval", current_interval_}});
+          }
+        }
+        return nlohmann::json{};
+      });
+      echarts_thread_ = std::thread([this]() {
+        try {
+          echarts_window_->Show();
+        } catch (const std::exception &e) {
+          const std::string msg =
+              std::string("Failed to run ECharts window: ") + e.what();
+          Core::Logger::instance().error(msg);
+          {
+            std::lock_guard<std::mutex> lock(echarts_mutex_);
+            echarts_error_ = msg;
+          }
+          if (status_callback_) {
+            status_callback_(msg);
+          }
+        } catch (...) {
+          const std::string msg = "Failed to run ECharts window: unknown error";
+          Core::Logger::instance().error(msg);
+          {
+            std::lock_guard<std::mutex> lock(echarts_mutex_);
+            echarts_error_ = msg;
+          }
+          if (status_callback_) {
+            status_callback_(msg);
+          }
+        }
+      });
+    }
+  } else {
     Core::Logger::instance().info("Chart disabled by configuration");
   }
 #else
@@ -232,6 +236,10 @@ void UiManager::end_frame(GLFWwindow *window) {
 }
 
 void UiManager::shutdown() {
+  if (shutdown_called_) {
+    return;
+  }
+  shutdown_called_ = true;
   if (echarts_thread_.joinable()) {
     if (echarts_window_) {
       try {
