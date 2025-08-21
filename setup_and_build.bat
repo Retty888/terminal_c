@@ -2,15 +2,29 @@
 set SCRIPT_DIR=%~dp0
 set VCPKG_PATH=%SCRIPT_DIR%vcpkg
 
-REM Check for Microsoft Edge WebView2 Runtime
-reg query "HKLM\Software\Microsoft\EdgeUpdate\Clients" /s | findstr /I "WebView2" >nul 2>&1
-if %errorlevel% neq 0 (
+REM Check for Microsoft Edge WebView2 Runtime across possible registry locations
+set EDGE_FOUND=0
+reg query "HKLM\Software\Microsoft\EdgeUpdate\Clients" /s | findstr /I "WebView2" >nul 2>&1 && set EDGE_FOUND=1
+if %EDGE_FOUND%==0 reg query "HKLM\Software\WOW6432Node\Microsoft\EdgeUpdate\Clients" /s | findstr /I "WebView2" >nul 2>&1 && set EDGE_FOUND=1
+if %EDGE_FOUND%==0 reg query "HKCU\Software\Microsoft\EdgeUpdate\Clients" /s | findstr /I "WebView2" >nul 2>&1 && set EDGE_FOUND=1
+
+if %EDGE_FOUND%==0 (
     echo Microsoft Edge WebView2 Runtime not found. Attempting installation...
     winget install -e --id Microsoft.EdgeWebView2Runtime
     if %errorlevel% neq 0 (
         echo WebView2 installation failed!
         pause
         exit /b %errorlevel%
+    )
+    REM Recheck all registry locations after installation
+    set EDGE_FOUND=0
+    reg query "HKLM\Software\Microsoft\EdgeUpdate\Clients" /s | findstr /I "WebView2" >nul 2>&1 && set EDGE_FOUND=1
+    if %EDGE_FOUND%==0 reg query "HKLM\Software\WOW6432Node\Microsoft\EdgeUpdate\Clients" /s | findstr /I "WebView2" >nul 2>&1 && set EDGE_FOUND=1
+    if %EDGE_FOUND%==0 reg query "HKCU\Software\Microsoft\EdgeUpdate\Clients" /s | findstr /I "WebView2" >nul 2>&1 && set EDGE_FOUND=1
+    if %EDGE_FOUND%==0 (
+        echo WebView2 installation failed!
+        pause
+        exit /b 1
     )
 )
 
