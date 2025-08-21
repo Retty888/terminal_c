@@ -12,9 +12,9 @@ if %EDGE_FOUND%==0 (
     echo Microsoft Edge WebView2 Runtime not found. Attempting installation...
     winget install -e --id Microsoft.EdgeWebView2Runtime
     if %errorlevel% neq 0 (
-        echo WebView2 installation failed!
-        pause
-        exit /b %errorlevel%
+        echo Failed to install Microsoft Edge WebView2 Runtime via winget.
+        echo Please ensure winget is available and try again.
+        exit /b 1
     )
     REM Recheck all registry locations after installation
     set EDGE_FOUND=0
