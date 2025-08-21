@@ -42,6 +42,7 @@ KlinesResult DataFetcher::fetch_klines_from_api(
     std::chrono::milliseconds retry_delay) const {
   const std::string base_url = prefix + symbol + "&interval=" + interval;
   std::vector<Candle> all_candles;
+  all_candles.reserve(limit);
   auto interval_ms = parse_interval(interval).count();
 
   auto now = std::chrono::system_clock::now();
@@ -74,10 +75,15 @@ KlinesResult DataFetcher::fetch_klines_from_api(
       http_status = r.status_code;
       if (r.status_code == 200) {
         try {
-          std::vector<Candle> candles;
           auto json_data = nlohmann::json::parse(r.text);
-          for (const auto &kline : json_data) {
-            candles.emplace_back(
+          if (json_data.empty()) {
+            std::reverse(all_candles.begin(), all_candles.end());
+            fill_missing(all_candles, interval_ms);
+            return {FetchError::None, http_status, "", all_candles};
+          }
+          for (auto it = json_data.rbegin(); it != json_data.rend(); ++it) {
+            const auto &kline = *it;
+            all_candles.push_back(Candle(
                 kline[0].get<long long>(),
                 std::stod(kline[1].get<std::string>()),
                 std::stod(kline[2].get<std::string>()),
@@ -88,15 +94,9 @@ KlinesResult DataFetcher::fetch_klines_from_api(
                 std::stod(kline[7].get<std::string>()), kline[8].get<int>(),
                 std::stod(kline[9].get<std::string>()),
                 std::stod(kline[10].get<std::string>()),
-                std::stod(kline[11].get<std::string>()));
+                std::stod(kline[11].get<std::string>())));
           }
-          if (candles.empty()) {
-            fill_missing(all_candles, interval_ms);
-            return {FetchError::None, http_status, "", all_candles};
-          }
-          all_candles.insert(all_candles.begin(), candles.begin(),
-                             candles.end());
-          end_time = candles.front().open_time - 1;
+          end_time = json_data.front()[0].get<long long>() - 1;
           success = true;
           break;
         } catch (const std::exception &e) {
@@ -117,6 +117,7 @@ KlinesResult DataFetcher::fetch_klines_from_api(
       return {FetchError::HttpError, http_status, "Max retries exceeded", {}};
     }
   }
+  std::reverse(all_candles.begin(), all_candles.end());
   fill_missing(all_candles, interval_ms);
   return {FetchError::None, http_status, "", all_candles};
 }
