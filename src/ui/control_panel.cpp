@@ -53,7 +53,7 @@ struct TooltipStat {
 
 // Load candle history for a symbol across multiple intervals.
 bool LoadInitialCandles(
-    Core::DataService &data_service, const std::string &symbol,
+    DataService &data_service, const std::string &symbol,
     const std::vector<std::string> &intervals,
     std::map<std::string, std::map<std::string, std::vector<Core::Candle>>> &all_candles,
     std::string &load_error) {
@@ -123,7 +123,7 @@ bool RenderPairRow(
     std::vector<std::string> &selected_pairs, std::string &active_pair,
     const std::vector<std::string> &intervals, std::string &selected_interval,
     std::map<std::string, std::map<std::string, std::vector<Core::Candle>>> &all_candles,
-    const std::function<void()> &save_pairs, Core::DataService &data_service,
+    const std::function<void()> &save_pairs, DataService &data_service,
     AppStatus &status,
     const std::function<void(const std::string &)> &cancel_pair) {
   bool missing_data = false;
@@ -260,7 +260,7 @@ static void RenderLoadControls(
     const std::vector<std::string> &intervals,
     std::map<std::string, std::map<std::string, std::vector<Core::Candle>>> &all_candles,
     const std::function<void()> &save_pairs,
-    const std::vector<std::string> &exchange_pairs, Core::DataService &data_service) {
+    const std::vector<std::string> &exchange_pairs, DataService &data_service) {
   ImGui::Text("Select pairs to load:");
   static std::string load_error;
 
@@ -323,7 +323,7 @@ static void RenderPairSelector(
     std::string &active_pair, const std::vector<std::string> &intervals,
     std::string &selected_interval,
     std::map<std::string, std::map<std::string, std::vector<Core::Candle>>> &all_candles,
-    const std::function<void()> &save_pairs, Core::DataService &data_service,
+    const std::function<void()> &save_pairs, DataService &data_service,
     AppStatus &status,
     const std::function<void(const std::string &)> &cancel_pair) {
   if (ImGui::BeginTable("pairs_table", 3, ImGuiTableFlags_SizingStretchProp)) {
@@ -365,7 +365,7 @@ void DrawControlPanel(
     std::map<std::string, std::map<std::string, std::vector<Core::Candle>>> &all_candles,
     const std::function<void()> &save_pairs,
     const std::vector<std::string> &exchange_pairs, AppStatus &status,
-    Core::DataService &data_service,
+    DataService &data_service,
     const std::function<void(const std::string &)> &cancel_pair) {
   ImGui::Begin("Control Panel");
 
