@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <nlohmann/json.hpp>
 #include <thread>
+#include <typeinfo>
 #include <utility>
 
 #include "config_manager.h"
@@ -83,8 +84,8 @@ bool UiManager::setup(GLFWwindow *window) {
 #elif defined(__linux__)
       native_handle = reinterpret_cast<void *>(glfwGetX11Window(window));
 #endif
-      echarts_window_ =
-          std::make_unique<EChartsWindow>(html_path.string(), native_handle);
+      echarts_window_ = std::make_unique<EChartsWindow>(
+          html_path.string(), js_path.string(), native_handle);
 
       try {
         Core::CandleManager cm;
@@ -122,8 +123,12 @@ bool UiManager::setup(GLFWwindow *window) {
         try {
           echarts_window_->Show();
         } catch (const std::exception &e) {
+          std::string err = e.what();
+          if (err.empty()) {
+            err = typeid(e).name();
+          }
           const std::string msg =
-              std::string("Failed to run ECharts window: ") + e.what();
+              std::string("Failed to run ECharts window: ") + err;
           Core::Logger::instance().error(msg);
           {
             std::lock_guard<std::mutex> lock(echarts_mutex_);
