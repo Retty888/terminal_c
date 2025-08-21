@@ -143,6 +143,7 @@ add_executable(test_candle_manager
   src/candle.cpp
   src/core/logger.cpp
   src/config_path.cpp
+  src/core/path_utils.cpp
 )
 target_include_directories(test_candle_manager PRIVATE src include)
 target_link_libraries(test_candle_manager PRIVATE GTest::gtest_main)
@@ -203,6 +204,7 @@ add_executable(test_kline_stream
   src/candle.cpp
   src/core/logger.cpp
   src/config_path.cpp
+  src/core/path_utils.cpp
 )
 target_include_directories(test_kline_stream PRIVATE src include)
 target_link_libraries(test_kline_stream PRIVATE GTest::gtest_main)
