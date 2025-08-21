@@ -64,6 +64,16 @@ Standalone C++ trading terminal using ImGui with an embedded chart powered by [A
 исполняемого файла и по умолчанию равны `resources/chart.html` и
 `third_party/echarts/echarts.min.js` соответственно.
 
+## Подготовка графика
+
+Перед запуском приложения скопируйте необходимые файлы графика в каталог сборки:
+
+```
+prepare_chart_resources.bat <путь_к_сборке>
+```
+
+Скрипт перенесёт `resources/chart.html` и `third_party/echarts/echarts.min.js` в указанную папку.
+
 ## График
 
 График свечей отображается через ECharts. Доступны стандартные возможности масштабирования и прокрутки; пользовательские инструменты рисования пока не поддерживаются.
