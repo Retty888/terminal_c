@@ -32,6 +32,7 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 #include "ui/echarts_window.h"
+#include "ui/echarts_serializer.h"
 
 UiManager::~UiManager() {
   if (echarts_thread_.joinable()) {
@@ -115,8 +116,8 @@ bool UiManager::setup(GLFWwindow *window) {
 
       try {
         Core::CandleManager cm;
-        auto data = cm.load_candles_json("BTCUSDT", "1m");
-        echarts_window_->SetInitData(data);
+        auto candles = cm.load_candles("BTCUSDT", "1m");
+        echarts_window_->SetInitData(SerializeCandlesTV(candles));
       } catch (const std::exception &e) {
         Core::Logger::instance().error(e.what());
       }

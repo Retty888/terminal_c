@@ -10,3 +10,19 @@ nlohmann::json SerializeCandles(const std::vector<Core::Candle>& candles) {
     return nlohmann::json{{"x", x}, {"y", y}};
 }
 
+// Serialize candle data for TradingView Lightweight Charts. Returns an array
+// of objects with Unix-second timestamps and OHLC values.
+nlohmann::json SerializeCandlesTV(const std::vector<Core::Candle>& candles) {
+    nlohmann::json arr = nlohmann::json::array();
+    for (const auto& c : candles) {
+        arr.push_back({
+            {"time", c.open_time / 1000LL}, // convert milliseconds to seconds
+            {"open", c.open},
+            {"high", c.high},
+            {"low", c.low},
+            {"close", c.close}
+        });
+    }
+    return arr;
+}
+
