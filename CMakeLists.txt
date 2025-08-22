@@ -31,6 +31,7 @@ endif()
 if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
   find_package(glfw3 CONFIG REQUIRED)
   find_package(OpenGL REQUIRED)
+  find_package(webview CONFIG REQUIRED)
 
   add_executable(TradingTerminal
     main.cpp
@@ -75,6 +76,7 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
       cpr::cpr
     glfw
     OpenGL::GL
+    webview::webview
   )
 
   target_include_directories(TradingTerminal PRIVATE
