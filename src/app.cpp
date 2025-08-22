@@ -40,7 +40,6 @@ static void OnFramebufferResize(GLFWwindow * /*w*/, int width, int height) {
   glViewport(0, 0, width, height);
 }
 
-
 void App::WindowDeleter::operator()(GLFWwindow *window) const {
   if (window)
     glfwDestroyWindow(window);
@@ -83,8 +82,7 @@ bool App::init_window() {
     return false;
   }
   glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-  window_.reset(
-      glfwCreateWindow(1280, 720, "Trading Terminal", NULL, NULL));
+  window_.reset(glfwCreateWindow(1280, 720, "Trading Terminal", NULL, NULL));
   if (!window_) {
     Core::Logger::instance().error("Failed to create GLFW window");
     glfw_context_.reset();
@@ -175,9 +173,10 @@ void App::load_pairs(std::vector<std::string> &pair_names) {
       this->ctx_->intervals.empty() ? "1m" : this->ctx_->intervals[0];
 
   auto exchange_pairs_res = data_service_.fetch_all_symbols();
-  this->ctx_->exchange_pairs = exchange_pairs_res.error == Core::FetchError::None
-                                   ? exchange_pairs_res.symbols
-                                   : std::vector<std::string>{};
+  this->ctx_->exchange_pairs =
+      exchange_pairs_res.error == Core::FetchError::None
+          ? exchange_pairs_res.symbols
+          : std::vector<std::string>{};
 
   this->ctx_->selected_interval =
       this->ctx_->intervals.empty() ? "1m" : this->ctx_->intervals[0];
@@ -280,7 +279,8 @@ void App::start_initial_fetch_and_streams() {
             this->ctx_->stream_failed = true;
             this->ctx_->next_fetch_time.store(0);
             add_status("Stream failed for " + pair + ", switching to HTTP");
-          });
+          },
+          ui_manager_.candle_callback());
       this->ctx_->streams[pair] = std::move(stream);
     }
   } else {
@@ -327,7 +327,8 @@ void App::start_fetch_thread() {
         auto status = it->future.wait_for(std::chrono::seconds(0));
         if (status == std::future_status::ready) {
           auto fetched = it->future.get();
-          if (fetched.error == Core::FetchError::None && !fetched.candles.empty()) {
+          if (fetched.error == Core::FetchError::None &&
+              !fetched.candles.empty()) {
             {
               std::lock_guard<std::mutex> lock_candles(
                   this->ctx_->candles_mutex);

@@ -2,14 +2,15 @@
 
 #include <GLFW/glfw3.h>
 #include <cassert>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
-#include <sstream>
-#include <chrono>
+#include <mutex>
 #include <optional>
+#include <sstream>
 
-#include <webview.h>
 #include "core/candle.h"
+#include <webview.h>
 
 #include "config_manager.h"
 #include "config_path.h"
@@ -125,6 +126,15 @@ void UiManager::set_price_line(double price) {
     js << "window.chart && window.chart.setPriceLine(" << price << ");";
     chart_view_->eval(js.str());
   }
+}
+
+std::function<void(const std::string &)> UiManager::candle_callback() {
+  return [this](const std::string &json) {
+    std::lock_guard<std::mutex> lock(ui_mutex_);
+    if (chart_view_) {
+      chart_view_->eval(std::string("updateCandle(") + json + ");");
+    }
+  };
 }
 
 void UiManager::push_candle(const Core::Candle &candle) {
