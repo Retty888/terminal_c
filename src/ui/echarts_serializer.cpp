@@ -16,7 +16,7 @@ nlohmann::json SerializeCandlesTV(const std::vector<Core::Candle>& candles) {
     nlohmann::json arr = nlohmann::json::array();
     for (const auto& c : candles) {
         arr.push_back({
-            {"time", c.open_time / 1000},
+            {"time", c.open_time / 1000LL}, // convert ms to seconds
             {"open", c.open},
             {"high", c.high},
             {"low", c.low},
