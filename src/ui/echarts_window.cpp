@@ -52,7 +52,8 @@ void EChartsWindow::Show() {
   }
 
   view_->set_title("ECharts");
-  view_->set_size(800, 600, WEBVIEW_HINT_NONE);
+  // Avoid forcing a fixed initial size.  Let the webview inherit the
+  // current dimensions from its parent window so users can freely resize.
 
   view_->bind("bridge", [this](std::string req) -> std::string {
     nlohmann::json json;
