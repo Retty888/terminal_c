@@ -259,40 +259,48 @@ SymbolsResult DataFetcher::fetch_all_symbols(
             "https://api.binance.com/api/v3/ticker/24hr";
         rate_limiter_->acquire();
         HttpResponse t = http_client_->get(ticker_url);
-        if (!t.network_error && t.status_code == 200) {
-          try {
-            auto tickers = nlohmann::json::parse(t.text);
-            std::vector<std::pair<std::string, double>> vols;
-            vols.reserve(tickers.size());
-            for (const auto &tk : tickers) {
-              if (!tk.contains("symbol") || !tk.contains("quoteVolume"))
-                continue;
-              double vol = 0.0;
-              try {
-                vol = std::stod(tk["quoteVolume"].get<std::string>());
-              } catch (...) {
-                continue;
-              }
-              vols.emplace_back(tk["symbol"].get<std::string>(), vol);
-            }
-            std::sort(vols.begin(), vols.end(),
-                      [](const auto &a, const auto &b) {
-                        return a.second > b.second;
-                      });
-            std::vector<std::string> top_symbols;
-            for (size_t i = 0; i < std::min(top_n, vols.size()); ++i) {
-              top_symbols.push_back(vols[i].first);
-            }
-            return {FetchError::None, r.status_code, "", top_symbols};
-          } catch (const std::exception &e) {
-            Logger::instance().error(
-                std::string("Error processing ticker data: ") + e.what());
-          }
-        } else {
+        if (t.network_error) {
           Logger::instance().error("Ticker request failed: " +
                                    t.error_message);
+          return {FetchError::NetworkError, 0, t.error_message, symbols};
         }
-        return {FetchError::None, r.status_code, "", symbols};
+        if (t.status_code != 200) {
+          Logger::instance().error(
+              "Ticker request failed with status code: " +
+              std::to_string(t.status_code));
+          return {FetchError::HttpError, t.status_code, t.error_message,
+                  symbols};
+        }
+        try {
+          auto tickers = nlohmann::json::parse(t.text);
+          std::vector<std::pair<std::string, double>> vols;
+          vols.reserve(tickers.size());
+          for (const auto &tk : tickers) {
+            if (!tk.contains("symbol") || !tk.contains("quoteVolume"))
+              continue;
+            double vol = 0.0;
+            try {
+              vol = std::stod(tk["quoteVolume"].get<std::string>());
+            } catch (...) {
+              continue;
+            }
+            vols.emplace_back(tk["symbol"].get<std::string>(), vol);
+          }
+          std::sort(vols.begin(), vols.end(),
+                    [](const auto &a, const auto &b) {
+                      return a.second > b.second;
+                    });
+          std::vector<std::string> top_symbols;
+          for (size_t i = 0; i < std::min(top_n, vols.size()); ++i) {
+            top_symbols.push_back(vols[i].first);
+          }
+          return {FetchError::None, r.status_code, "", top_symbols};
+        } catch (const std::exception &e) {
+          Logger::instance().error(
+              std::string("Error processing ticker data: ") + e.what());
+        }
+        return {FetchError::ParseError, r.status_code,
+                "Ticker parse error", {}};
       } catch (const std::exception &e) {
         Logger::instance().error(
             std::string("Error processing symbol list: ") + e.what());
