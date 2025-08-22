@@ -113,6 +113,8 @@ void UiManager::draw_chart_panel(
   ImGui::Begin("Chart");
   if (!chart_enabled_) {
     ImGui::Text("Chart disabled (missing file or disabled by configuration)");
+  } else {
+    ImGui::Text("Chart opened in a separate window");
   }
   ImGui::End();
 }
