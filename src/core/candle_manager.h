@@ -31,6 +31,12 @@ public:
                                      std::size_t offset = 0,
                                      std::size_t limit = 0) const;
 
+    // Loads candles and converts them to an array of objects suitable for
+    // TradingView Lightweight Charts ({time, open, high, low, close}).
+    nlohmann::json load_candles_tradingview(const std::string& symbol,
+                                            const std::string& interval,
+                                            std::size_t offset = 0,
+                                            std::size_t limit = 0) const;
     // Loads candles and converts them to TradingView compatible JSON
     // array with fields time/open/high/low/close/volume.
     nlohmann::json load_candles_tradingview(const std::string& symbol,
