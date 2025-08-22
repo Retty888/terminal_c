@@ -8,7 +8,7 @@
 // matching ECharts candlestick expectations.
 nlohmann::json SerializeCandles(const std::vector<Core::Candle>& candles);
 
-// Serialize candle data for TradingView Lightweight Charts. Produces an array
-// of objects: { time: <unix-sec>, open, high, low, close }.
+// Serialize candles for TradingView Lightweight Charts. Each element is an
+// object with Unix-second "time" and OHLC fields.
 nlohmann::json SerializeCandlesTV(const std::vector<Core::Candle>& candles);
 
