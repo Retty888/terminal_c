@@ -64,7 +64,7 @@ if exist "%SCRIPT_DIR%vcpkg.json" (
     "%VCPKG_PATH%\vcpkg.exe" install --recurse --overlay-ports="%OVERLAY_PORTS%"
 ) else (
     echo Installing required packages...
-    "%VCPKG_PATH%\vcpkg.exe" install imgui[core,docking-experimental,glfw-binding,opengl3-binding] cpr nlohmann-json arrow glfw3 opengl --recurse --overlay-ports="%OVERLAY_PORTS%"
+    "%VCPKG_PATH%\vcpkg.exe" install imgui[core,docking-experimental,glfw-binding,opengl3-binding] cpr nlohmann-json arrow glfw3 opengl gtest --recurse --overlay-ports="%OVERLAY_PORTS%"
 )
 if %errorlevel% neq 0 (
     echo Dependency installation failed!
