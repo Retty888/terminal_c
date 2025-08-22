@@ -7,7 +7,6 @@
   "candles_limit": 5000,
   "enable_chart": true,
   "chart_html_path": "resources/chart.html",
-  "echarts_js_path": "third_party/echarts/echarts.min.js",
   "enable_streaming": true,
   "primary_provider": "binance",
   "fallback_provider": "gateio",

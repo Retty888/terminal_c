@@ -14,11 +14,5 @@ if errorlevel 8 (
     exit /b 1
 )
 
-robocopy "third_party\echarts" "%BUILD_DIR%\third_party\echarts" "echarts.min.js" /NFL /NDL /NJH /NJS /NC /NS /NP >nul
-if errorlevel 8 (
-    echo Failed to copy echarts.min.js
-    exit /b 1
-)
-
 echo Chart resources prepared.
 exit /b 0
