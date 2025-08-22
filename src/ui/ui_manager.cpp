@@ -78,8 +78,15 @@ bool UiManager::setup(GLFWwindow *window) {
       chart_view_ = std::make_unique<webview::webview>(false, nullptr);
       chart_view_->set_title("Chart");
       auto chart_path = Core::path_from_executable(cfg->chart_html_path);
-      chart_view_->navigate(std::string("file://") + chart_path.string());
-      chart_thread_ = std::jthread([this] { chart_view_->run(); });
+      if (std::filesystem::exists(chart_path)) {
+        chart_view_->navigate(std::string("file://") + chart_path.string());
+        chart_thread_ = std::jthread([this] { chart_view_->run(); });
+      } else {
+        Core::Logger::instance().warn("Chart HTML not found: " +
+                                      chart_path.string());
+        chart_view_.reset();
+        chart_enabled_ = false;
+      }
       auto end = std::chrono::steady_clock::now();
       auto mem_after = current_memory_kb();
       auto duration =
@@ -105,7 +112,7 @@ void UiManager::draw_chart_panel(
     [[maybe_unused]] const std::string &selected_interval) {
   ImGui::Begin("Chart");
   if (!chart_enabled_) {
-    ImGui::Text("Chart disabled by configuration");
+    ImGui::Text("Chart disabled (missing file or disabled by configuration)");
   }
   ImGui::End();
 }
