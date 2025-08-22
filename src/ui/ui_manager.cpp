@@ -9,9 +9,6 @@
 #include <optional>
 #include <sstream>
 
-#include "core/candle.h"
-#include <webview.h>
-
 #include "config_manager.h"
 #include "config_path.h"
 #include "core/logger.h"

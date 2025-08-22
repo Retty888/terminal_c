@@ -7,13 +7,10 @@
 #include <optional>
 #include <string>
 
+#include <webview/webview.h>
+#include "core/candle.h"
+
 struct GLFWwindow;
-namespace webview {
-class webview;
-}
-namespace Core {
-struct Candle;
-}
 
 // Manages ImGui initialization and per-frame rendering and hosts auxiliary
 // UI panels. Currently only a placeholder chart panel is provided.
