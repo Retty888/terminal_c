@@ -24,6 +24,7 @@ struct ConfigData {
   std::size_t candles_limit{5000};
   bool enable_chart{true};
   std::string chart_html_path{"resources/chart.html"};
+  std::string chart_js_path{"third_party/lightweight-charts/lightweight-charts.standalone.production.js"};
   bool enable_streaming{false};
   SignalConfig signal{};
   std::string primary_provider{"binance"};

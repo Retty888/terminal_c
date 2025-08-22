@@ -29,6 +29,7 @@ for %%c in (Debug Release) do (
     if exist "%%c" (
         echo Copying resources to %%c...
         robocopy "%PROJECT_DIR%resources" "%%c\resources" "chart.html" >nul
+        robocopy "%PROJECT_DIR%third_party\lightweight-charts" "%%c\third_party\lightweight-charts" "lightweight-charts.standalone.production.js" >nul
     )
 )
 

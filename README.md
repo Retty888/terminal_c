@@ -1,5 +1,6 @@
 # terminal-c
 
+Standalone C++ trading terminal using ImGui with an embedded chart powered by [TradingView Lightweight Charts](https://github.com/tradingview/lightweight-charts). The project relies on packages provided by `vcpkg` and `find_package` in CMake.
 Standalone C++ trading terminal using ImGui. The project relies on packages provided by `vcpkg` and `find_package` in CMake. A chart panel placeholder is included; TradingView integration will be added later.
 
 ## Состав
@@ -8,6 +9,10 @@ Standalone C++ trading terminal using ImGui. The project relies on packages prov
 - Поддержка нескольких торговых пар
 - Загрузка свечей с Binance API
 - Потоковое обновление свечей через WebSocket Binance
+- Интеграция графиков на TradingView Lightweight Charts
+- Импортированные библиотеки:
+  - ImGui
+  - Lightweight Charts (через встроенный webview)
 - Заглушка для панели графиков
 - Импортированные библиотеки:
   - ImGui
@@ -29,6 +34,7 @@ Standalone C++ trading terminal using ImGui. The project relies on packages prov
 1. Установите [vcpkg](https://github.com/microsoft/vcpkg) и настройте переменную `CMAKE_TOOLCHAIN_FILE` на `scripts/buildsystems/vcpkg.cmake`.
    Опциональные зависимости:
    - `imgui` — используется из пакета, если он установлен; иначе проект собирает встроенные исходники из `third_party/imgui`.
+   - `webview` — обеспечивает окно графиков. При отсутствии пакета сборка продолжится без него, и окно графиков будет отключено.
 2. Выполните конфигурацию проекта:
    ```
    cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=path/to/vcpkg/scripts/buildsystems/vcpkg.cmake
@@ -38,8 +44,66 @@ Standalone C++ trading terminal using ImGui. The project relies on packages prov
    cmake --build build
    ```
 4. Готовый исполняемый файл `TradingTerminal` (или `TradingTerminal.exe` на Windows) появится в каталоге `build`.
+5. Скопируйте директории `resources` и `third_party/lightweight-charts` рядом с исполняемым файлом, чтобы график мог загрузить `lightweight-charts.standalone.production.js`:
+   ```
+   cp -r resources third_party/lightweight-charts build/
+   ```
+   При сборке в Windows скрипт `build_and_run.bat` автоматически копирует `resources/chart.html` и
+   `third_party/lightweight-charts/lightweight-charts.standalone.production.js` в каталоги `Debug` и `Release`, поэтому ручное копирование не требуется.
+   После копирования (или автоматического переноса) убедитесь, что файлы находятся рядом с исполняемым
+   файлом, например:
+
+   ```
+   build/
+   ├── TradingTerminal
+   ├── resources/
+   │   └── chart.html
+   └── third_party/
+       └── lightweight-charts/
+           └── lightweight-charts.standalone.production.js
+   ```
+
+Пути к этим файлам можно переопределить в `config.json` с помощью параметров
+`chart_html_path` и `chart_js_path`. Значения задаются относительно
+исполняемого файла и по умолчанию равны `resources/chart.html` и
+`third_party/lightweight-charts/lightweight-charts.standalone.production.js` соответственно.
+
+## Подготовка графика
+
+Перед запуском приложения скопируйте необходимые файлы графика в каталог сборки:
+
+```
+prepare_chart_resources.bat <путь_к_сборке>
+```
+
+Скрипт перенесёт `resources/chart.html` и `third_party/lightweight-charts/lightweight-charts.standalone.production.js` в указанную папку.
+
+После установки зависимостей (`pip install requests pandas mplfinance`) можно запустить пример построения графика:
+
+```
+run_chart.bat <путь_к_сборке>
+```
+
+Сценарий копирует ресурсы и выполняет `sample_chart.py`, рисующий свечной график BTC/USDT.
+
+В самом приложении в поле **Plot script path** укажите путь к существующему
+Python‑скрипту (например, `sample_chart.py`), чтобы окно графика смогло его
+запустить.
+
+## График
+
+График свечей отображается через Lightweight Charts. Доступны стандартные возможности масштабирования и прокрутки; пользовательские инструменты рисования пока не поддерживаются.
+Окно с графиком закрывается программно при завершении приложения, поэтому поток
+с веб‑интерфейсом завершает работу без участия пользователя.
 
 ## Streaming
 
 Файл `config.json` содержит флаг `enable_streaming`. При значении `true` приложение подключается к `wss://stream.binance.com:9443/ws/{symbol}@kline_{interval}` и обновляет свечи в реальном времени. Если флаг выключен или потоковый канал отключается, используется обычный HTTP-поллинг.
+
+Этот же файл позволяет настроить расположение ресурсов графика через параметры
+`chart_html_path` и `chart_js_path`.
+
+## Лицензии
+
+- Проект использует [TradingView Lightweight Charts](https://github.com/tradingview/lightweight-charts), распространяемый по лицензии [MIT](third_party/lightweight-charts/LICENSE).
 

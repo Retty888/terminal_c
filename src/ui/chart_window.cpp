@@ -1,0 +1,105 @@
+#include "ui/chart_window.h"
+
+#include <filesystem>
+#include <utility>
+
+#include "core/logger.h"
+
+ChartWindow::ChartWindow(const std::string &html_path,
+                         const std::string &js_path,
+                         void *parent_window, bool debug)
+    : html_path_(html_path), js_path_(js_path), parent_window_(parent_window),
+      debug_(debug) {}
+
+void ChartWindow::SetHandler(JsonHandler handler) {
+  handler_ = std::move(handler);
+}
+
+void ChartWindow::SetInitData(nlohmann::json data) {
+  init_data_ = std::move(data);
+}
+
+void ChartWindow::SetErrorCallback(
+    std::function<void(const std::string &)> cb) {
+  error_callback_ = std::move(cb);
+}
+
+void ChartWindow::Show() {
+  if (!std::filesystem::exists(html_path_)) {
+    const std::string msg = "HTML file not found: " + html_path_;
+    if (error_callback_) {
+      error_callback_(msg);
+    } else {
+      Core::Logger::instance().error(msg);
+    }
+    return;
+  }
+
+  const std::filesystem::path js_path(js_path_);
+  if (!std::filesystem::exists(js_path)) {
+    const std::string msg =
+        "Chart script not found: " + js_path.string();
+    if (error_callback_) {
+      error_callback_(msg);
+    } else {
+      Core::Logger::instance().error(msg);
+    }
+    return;
+  }
+
+  if (!view_) {
+    view_ = std::make_unique<webview::webview>(debug_, parent_window_);
+  }
+
+  view_->set_title("Chart");
+
+  view_->bind("bridge", [this](std::string req) -> std::string {
+    nlohmann::json json;
+    try {
+      json = nlohmann::json::parse(req);
+    } catch (const nlohmann::json::parse_error &) {
+      return nlohmann::json{{"error", "invalid json"}}.dump();
+    }
+    if (json.contains("request") && json["request"] == "init") {
+      if (!init_data_.is_null()) {
+        SendToJs(init_data_);
+      }
+    }
+    if (handler_) {
+      auto resp = handler_(json);
+      return resp.dump();
+    }
+    return "{}";
+  });
+
+  std::string url = html_path_;
+  if (url.rfind("file://", 0) != 0) {
+    url = std::string("file://") + std::filesystem::absolute(url).string();
+  }
+
+  view_->navigate(url);
+  view_->run();
+  view_.reset();
+}
+
+void ChartWindow::SendToJs(const nlohmann::json &data) {
+  if (view_) {
+    std::string script =
+        std::string("window.receiveFromCpp(") + data.dump() + ");";
+    view_->dispatch([this, s = std::move(script)]() { view_->eval(s); });
+  }
+}
+
+void ChartWindow::Close() {
+  if (view_) {
+    view_->dispatch([this]() { view_->terminate(); });
+  }
+}
+
+void ChartWindow::SetSize(int width, int height) {
+  if (view_) {
+    view_->dispatch([this, width, height]() {
+      view_->set_size(width, height, WEBVIEW_HINT_NONE);
+    });
+  }
+}

@@ -1,4 +1,64 @@
 <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chart</title>
+  <script src="../third_party/lightweight-charts/lightweight-charts.standalone.production.js"></script>
+  <style>
+    html, body, #chart { height:100%; width:100%; margin:0; }
+  </style>
+</head>
+<body>
+  <select id="interval"></select>
+  <div id="chart" style="height:90%;"></div>
+  <script>
+    const chart = LightweightCharts.createChart(document.getElementById('chart'), { autoSize: true });
+    const series = chart.addCandlestickSeries();
+    const intervalSel = document.getElementById('interval');
+    const intervals = ['5s', '15s', '1m', '3m', '5m', '15m', '1h', '4h', '1d'];
+    intervals.forEach(iv => {
+      const opt = document.createElement('option');
+      opt.value = iv;
+      opt.textContent = iv;
+      intervalSel.appendChild(opt);
+    });
+    intervalSel.addEventListener('change', function() {
+      sendToCpp({ interval: intervalSel.value });
+    });
+    window.receiveFromCpp = function(obj) {
+      try {
+        if (Array.isArray(obj.x) && Array.isArray(obj.y)) {
+          const data = obj.x.map((t, i) => ({
+            time: Math.floor(new Date(t).getTime() / 1000),
+            open: obj.y[i][0],
+            close: obj.y[i][1],
+            low: obj.y[i][2],
+            high: obj.y[i][3]
+          }));
+          series.setData(data);
+        }
+        if (obj.interval) {
+          if (!intervals.includes(obj.interval)) {
+            const opt = document.createElement('option');
+            opt.value = obj.interval;
+            opt.textContent = obj.interval;
+            intervalSel.appendChild(opt);
+          }
+          intervalSel.value = obj.interval;
+        }
+      } catch (e) {
+        console.error('Invalid data from C++', e);
+      }
+    };
+    function sendToCpp(obj) {
+      if (window.bridge) {
+        window.bridge(JSON.stringify(obj));
+      }
+    }
+    window.onload = function() {
+      sendToCpp({ request: 'init' });
+    };
+  </script>
 <html>
 <head><meta charset="utf-8"/></head>
 <body>

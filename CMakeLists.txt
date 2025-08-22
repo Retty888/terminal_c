@@ -65,6 +65,22 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
       src/ui/ui_manager.cpp
   )
 
+    if(USE_WEBVIEW)
+      if(webview_FOUND)
+        target_sources(TradingTerminal PRIVATE src/ui/chart_window.cpp)
+        target_link_libraries(TradingTerminal PRIVATE webview::webview)
+        target_compile_definitions(TradingTerminal PRIVATE USE_WEBVIEW=1)
+      else()
+        message(WARNING "USE_WEBVIEW enabled but webview not found, disabling chart window")
+        target_compile_definitions(TradingTerminal PRIVATE USE_WEBVIEW=0)
+      endif()
+    else()
+      if(NOT webview_FOUND)
+        message(WARNING "webview library not found, disabling chart window")
+      endif()
+      target_compile_definitions(TradingTerminal PRIVATE USE_WEBVIEW=0)
+    endif()
+
   target_sources(TradingTerminal PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_glfw.cpp
     ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_opengl3.cpp
@@ -83,6 +99,19 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends
   )
 
+  add_custom_command(TARGET TradingTerminal POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            $<TARGET_FILE_DIR:TradingTerminal>/resources
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            $<TARGET_FILE_DIR:TradingTerminal>/third_party/lightweight-charts
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/resources/chart.html
+            $<TARGET_FILE_DIR:TradingTerminal>/resources/chart.html
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/third_party/lightweight-charts/lightweight-charts.standalone.production.js
+            $<TARGET_FILE_DIR:TradingTerminal>/third_party/lightweight-charts/lightweight-charts.standalone.production.js
+  )
+  
 endif()
 
 enable_testing()

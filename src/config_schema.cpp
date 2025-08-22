@@ -106,6 +106,14 @@ std::optional<ConfigData> ConfigSchema::parse(const nlohmann::json &j,
     cfg.chart_html_path = j["chart_html_path"].get<std::string>();
   }
 
+  if (j.contains("chart_js_path")) {
+    if (!j["chart_js_path"].is_string()) {
+      error = "'chart_js_path' must be a string";
+      return std::nullopt;
+    }
+    cfg.chart_js_path = j["chart_js_path"].get<std::string>();
+  }
+
   if (j.contains("primary_provider")) {
     if (!j["primary_provider"].is_string()) {
       error = "'primary_provider' must be a string";
