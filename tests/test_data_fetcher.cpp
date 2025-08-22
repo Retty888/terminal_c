@@ -89,3 +89,14 @@ TEST(DataFetcherTest, AltApiRejectsUnsupportedInterval) {
   EXPECT_EQ(res.error, Core::FetchError::HttpError);
 }
 
+TEST(DataFetcherTest, TopSymbolsTickerFailureReturnsError) {
+  auto http = std::make_shared<FakeHttpClient>();
+  http->responses.push_back(
+      {200, R"({"symbols":[{"symbol":"AAA"}]})", "", false});
+  http->responses.push_back({0, "", "net fail", true});
+  auto limiter = std::make_shared<DummyLimiter>();
+  Core::DataFetcher fetcher(http, limiter);
+  auto res = fetcher.fetch_all_symbols();
+  EXPECT_EQ(res.error, Core::FetchError::NetworkError);
+}
+
