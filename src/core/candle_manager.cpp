@@ -366,6 +366,18 @@ bool CandleManager::clear_interval(const std::string& symbol, const std::string&
     return success;
 }
 
+std::uintmax_t CandleManager::file_size(const std::string& symbol, const std::string& interval) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::filesystem::path csv_path = get_candle_path(symbol, interval);
+    std::error_code ec;
+    if (std::filesystem::exists(csv_path)) {
+        auto size = std::filesystem::file_size(csv_path, ec);
+        if (!ec)
+            return size;
+    }
+    return 0;
+}
+
 std::vector<std::string> CandleManager::list_stored_data() const {
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<std::string> stored_files;

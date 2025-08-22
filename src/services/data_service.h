@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <memory>
+#include <cstdint>
 
 #include "core/candle.h"
 #include "core/candle_manager.h"
@@ -59,8 +60,12 @@ public:
   void append_candles(const std::string &pair, const std::string &interval,
                       const std::vector<Core::Candle> &candles) const;
   bool remove_candles(const std::string &pair) const;
+  bool clear_interval(const std::string &pair, const std::string &interval) const;
   bool reload_candles(const std::string &pair, const std::string &interval) const;
   std::vector<std::string> list_stored_data() const;
+
+  std::uintmax_t get_file_size(const std::string &pair,
+                               const std::string &interval) const;
 
   Core::CandleManager &candle_manager() { return candle_manager_; }
   const Core::CandleManager &candle_manager() const { return candle_manager_; }

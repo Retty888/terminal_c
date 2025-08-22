@@ -12,6 +12,7 @@
 #include <cfloat>
 #include <ctime>
 #include <numeric>
+#include <cstdint>
 
 
 namespace {
@@ -49,6 +50,7 @@ struct TooltipStat {
   double volume;
   std::string start;
   std::string end;
+  std::uintmax_t size_bytes;
 };
 
 // Load candle history for a symbol across multiple intervals.
@@ -150,7 +152,8 @@ bool RenderPairRow(
     }
     std::string start = format_date(min_t);
     std::string end = format_date(max_t);
-    stats.push_back({interval, count, volume, start, end});
+    auto size_bytes = data_service.get_file_size(item.name, interval);
+    stats.push_back({interval, count, volume, start, end, size_bytes});
     if (interval == selected_interval) {
       sel_count = count;
       sel_start = start;
@@ -196,8 +199,19 @@ bool RenderPairRow(
   if (ImGui::IsItemHovered()) {
     ImGui::BeginTooltip();
     for (const auto &s : stats) {
-      ImGui::Text("%s: %zu candles, vol %.2f, %s-%s", s.interval.c_str(),
-                  s.count, s.volume, s.start.c_str(), s.end.c_str());
+      double sz = static_cast<double>(s.size_bytes);
+      const char *unit = "B";
+      if (sz > 1024) {
+        sz /= 1024;
+        unit = "KB";
+      }
+      if (sz > 1024) {
+        sz /= 1024;
+        unit = "MB";
+      }
+      ImGui::Text("%s: %zu candles, vol %.2f, %s-%s, %.2f %s",
+                  s.interval.c_str(), s.count, s.volume, s.start.c_str(),
+                  s.end.c_str(), sz, unit);
     }
     ImGui::EndTooltip();
   }
@@ -242,6 +256,22 @@ bool RenderPairRow(
         } else {
           status.log.push_back("Reload failed for " + item.name + " " + interval);
         }
+        if (status.log.size() > 50)
+          status.log.pop_front();
+      }
+    }
+    ImGui::EndPopup();
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Delete")) {
+    ImGui::OpenPopup("DeletePopup");
+  }
+  if (ImGui::BeginPopup("DeletePopup")) {
+    for (const auto &interval : intervals) {
+      if (ImGui::Selectable(interval.c_str())) {
+        data_service.clear_interval(item.name, interval);
+        all_candles[item.name][interval].clear();
+        status.log.push_back("Deleted " + item.name + " " + interval);
         if (status.log.size() > 50)
           status.log.pop_front();
       }

@@ -259,6 +259,11 @@ bool DataService::remove_candles(const std::string &pair) const {
   return candle_manager_.remove_candles(pair);
 }
 
+bool DataService::clear_interval(const std::string &pair,
+                                 const std::string &interval) const {
+  return candle_manager_.clear_interval(pair, interval);
+}
+
 bool DataService::reload_candles(const std::string &pair, const std::string &interval) const {
   candle_manager_.clear_interval(pair, interval);
   auto cfg = Config::ConfigManager::load(resolve_config_path().string());
@@ -273,5 +278,10 @@ bool DataService::reload_candles(const std::string &pair, const std::string &int
 
 std::vector<std::string> DataService::list_stored_data() const {
   return candle_manager_.list_stored_data();
+}
+
+std::uintmax_t DataService::get_file_size(const std::string &pair,
+                                          const std::string &interval) const {
+  return candle_manager_.file_size(pair, interval);
 }
 

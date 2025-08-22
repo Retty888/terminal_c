@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <mutex>
 #include <nlohmann/json.hpp>
+#include <cstdint>
 
 namespace Core {
 
@@ -41,6 +42,9 @@ public:
 
     // Removes candle data for a specific symbol and interval.
     bool clear_interval(const std::string& symbol, const std::string& interval) const;
+
+    // Returns size of the candle file for a symbol/interval in bytes.
+    std::uintmax_t file_size(const std::string& symbol, const std::string& interval) const;
 
     // Lists all locally stored candle data files (symbol_interval.csv).
     std::vector<std::string> list_stored_data() const;
