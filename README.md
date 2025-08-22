@@ -1,6 +1,6 @@
 # terminal-c
 
-Standalone C++ trading terminal using ImGui. The project relies on packages provided by `vcpkg` and `find_package` in CMake. A chart panel placeholder is included; TradingView integration will be added later.
+Standalone C++ trading terminal using ImGui. The project relies on packages provided by `vcpkg` and `find_package` in CMake. The chart panel is powered by TradingView's Lightweight Charts rendered inside an embedded WebView.
 
 ## Состав
 
@@ -8,11 +8,12 @@ Standalone C++ trading terminal using ImGui. The project relies on packages prov
 - Поддержка нескольких торговых пар
 - Загрузка свечей с Binance API
 - Потоковое обновление свечей через WebSocket Binance
-- Заглушка для панели графиков
+- Панель графиков на базе TradingView Lightweight Charts (через WebView)
 - Импортированные библиотеки:
   - ImGui
   - CPR (встроен)
   - JSON (встроен)
+  - webview (встроен)
 - `CMakeLists.txt` использует `find_package()` для зависимостей через `vcpkg`
 
 ## Инструкция
@@ -38,6 +39,35 @@ Standalone C++ trading terminal using ImGui. The project relies on packages prov
    cmake --build build
    ```
 4. Готовый исполняемый файл `TradingTerminal` (или `TradingTerminal.exe` на Windows) появится в каталоге `build`.
+
+## Charting
+
+The HTML file under `resources/` embeds [TradingView Lightweight Charts](https://github.com/tradingview/lightweight-charts) and is displayed through the cross‑platform [`webview`](https://github.com/webview/webview) library.
+
+### WebView requirements
+
+- **Windows:** requires the [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
+- **Linux:** depends on WebKitGTK packages (`libwebkit2gtk-4.1-0` and related).
+
+### TradingView script
+
+`prepare_chart_resources.bat` downloads `lightweight-charts.standalone.production.js` from the official CDN if it is not already present and copies it along with `chart.html` next to the build output. The script is invoked automatically by `build_and_run.bat` for each build configuration or can be run manually:
+
+```
+prepare_chart_resources.bat <build_directory>
+```
+
+### Marking trades
+
+Trades can be visualised on the chart with markers using `UiManager::set_markers`, which forwards the data to `series.setMarkers` in JavaScript. Each marker specifies a time, position and shape:
+
+```cpp
+ui.set_markers(R"([
+  {"time": 1716900000, "position": "belowBar", "shape": "arrowUp", "color": "green", "text": "BUY"},
+  {"time": 1716950000, "position": "aboveBar", "shape": "arrowDown", "color": "red", "text": "SELL"}
+])");
+```
+
 
 ## Streaming
 
