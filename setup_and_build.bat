@@ -123,6 +123,8 @@ if %errorlevel% neq 0 (
 python -m pip install requests pandas mplfinance
 if %errorlevel% neq 0 (
     echo Failed to install Python packages.
+    exit /b %errorlevel%
+)
 if not exist "%BUILD_DIR%\Release" (
     mkdir "%BUILD_DIR%\Release"
 )
