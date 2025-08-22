@@ -51,7 +51,7 @@ The HTML file under `resources/` embeds [TradingView Lightweight Charts](https:/
 
 ### TradingView script
 
-`prepare_chart_resources.bat` downloads `lightweight-charts.standalone.production.js` from the official CDN if it is not already present and copies it along with `chart.html` next to the build output. The script is invoked automatically by `build_and_run.bat` for each build configuration or can be run manually:
+`prepare_chart_resources.bat` copies `chart.html` and `lightweight-charts.standalone.production.js` next to the build output. The script is invoked automatically by `build_and_run.bat` for each build configuration or can be run manually:
 
 ```
 prepare_chart_resources.bat <build_directory>

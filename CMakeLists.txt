@@ -10,6 +10,11 @@ add_compile_definitions(GTEST_HAS_STD_WSTRING=0)
 
 option(BUILD_TRADING_TERMINAL "Build the TradingTerminal application" ON)
 
+# Copy chart resources to the build directory
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/resources/chart.html
+          ${CMAKE_CURRENT_SOURCE_DIR}/resources/lightweight-charts.standalone.production.js
+     DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/resources)
+
 find_package(GTest CONFIG REQUIRED)
 find_package(imgui CONFIG QUIET)
 if(NOT imgui_FOUND)
