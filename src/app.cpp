@@ -87,7 +87,7 @@ bool App::init_window() {
     return false;
   }
   glfwMakeContextCurrent(window_.get());
-  glfwSetWindowSize(window_.get(), 1280, 720);
+  glfwMaximizeWindow(window_.get());
   glfwSwapInterval(1);
   return true;
 }
