@@ -275,11 +275,20 @@ std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const
 }
 
 nlohmann::json CandleManager::load_candles_json(const std::string& symbol,
-                                                const std::string& interval) const {
+                                                const std::string& interval,
+                                                std::size_t offset,
+                                                std::size_t limit) const {
     auto candles = load_candles(symbol, interval);
     nlohmann::json x = nlohmann::json::array();
     nlohmann::json y = nlohmann::json::array();
-    for (const auto& c : candles) {
+
+    if (offset >= candles.size()) {
+        return nlohmann::json{{"x", std::move(x)}, {"y", std::move(y)}};
+    }
+
+    std::size_t end = limit > 0 ? std::min(offset + limit, candles.size()) : candles.size();
+    for (std::size_t i = offset; i < end; ++i) {
+        const auto& c = candles[i];
         long long ms = c.open_time;
         std::time_t sec = ms / 1000;
         int millis = static_cast<int>(ms % 1000);

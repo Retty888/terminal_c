@@ -5,6 +5,8 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <chrono>
+#include <optional>
 
 #include <webview.h>
 #include "core/candle.h"
@@ -13,11 +15,26 @@
 #include "config_path.h"
 #include "core/logger.h"
 #include "core/path_utils.h"
+#ifndef _WIN32
+#include <sys/resource.h>
+#endif
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
 UiManager::~UiManager() { shutdown(); }
+
+namespace {
+std::size_t current_memory_kb() {
+#ifndef _WIN32
+  struct rusage usage;
+  if (getrusage(RUSAGE_SELF, &usage) == 0) {
+    return usage.ru_maxrss;
+  }
+#endif
+  return 0;
+}
+} // namespace
 
 bool UiManager::setup(GLFWwindow *window) {
   IMGUI_CHECKVERSION();
@@ -57,6 +74,24 @@ bool UiManager::setup(GLFWwindow *window) {
 
   if (auto cfg = Config::ConfigManager::load(resolve_config_path().string())) {
     chart_enabled_ = cfg->enable_chart;
+    if (chart_enabled_) {
+      auto start = std::chrono::steady_clock::now();
+      auto mem_before = current_memory_kb();
+      chart_view_ = std::make_unique<webview::webview>(false, nullptr);
+      chart_view_->set_title("Chart");
+      auto chart_path = Core::path_from_executable(cfg->chart_html_path);
+      chart_view_->navigate(std::string("file://") + chart_path.string());
+      auto end = std::chrono::steady_clock::now();
+      auto mem_after = current_memory_kb();
+      auto duration =
+          std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+      Core::Logger::instance().info(
+          "Webview init time: " + std::to_string(duration.count()) +
+          " ms, memory delta: " +
+          std::to_string(static_cast<long long>(mem_after) -
+                         static_cast<long long>(mem_before)) +
+          " KB");
+    }
   }
   return true;
 }
@@ -93,18 +128,25 @@ void UiManager::set_price_line(double price) {
 }
 
 void UiManager::push_candle(const Core::Candle &candle) {
-  if (chart_view_) {
-    std::ostringstream js;
-    js << "window.chart && window.chart.addCandle({";
-    js << "time:" << candle.open_time << ",";
-    js << "open:" << candle.open << ",";
-    js << "high:" << candle.high << ",";
-    js << "low:" << candle.low << ",";
-    js << "close:" << candle.close << ",";
-    js << "volume:" << candle.volume;
-    js << "});";
-    chart_view_->eval(js.str());
-  }
+  cached_candle_ = candle;
+  if (!chart_view_)
+    return;
+  auto now = std::chrono::steady_clock::now();
+  if (now - last_push_time_ < throttle_interval_)
+    return;
+  const auto &c = *cached_candle_;
+  std::ostringstream js;
+  js << "window.chart && window.chart.addCandle({";
+  js << "time:" << c.open_time << ",";
+  js << "open:" << c.open << ",";
+  js << "high:" << c.high << ",";
+  js << "low:" << c.low << ",";
+  js << "close:" << c.close << ",";
+  js << "volume:" << c.volume;
+  js << "});";
+  chart_view_->eval(js.str());
+  last_push_time_ = now;
+  cached_candle_.reset();
 }
 
 void UiManager::set_interval_callback(
