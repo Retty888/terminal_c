@@ -51,10 +51,12 @@ The HTML file under `resources/` embeds [TradingView Lightweight Charts](https:/
 
 ### TradingView script
 
-`prepare_chart_resources.bat` copies `chart.html` and `lightweight-charts.standalone.production.js` next to the build output. The script is invoked automatically by `build_and_run.bat` for each build configuration or can be run manually:
+Windows helper batch scripts reside in `scripts/`.
+
+`scripts/prepare_chart_resources.bat` copies `chart.html` and `lightweight-charts.standalone.production.js` next to the build output. The script is invoked automatically by `scripts/build_and_run.bat` for each build configuration or can be run manually:
 
 ```
-prepare_chart_resources.bat <build_directory>
+scripts/prepare_chart_resources.bat <build_directory>
 ```
 
 ### Marking trades
@@ -72,4 +74,8 @@ ui.set_markers(R"([
 ## Streaming
 
 Файл `config.json` содержит флаг `enable_streaming`. При значении `true` приложение подключается к `wss://stream.binance.com:9443/ws/{symbol}@kline_{interval}` и обновляет свечи в реальном времени. Если флаг выключен или потоковый канал отключается, используется обычный HTTP-поллинг.
+
+## Examples
+
+The `examples/sample_chart.py` script demonstrates how to download and display BTC/USDT candles using Python.
 
