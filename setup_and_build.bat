@@ -101,6 +101,8 @@ REM Ensure Python is available and install required packages
 where python >nul 2>nul
 if %errorlevel% neq 0 (
     echo Python not found. Please install Python and ensure it is in your PATH.
+    exit /b 1
+)
 echo Preparing chart resources...
 if not exist "%BUILD_DIR%\Debug" (
     mkdir "%BUILD_DIR%\Debug"
