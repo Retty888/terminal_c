@@ -1,3 +1,5 @@
+include(vcpkg_common_functions)
+
 vcpkg_copy_sources(
     SOURCE_PATH "${CURRENT_PORT_DIR}"
     DESTINATION_PATH "${CURRENT_BUILDTREES_DIR}/src"
