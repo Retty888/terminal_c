@@ -6,6 +6,7 @@
 #include "core/data_fetcher.h"
 #include "core/interval_utils.h"
 #include "imgui.h"
+#include "core/logger.h"
 
 #include <algorithm>
 #include <cctype>
@@ -13,6 +14,8 @@
 #include <ctime>
 #include <numeric>
 #include <cstdint>
+#include <chrono>
+#include <string>
 
 
 namespace {
@@ -252,12 +255,7 @@ bool RenderPairRow(
         if (ok) {
           all_candles[item.name][interval] =
               data_service.load_candles(item.name, interval);
-          status.log.push_back("Reloaded " + item.name + " " + interval);
-        } else {
-          status.log.push_back("Reload failed for " + item.name + " " + interval);
         }
-        if (status.log.size() > 50)
-          status.log.pop_front();
       }
     }
     ImGui::EndPopup();
@@ -271,9 +269,7 @@ bool RenderPairRow(
       if (ImGui::Selectable(interval.c_str())) {
         data_service.clear_interval(item.name, interval);
         all_candles[item.name][interval].clear();
-        status.log.push_back("Deleted " + item.name + " " + interval);
-        if (status.log.size() > 50)
-          status.log.pop_front();
+        Core::Logger::instance().info("Deleted " + item.name + " " + interval);
       }
     }
     ImGui::EndPopup();
@@ -381,8 +377,31 @@ static void RenderStatusPane(AppStatus &status) {
   if (!status.error_message.empty())
     ImGui::TextColored(COLOR_LOW, "%s", status.error_message.c_str());
   if (ImGui::BeginListBox("##status_log", ImVec2(-FLT_MIN, 100))) {
-    for (const auto &msg : status.log) {
-      ImGui::Selectable(msg.c_str(), false, ImGuiSelectableFlags_Disabled);
+    for (const auto &entry : status.log) {
+      std::tm tm;
+      auto t = std::chrono::system_clock::to_time_t(entry.time);
+#if defined(_WIN32)
+      localtime_s(&tm, &t);
+#else
+      localtime_r(&t, &tm);
+#endif
+      char buf[9];
+      std::strftime(buf, sizeof(buf), "%H:%M:%S", &tm);
+      const char *lvl = "INFO";
+      ImVec4 col = ImGui::GetStyle().Colors[ImGuiCol_Text];
+      if (entry.level == Core::LogLevel::Warning) {
+        lvl = "WARN";
+        col = COLOR_MED;
+      } else if (entry.level == Core::LogLevel::Error) {
+        lvl = "ERROR";
+        col = COLOR_LOW;
+      }
+      if (entry.level != Core::LogLevel::Info)
+        ImGui::PushStyleColor(ImGuiCol_Text, col);
+      std::string line = std::string(buf) + " [" + lvl + "] " + entry.message;
+      ImGui::Selectable(line.c_str(), false, ImGuiSelectableFlags_Disabled);
+      if (entry.level != Core::LogLevel::Info)
+        ImGui::PopStyleColor();
     }
     ImGui::EndListBox();
   }

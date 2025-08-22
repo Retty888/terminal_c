@@ -17,6 +17,8 @@
 #include <thread>
 #include <vector>
 
+#include "core/logger.h"
+
 struct GLFWwindow;
 
 struct AppStatus {
@@ -24,7 +26,12 @@ struct AppStatus {
   std::string analysis_message = "Idle";
   std::string signal_message = "Idle";
   std::string error_message;
-  std::deque<std::string> log;
+  struct LogEntry {
+    std::chrono::system_clock::time_point time;
+    Core::LogLevel level;
+    std::string message;
+  };
+  std::deque<LogEntry> log;
 };
 
 // The App class owns the services and drives the main event loop.
@@ -35,7 +42,10 @@ public:
   // Runs the application. Returns the exit code.
   int run();
   const AppStatus &status() const { return status_; }
-  void add_status(const std::string &msg);
+  void add_status(const std::string &msg,
+                  Core::LogLevel level = Core::LogLevel::Info,
+                  std::chrono::system_clock::time_point time =
+                      std::chrono::system_clock::now());
   void clear_failed_fetches();
 
 private:

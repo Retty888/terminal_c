@@ -7,6 +7,7 @@
 #include <string>
 #include <thread>
 #include <chrono>
+#include <functional>
 
 namespace Core {
 
@@ -19,6 +20,10 @@ public:
                 std::size_t max_size = 1024 * 1024);
   void enable_console_output(bool enable);
   void set_min_level(LogLevel level);
+  using Sink =
+      std::function<void(LogLevel, std::chrono::system_clock::time_point,
+                         const std::string &)>;
+  void set_sink(Sink sink);
   void log(LogLevel level, const std::string &message);
   void info(const std::string &message);
   void warn(const std::string &message);
@@ -46,6 +51,7 @@ private:
   std::string filename_;
   std::size_t max_file_size_ = 1024 * 1024;
   std::string level_to_string(LogLevel level);
+  Sink sink_;
 };
 
 } // namespace Core

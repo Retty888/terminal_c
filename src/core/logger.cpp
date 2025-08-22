@@ -91,6 +91,11 @@ void Logger::set_min_level(LogLevel level) {
   min_level_ = level;
 }
 
+void Logger::set_sink(Sink sink) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  sink_ = std::move(sink);
+}
+
 std::string Logger::level_to_string(LogLevel level) {
   switch (level) {
   case LogLevel::Info:
@@ -132,6 +137,7 @@ void Logger::process_queue() {
       auto text = std::move(msg.message);
       auto console = console_output_;
       auto out_open = out_.is_open();
+      auto sink = sink_;
       lock.unlock();
       std::tm tm;
       auto t = std::chrono::system_clock::to_time_t(time);
@@ -150,6 +156,8 @@ void Logger::process_queue() {
       }
       if (console)
         std::cout << formatted;
+      if (sink)
+        sink(level, time, text);
       lock.lock();
     }
   }
