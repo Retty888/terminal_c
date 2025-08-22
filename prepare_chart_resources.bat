@@ -14,9 +14,9 @@ if errorlevel 8 (
     exit /b 1
 )
 
-robocopy "third_party\echarts" "%BUILD_DIR%\third_party\echarts" "echarts.min.js" /NFL /NDL /NJH /NJS /NC /NS /NP >nul
+robocopy "third_party\lightweight-charts" "%BUILD_DIR%\third_party\lightweight-charts" "lightweight-charts.standalone.production.js" /NFL /NDL /NJH /NJS /NC /NS /NP >nul
 if errorlevel 8 (
-    echo Failed to copy echarts.min.js
+    echo Failed to copy lightweight-charts.standalone.production.js
     exit /b 1
 )
 

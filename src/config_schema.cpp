@@ -106,12 +106,12 @@ std::optional<ConfigData> ConfigSchema::parse(const nlohmann::json &j,
     cfg.chart_html_path = j["chart_html_path"].get<std::string>();
   }
 
-  if (j.contains("echarts_js_path")) {
-    if (!j["echarts_js_path"].is_string()) {
-      error = "'echarts_js_path' must be a string";
+  if (j.contains("chart_js_path")) {
+    if (!j["chart_js_path"].is_string()) {
+      error = "'chart_js_path' must be a string";
       return std::nullopt;
     }
-    cfg.echarts_js_path = j["echarts_js_path"].get<std::string>();
+    cfg.chart_js_path = j["chart_js_path"].get<std::string>();
   }
 
   if (j.contains("primary_provider")) {

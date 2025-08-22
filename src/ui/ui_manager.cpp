@@ -31,13 +31,13 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
-#include "ui/echarts_window.h"
+#include "ui/chart_window.h"
 
 UiManager::~UiManager() {
-  if (echarts_thread_.joinable()) {
+  if (chart_thread_.joinable()) {
     shutdown();
   }
-  assert(!echarts_thread_.joinable());
+  assert(!chart_thread_.joinable());
 }
 
 bool UiManager::setup(GLFWwindow *window) {
@@ -79,15 +79,15 @@ bool UiManager::setup(GLFWwindow *window) {
   if (auto cfg = Config::ConfigManager::load(resolve_config_path().string())) {
     chart_enabled_ = cfg->enable_chart;
     chart_html_path_ = cfg->chart_html_path;
-    echarts_js_path_ = cfg->echarts_js_path;
+    chart_js_path_ = cfg->chart_js_path;
   } else {
     chart_html_path_ = Config::kDefaultChartHtmlPath;
-    echarts_js_path_ = Config::kDefaultEchartsJsPath;
+    chart_js_path_ = Config::kDefaultChartJsPath;
   }
 #ifdef USE_WEBVIEW
   if (chart_enabled_) {
     const auto html_path = std::filesystem::path(chart_html_path_);
-    const auto js_path = std::filesystem::path(echarts_js_path_);
+    const auto js_path = std::filesystem::path(chart_js_path_);
 
     Core::Logger::instance().info("Checking chart resources at " +
                                   html_path.string() + " and " +
@@ -100,7 +100,7 @@ bool UiManager::setup(GLFWwindow *window) {
                                      html_path.string() + "' and '" +
                                      js_path.string() + "'");
       Core::Logger::instance().warn("Expected files:\n  " + chart_html_path_ +
-                                    "\n  " + echarts_js_path_);
+                                    "\n  " + chart_js_path_);
     } else {
       void *native_handle = nullptr;
 #if defined(_WIN32)
@@ -110,28 +110,28 @@ bool UiManager::setup(GLFWwindow *window) {
 #elif defined(__linux__)
       native_handle = reinterpret_cast<void *>(glfwGetX11Window(window));
 #endif
-      echarts_window_ = std::make_unique<EChartsWindow>(
+      chart_window_ = std::make_unique<ChartWindow>(
           html_path.string(), js_path.string(), native_handle);
 
       try {
         Core::CandleManager cm;
         auto data = cm.load_candles_json("BTCUSDT", "1m");
-        echarts_window_->SetInitData(data);
+        chart_window_->SetInitData(data);
       } catch (const std::exception &e) {
         Core::Logger::instance().error(e.what());
       }
 
-      echarts_window_->SetErrorCallback([this](const std::string &msg) {
+      chart_window_->SetErrorCallback([this](const std::string &msg) {
         {
-          std::lock_guard<std::mutex> lock(echarts_mutex_);
-          echarts_error_ = msg;
+          std::lock_guard<std::mutex> lock(chart_mutex_);
+          chart_error_ = msg;
         }
         if (status_callback_) {
           status_callback_(msg);
         }
       });
 
-      echarts_window_->SetHandler([this](const nlohmann::json &req) {
+      chart_window_->SetHandler([this](const nlohmann::json &req) {
         if (req.contains("interval")) {
           if (on_interval_changed_) {
             on_interval_changed_(req.at("interval").get<std::string>());
@@ -139,18 +139,18 @@ bool UiManager::setup(GLFWwindow *window) {
         }
         if (req.contains("request") && req.at("request") == "init") {
           if (!current_interval_.empty()) {
-            echarts_window_->SendToJs(
+            chart_window_->SendToJs(
                 nlohmann::json{{"interval", current_interval_}});
           }
         }
         return nlohmann::json{};
       });
-      echarts_thread_ = std::thread([this]() {
+      chart_thread_ = std::thread([this]() {
 #if defined(_WIN32)
         CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 #endif
         try {
-          echarts_window_->Show();
+          chart_window_->Show();
         } catch (const std::exception &e) {
           std::string err = e.what();
           const std::string type_name = typeid(e).name();
@@ -163,23 +163,23 @@ bool UiManager::setup(GLFWwindow *window) {
             msg =
                 "WebView2 runtime not found. Install Microsoft Edge WebView2.";
           } else {
-            msg = std::string("Failed to run ECharts window: ") + err;
+            msg = std::string("Failed to run chart window: ") + err;
           }
 
           Core::Logger::instance().error(msg);
           {
-            std::lock_guard<std::mutex> lock(echarts_mutex_);
-            echarts_error_ = msg;
+            std::lock_guard<std::mutex> lock(chart_mutex_);
+            chart_error_ = msg;
           }
           if (status_callback_) {
             status_callback_(msg);
           }
         } catch (...) {
-          const std::string msg = "Failed to run ECharts window: unknown error";
+          const std::string msg = "Failed to run chart window: unknown error";
           Core::Logger::instance().error(msg);
           {
-            std::lock_guard<std::mutex> lock(echarts_mutex_);
-            echarts_error_ = msg;
+            std::lock_guard<std::mutex> lock(chart_mutex_);
+            chart_error_ = msg;
           }
           if (status_callback_) {
             status_callback_(msg);
@@ -195,7 +195,7 @@ bool UiManager::setup(GLFWwindow *window) {
   }
 #else
   Core::Logger::instance().warn(
-      "ECharts disabled: install the webview dependency and rebuild with "
+      "Chart disabled: install the webview dependency and rebuild with "
       "USE_WEBVIEW enabled");
 #endif
   return true;
@@ -207,7 +207,7 @@ void UiManager::begin_frame() {
   ImGui::NewFrame();
 }
 
-void UiManager::draw_echarts_panel(const std::string &selected_interval) {
+void UiManager::draw_chart_panel(const std::string &selected_interval) {
   ImGui::Begin("Chart");
 #ifdef USE_WEBVIEW
   if (!chart_enabled_) {
@@ -216,26 +216,26 @@ void UiManager::draw_echarts_panel(const std::string &selected_interval) {
     ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
                        "Chart resources missing");
     ImGui::TextWrapped("Expected files:\n  %s\n  %s", chart_html_path_.c_str(),
-                       echarts_js_path_.c_str());
+                       chart_js_path_.c_str());
   } else {
     std::string err;
     {
-      std::lock_guard<std::mutex> lock(echarts_mutex_);
-      err = echarts_error_;
+      std::lock_guard<std::mutex> lock(chart_mutex_);
+      err = chart_error_;
     }
     if (!err.empty()) {
       ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f),
                          "Failed to load chart");
       ImGui::TextWrapped("%s", err.c_str());
-    } else if (echarts_window_) {
+    } else if (chart_window_) {
       if (selected_interval != current_interval_) {
-        echarts_window_->SendToJs(
+        chart_window_->SendToJs(
             nlohmann::json{{"interval", selected_interval}});
         current_interval_ = selected_interval;
       }
       ImVec2 avail = ImGui::GetContentRegionAvail();
-      echarts_window_->SetSize(static_cast<int>(avail.x),
-                               static_cast<int>(avail.y));
+      chart_window_->SetSize(static_cast<int>(avail.x),
+                             static_cast<int>(avail.y));
       ImGui::Text("Chart is displayed in a separate window.");
     } else {
       ImGui::Text("Loading chart...");
@@ -246,7 +246,7 @@ void UiManager::draw_echarts_panel(const std::string &selected_interval) {
     ImGui::Text("Chart disabled by configuration");
   } else {
     ImGui::Text(
-        "ECharts disabled. Please install/enable the webview dependency "
+        "Chart disabled. Please install/enable the webview dependency "
         "(USE_WEBVIEW)");
   }
 #endif
@@ -266,8 +266,8 @@ void UiManager::set_status_callback(
 void UiManager::set_initial_interval(const std::string &interval) {
   current_interval_ = interval;
 #ifdef USE_WEBVIEW
-  if (echarts_window_) {
-    echarts_window_->SendToJs(nlohmann::json{{"interval", interval}});
+  if (chart_window_) {
+    chart_window_->SendToJs(nlohmann::json{{"interval", interval}});
   }
 #endif
 }
@@ -288,16 +288,16 @@ void UiManager::shutdown() {
     return;
   }
   shutdown_called_ = true;
-  if (echarts_thread_.joinable()) {
-    if (echarts_window_) {
+  if (chart_thread_.joinable()) {
+    if (chart_window_) {
       try {
-        echarts_window_->Close();
+        chart_window_->Close();
       } catch (const std::exception &e) {
         Core::Logger::instance().error(
-            std::string("Failed to close ECharts window: ") + e.what());
+            std::string("Failed to close chart window: ") + e.what());
       }
     }
-    echarts_thread_.join();
+    chart_thread_.join();
   }
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();

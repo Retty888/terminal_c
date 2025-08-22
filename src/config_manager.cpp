@@ -32,9 +32,9 @@ std::optional<ConfigData> ConfigManager::load(const std::string &filename) {
       cfg->chart_html_path =
           Core::path_from_executable(cfg->chart_html_path).string();
     }
-    if (!std::filesystem::path(cfg->echarts_js_path).is_absolute()) {
-      cfg->echarts_js_path =
-          Core::path_from_executable(cfg->echarts_js_path).string();
+    if (!std::filesystem::path(cfg->chart_js_path).is_absolute()) {
+      cfg->chart_js_path =
+          Core::path_from_executable(cfg->chart_js_path).string();
     }
 
     return cfg;
