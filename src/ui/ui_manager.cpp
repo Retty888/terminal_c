@@ -15,7 +15,9 @@
 #include <cassert>
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <nlohmann/json.hpp>
+#include <cstdio>
 #include <thread>
 #include <typeinfo>
 #include <utility>
@@ -41,11 +43,34 @@ UiManager::~UiManager() {
 bool UiManager::setup(GLFWwindow *window) {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
+  ImGui::LoadIniSettingsFromMemory("");
   const auto ini_path = Core::path_from_executable("imgui.ini");
   std::filesystem::create_directories(ini_path.parent_path());
   static std::string ini_path_str = ini_path.string();
+  bool load_ini = true;
+  if (std::filesystem::exists(ini_path)) {
+    std::ifstream file(ini_path);
+    std::string line;
+    while (std::getline(file, line)) {
+      if (line.rfind("Size=", 0) == 0) {
+        int w = 0;
+        int h = 0;
+        if (std::sscanf(line.c_str(), "Size=%d,%d", &w, &h) == 2) {
+          if (w < 100 || h < 100) {
+            std::error_code ec;
+            std::filesystem::remove(ini_path, ec);
+            load_ini = false;
+          }
+        }
+        break;
+      }
+    }
+  }
   ImGuiIO &io = ImGui::GetIO();
   io.IniFilename = ini_path_str.c_str();
+  if (load_ini) {
+    ImGui::LoadIniSettingsFromDisk(io.IniFilename);
+  }
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   ImGui::StyleColorsDark();
   ImGui_ImplGlfw_InitForOpenGL(window, true);
