@@ -48,9 +48,10 @@ void App::WindowDeleter::operator()(GLFWwindow *window) const {
 App::App() : ctx_(std::make_unique<AppContext>()) {}
 App::~App() { cleanup(); }
 
-void App::add_status(const std::string &msg) {
+void App::add_status(const std::string &msg, Core::LogLevel level,
+                     std::chrono::system_clock::time_point time) {
   std::lock_guard<std::mutex> lock(status_mutex_);
-  status_.log.push_back(msg);
+  status_.log.push_back({time, level, msg});
   if (status_.log.size() > 50)
     status_.log.pop_front();
 }
@@ -104,6 +105,10 @@ void App::setup_imgui() {
       [this](const std::string &iv) { this->ctx_->selected_interval = iv; });
   ui_manager_.set_status_callback(
       [this](const std::string &msg) { this->add_status(msg); });
+  Core::Logger::instance().set_sink(
+      [this](Core::LogLevel level,
+             std::chrono::system_clock::time_point time,
+             const std::string &msg) { this->add_status(msg, level, time); });
 }
 
 void App::load_config() {

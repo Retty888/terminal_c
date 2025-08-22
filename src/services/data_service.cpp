@@ -271,8 +271,11 @@ bool DataService::reload_candles(const std::string &pair, const std::string &int
   auto res = fetch_klines(pair, interval, limit);
   if (res.error == Core::FetchError::None && !res.candles.empty()) {
     candle_manager_.save_candles(pair, interval, res.candles);
+    Core::Logger::instance().info("Reloaded " + pair + " " + interval);
     return true;
   }
+  Core::Logger::instance().error("Reload failed for " + pair + " " + interval +
+                                (res.message.empty() ? "" : ": " + res.message));
   return false;
 }
 
