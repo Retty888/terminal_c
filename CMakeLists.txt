@@ -64,6 +64,7 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
       src/ui/analytics_window.cpp
       src/ui/journal_window.cpp
       src/ui/ui_manager.cpp
+    src/ui/webview_impl.cpp
   )
 
   target_sources(TradingTerminal PRIVATE
