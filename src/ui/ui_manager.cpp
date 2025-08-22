@@ -4,6 +4,10 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
+
+#include <webview.h>
+#include "core/candle.h"
 
 #include "config_manager.h"
 #include "config_path.h"
@@ -73,6 +77,36 @@ void UiManager::draw_chart_panel(const std::string &selected_interval) {
   ImGui::End();
 }
 
+void UiManager::set_markers(const std::string &markers_json) {
+  if (chart_view_) {
+    chart_view_->eval(std::string("window.chart && window.chart.setMarkers(") +
+                      markers_json + ");");
+  }
+}
+
+void UiManager::set_price_line(double price) {
+  if (chart_view_) {
+    std::ostringstream js;
+    js << "window.chart && window.chart.setPriceLine(" << price << ");";
+    chart_view_->eval(js.str());
+  }
+}
+
+void UiManager::push_candle(const Core::Candle &candle) {
+  if (chart_view_) {
+    std::ostringstream js;
+    js << "window.chart && window.chart.addCandle({";
+    js << "time:" << candle.open_time << ",";
+    js << "open:" << candle.open << ",";
+    js << "high:" << candle.high << ",";
+    js << "low:" << candle.low << ",";
+    js << "close:" << candle.close << ",";
+    js << "volume:" << candle.volume;
+    js << "});";
+    chart_view_->eval(js.str());
+  }
+}
+
 void UiManager::set_interval_callback(
     std::function<void(const std::string &)> cb) {
   on_interval_changed_ = std::move(cb);
@@ -102,6 +136,10 @@ void UiManager::shutdown() {
   if (shutdown_called_)
     return;
   shutdown_called_ = true;
+  if (chart_view_) {
+    chart_view_->terminate();
+    chart_view_.reset();
+  }
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
