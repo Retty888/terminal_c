@@ -1,6 +1,7 @@
 # terminal-c
 
 Standalone C++ trading terminal using ImGui with an embedded chart powered by [TradingView Lightweight Charts](https://github.com/tradingview/lightweight-charts). The project relies on packages provided by `vcpkg` and `find_package` in CMake.
+Standalone C++ trading terminal using ImGui. The project relies on packages provided by `vcpkg` and `find_package` in CMake. A chart panel placeholder is included; TradingView integration will be added later.
 
 ## Состав
 
@@ -12,6 +13,9 @@ Standalone C++ trading terminal using ImGui with an embedded chart powered by [T
 - Импортированные библиотеки:
   - ImGui
   - Lightweight Charts (через встроенный webview)
+- Заглушка для панели графиков
+- Импортированные библиотеки:
+  - ImGui
   - CPR (встроен)
   - JSON (встроен)
 - `CMakeLists.txt` использует `find_package()` для зависимостей через `vcpkg`
@@ -24,7 +28,6 @@ Standalone C++ trading terminal using ImGui with an embedded chart powered by [T
 4. Запусти `TradingTerminal.exe`
 
 📌 Требуется установленный `vcpkg` и предварительная загрузка зависимостей
-📌 Для работы встроенного графика установите [Microsoft Edge WebView2 runtime](https://developer.microsoft.com/microsoft-edge/webview2/)
 
 ## Сборка
 

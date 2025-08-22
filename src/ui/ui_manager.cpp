@@ -1,31 +1,12 @@
 #include "ui_manager.h"
 
 #include <GLFW/glfw3.h>
-#if defined(_WIN32)
-#define GLFW_EXPOSE_NATIVE_WIN32
-#include <GLFW/glfw3native.h>
-#include <Windows.h>
-#elif defined(__APPLE__)
-#define GLFW_EXPOSE_NATIVE_COCOA
-#include <GLFW/glfw3native.h>
-#elif defined(__linux__)
-#define GLFW_EXPOSE_NATIVE_X11
-#include <GLFW/glfw3native.h>
-#endif
 #include <cassert>
-#include <exception>
 #include <filesystem>
 #include <fstream>
-#include <nlohmann/json.hpp>
-#include <cstdio>
-#include <thread>
-#include <typeinfo>
-#include <utility>
 
 #include "config_manager.h"
 #include "config_path.h"
-#include "config_schema.h"
-#include "core/candle_manager.h"
 #include "core/logger.h"
 #include "core/path_utils.h"
 #include "imgui.h"
@@ -39,6 +20,8 @@ UiManager::~UiManager() {
   }
   assert(!chart_thread_.joinable());
 }
+
+UiManager::~UiManager() { shutdown(); }
 
 bool UiManager::setup(GLFWwindow *window) {
   IMGUI_CHECKVERSION();
@@ -198,6 +181,7 @@ bool UiManager::setup(GLFWwindow *window) {
       "Chart disabled: install the webview dependency and rebuild with "
       "USE_WEBVIEW enabled");
 #endif
+  }
   return true;
 }
 
@@ -209,7 +193,6 @@ void UiManager::begin_frame() {
 
 void UiManager::draw_chart_panel(const std::string &selected_interval) {
   ImGui::Begin("Chart");
-#ifdef USE_WEBVIEW
   if (!chart_enabled_) {
     ImGui::Text("Chart disabled by configuration");
   } else if (!resources_available_) {
@@ -250,6 +233,9 @@ void UiManager::draw_chart_panel(const std::string &selected_interval) {
         "(USE_WEBVIEW)");
   }
 #endif
+  } else {
+    ImGui::Text("Chart panel placeholder (%s)", selected_interval.c_str());
+  }
   ImGui::End();
 }
 
@@ -284,9 +270,8 @@ void UiManager::end_frame(GLFWwindow *window) {
 }
 
 void UiManager::shutdown() {
-  if (shutdown_called_) {
+  if (shutdown_called_)
     return;
-  }
   shutdown_called_ = true;
   if (chart_thread_.joinable()) {
     if (chart_window_) {
@@ -299,6 +284,7 @@ void UiManager::shutdown() {
     }
     chart_thread_.join();
   }
+
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();

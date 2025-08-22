@@ -24,16 +24,6 @@ if(NOT imgui_FOUND)
   add_library(imgui::imgui ALIAS imgui)
 endif()
 find_package(cpr CONFIG QUIET)
-find_package(webview CONFIG QUIET)
-if(BUILD_TRADING_TERMINAL AND NOT webview_FOUND)
-  find_package(unofficial-webview2 CONFIG REQUIRED)
-  add_library(webview STATIC src/ui/webview_impl.cpp)
-  target_link_libraries(webview PRIVATE unofficial::webview2::webview2)
-  target_include_directories(webview PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview_legacy)
-  add_library(webview::webview ALIAS webview)
-  set(webview_FOUND TRUE)
-endif()
-option(USE_WEBVIEW "Enable webview-based features" ${webview_FOUND})
 if(NOT cpr_FOUND)
   message(WARNING "cpr not found, skipping targets that require it")
 endif()
@@ -73,7 +63,6 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
       src/ui/analytics_window.cpp
       src/ui/journal_window.cpp
       src/ui/ui_manager.cpp
-      src/ui/echarts_serializer.cpp
   )
 
     if(USE_WEBVIEW)
@@ -122,6 +111,7 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
             ${CMAKE_SOURCE_DIR}/third_party/lightweight-charts/lightweight-charts.standalone.production.js
             $<TARGET_FILE_DIR:TradingTerminal>/third_party/lightweight-charts/lightweight-charts.standalone.production.js
   )
+  
 endif()
 
 enable_testing()
@@ -227,7 +217,6 @@ add_test(NAME test_journal COMMAND test_journal)
   target_link_libraries(test_logger PRIVATE GTest::gtest_main)
   add_test(NAME test_logger COMMAND test_logger)
 
-  # test_echarts_serialization temporarily disabled due to build issues
 
   add_custom_target(ctest COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
       DEPENDS test_backtester test_candle_manager test_signal test_scheduler test_kline_stream test_data_fetcher test_interval_utils test_logger test_journal
