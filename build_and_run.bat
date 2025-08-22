@@ -24,11 +24,11 @@ if %errorlevel% neq 0 (
     goto :eof
 )
 
-echo Copying resources...
+echo Preparing chart resources...
 for %%c in (Debug Release) do (
     if exist "%%c" (
-        echo Copying resources to %%c...
-        robocopy "%PROJECT_DIR%resources" "%%c\resources" "chart.html" >nul
+        echo Preparing resources in %%c...
+        call "%PROJECT_DIR%prepare_chart_resources.bat" "%BUILD_DIR%\%%c" || goto :eof
     )
 )
 
