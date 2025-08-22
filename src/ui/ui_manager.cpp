@@ -111,6 +111,7 @@ void UiManager::draw_chart_panel(const std::string &selected_interval) {
 }
 
 void UiManager::set_markers(const std::string &markers_json) {
+  std::lock_guard<std::mutex> lock(ui_mutex_);
   if (chart_view_) {
     chart_view_->eval(std::string("window.chart && window.chart.setMarkers(") +
                       markers_json + ");");
@@ -118,6 +119,7 @@ void UiManager::set_markers(const std::string &markers_json) {
 }
 
 void UiManager::set_price_line(double price) {
+  std::lock_guard<std::mutex> lock(ui_mutex_);
   if (chart_view_) {
     std::ostringstream js;
     js << "window.chart && window.chart.setPriceLine(" << price << ");";
@@ -135,6 +137,7 @@ std::function<void(const std::string &)> UiManager::candle_callback() {
 }
 
 void UiManager::push_candle(const Core::Candle &candle) {
+  std::lock_guard<std::mutex> lock(ui_mutex_);
   cached_candle_ = candle;
   if (!chart_view_)
     return;
@@ -182,6 +185,7 @@ void UiManager::end_frame(GLFWwindow *window) {
 }
 
 void UiManager::shutdown() {
+  std::lock_guard<std::mutex> lock(ui_mutex_);
   if (shutdown_called_)
     return;
   shutdown_called_ = true;
