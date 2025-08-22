@@ -6,6 +6,7 @@
 #include <ctime>
 #include <charconv>
 #include <string_view>
+#include <algorithm>
 #include "core/logger.h"
 #include "interval_utils.h"
 #include "core/data_dir.h"
@@ -300,6 +301,29 @@ nlohmann::json CandleManager::load_candles_json(const std::string& symbol,
         y.push_back({c.open, c.close, c.low, c.high});
     }
     return nlohmann::json{{"x", std::move(x)}, {"y", std::move(y)}};
+}
+
+nlohmann::json CandleManager::load_candles_tradingview(
+    const std::string& symbol, const std::string& interval,
+    std::size_t offset, std::size_t limit) const {
+    auto candles = load_candles(symbol, interval);
+    nlohmann::json arr = nlohmann::json::array();
+
+    if (offset >= candles.size()) {
+        return arr;
+    }
+
+    std::size_t end =
+        limit > 0 ? std::min(offset + limit, candles.size()) : candles.size();
+    for (std::size_t i = offset; i < end; ++i) {
+        const auto& c = candles[i];
+        arr.push_back({{"time", c.open_time / 1000},
+                       {"open", c.open},
+                       {"high", c.high},
+                       {"low", c.low},
+                       {"close", c.close}});
+    }
+    return arr;
 }
 
 

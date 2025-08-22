@@ -1,15 +1,34 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"/></head>
+<head>
+  <meta charset="utf-8" />
+  <script src="lightweight-charts.standalone.production.js"></script>
+  <style>
+    html, body, #chart { width: 100%; height: 100%; margin: 0; padding: 0; }
+  </style>
+</head>
 <body>
-<!-- Chart placeholder. TradingView integration will be added later. -->
-<script>
-  // Minimal stub chart API for native<->JS communication tests.
-  window.chart = {
-    addCandle: function(c) { console.log('candle', c); },
-    setMarkers: function(m) { console.log('markers', m); },
-    setPriceLine: function(p) { console.log('price line', p); }
-  };
-</script>
+  <div id="chart"></div>
+  <script>
+    const chart = LightweightCharts.createChart(document.getElementById('chart'), {
+      width: document.body.clientWidth,
+      height: document.body.clientHeight,
+    });
+    const series = chart.addCandlestickSeries();
+    let priceLine;
+    function loadCandles(data) {
+      series.setData(data);
+    }
+    window.chart = {
+      addCandle: c => series.update(c),
+      setMarkers: m => series.setMarkers(m),
+      setPriceLine: p => {
+        if (priceLine) {
+          series.removePriceLine(priceLine);
+        }
+        priceLine = series.createPriceLine({ price: p, color: 'yellow', lineWidth: 1 });
+      }
+    };
+  </script>
 </body>
 </html>

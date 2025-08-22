@@ -10,31 +10,19 @@
 
 #include <webview.h>
 #include "core/candle.h"
+#include "core/candle_manager.h"
 
 #include "config_manager.h"
 #include "config_path.h"
 #include "core/logger.h"
 #include "core/path_utils.h"
-#ifndef _WIN32
-#include <sys/resource.h>
-#endif
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
 
 UiManager::~UiManager() { shutdown(); }
 
-namespace {
-std::size_t current_memory_kb() {
-#ifndef _WIN32
-  struct rusage usage;
-  if (getrusage(RUSAGE_SELF, &usage) == 0) {
-    return usage.ru_maxrss;
-  }
-#endif
-  return 0;
-}
-} // namespace
+
 
 bool UiManager::setup(GLFWwindow *window) {
   IMGUI_CHECKVERSION();
@@ -74,24 +62,7 @@ bool UiManager::setup(GLFWwindow *window) {
 
   if (auto cfg = Config::ConfigManager::load(resolve_config_path().string())) {
     chart_enabled_ = cfg->enable_chart;
-    if (chart_enabled_) {
-      auto start = std::chrono::steady_clock::now();
-      auto mem_before = current_memory_kb();
-      chart_view_ = std::make_unique<webview::webview>(false, nullptr);
-      chart_view_->set_title("Chart");
-      auto chart_path = Core::path_from_executable(cfg->chart_html_path);
-      chart_view_->navigate(std::string("file://") + chart_path.string());
-      auto end = std::chrono::steady_clock::now();
-      auto mem_after = current_memory_kb();
-      auto duration =
-          std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-      Core::Logger::instance().info(
-          "Webview init time: " + std::to_string(duration.count()) +
-          " ms, memory delta: " +
-          std::to_string(static_cast<long long>(mem_after) -
-                         static_cast<long long>(mem_before)) +
-          " KB");
-    }
+    chart_html_path_ = cfg->chart_html_path;
   }
   return true;
 }
@@ -102,13 +73,33 @@ void UiManager::begin_frame() {
   ImGui::NewFrame();
 }
 
-void UiManager::draw_chart_panel(const std::string &selected_interval) {
+void UiManager::draw_chart_panel(Core::CandleManager &candle_manager,
+                                 const std::string &active_pair,
+                                 const std::string &selected_interval) {
   ImGui::Begin("Chart");
   if (!chart_enabled_) {
     ImGui::Text("Chart disabled by configuration");
-  } else {
-    ImGui::Text("Chart panel placeholder (%s)", selected_interval.c_str());
+    ImGui::End();
+    return;
   }
+
+  if (!chart_view_) {
+    chart_view_ = std::make_unique<webview::webview>(false, nullptr);
+    chart_view_->set_title("Chart");
+    auto chart_path = Core::path_from_executable(chart_html_path_);
+    chart_view_->navigate(std::string("file://") + chart_path.string());
+  }
+
+  if (!active_pair.empty() &&
+      (active_pair != current_pair_ || selected_interval != current_interval_)) {
+    current_pair_ = active_pair;
+    current_interval_ = selected_interval;
+    auto data = candle_manager.load_candles_tradingview(active_pair,
+                                                        selected_interval);
+    chart_view_->eval(std::string("loadCandles(") + data.dump() + ");");
+  }
+
+  ImGui::Text("%s %s", active_pair.c_str(), selected_interval.c_str());
   ImGui::End();
 }
 
@@ -137,7 +128,7 @@ void UiManager::push_candle(const Core::Candle &candle) {
   const auto &c = *cached_candle_;
   std::ostringstream js;
   js << "window.chart && window.chart.addCandle({";
-  js << "time:" << c.open_time << ",";
+  js << "time:" << c.open_time / 1000 << ",";
   js << "open:" << c.open << ",";
   js << "high:" << c.high << ",";
   js << "low:" << c.low << ",";

@@ -620,7 +620,9 @@ void App::render_main_windows() {
                         this->ctx_->selected_interval);
     DrawJournalWindow(journal_service_);
   }
-  ui_manager_.draw_chart_panel(this->ctx_->selected_interval);
+  ui_manager_.draw_chart_panel(data_service_.candle_manager(),
+                               this->ctx_->active_pair,
+                               this->ctx_->selected_interval);
 }
 
 void App::render_backtest_panel() {

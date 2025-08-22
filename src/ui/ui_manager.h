@@ -12,6 +12,7 @@ class webview;
 }
 namespace Core {
 struct Candle;
+class CandleManager;
 }
 
 // Manages ImGui initialization and per-frame rendering and hosts auxiliary
@@ -22,7 +23,9 @@ public:
   bool setup(GLFWwindow *window);
   void begin_frame();
   // Draw docked panels each frame. Currently hosts a placeholder chart panel.
-  void draw_chart_panel(const std::string &selected_interval);
+  void draw_chart_panel(Core::CandleManager &candle_manager,
+                        const std::string &active_pair,
+                        const std::string &selected_interval);
   // Pushes trade markers to the chart via series.setMarkers.
   void set_markers(const std::string &markers_json);
   // Draws/updates a price line for the currently open position.
@@ -41,9 +44,11 @@ public:
 private:
   bool chart_enabled_ = true;
   std::string current_interval_;
+  std::string current_pair_;
   std::function<void(const std::string &)> on_interval_changed_;
   std::function<void(const std::string &)> status_callback_;
   std::unique_ptr<webview::webview> chart_view_;
+  std::string chart_html_path_;
   bool shutdown_called_ = false;
 
   // Throttling for real-time candle pushes
