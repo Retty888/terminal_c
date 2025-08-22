@@ -324,6 +324,19 @@ nlohmann::json CandleManager::load_candles_tradingview(
                        {"close", c.close}});
     }
     return arr;
+nlohmann::json CandleManager::load_candles_tradingview(const std::string& symbol,
+                                                        const std::string& interval) const {
+    auto candles = load_candles(symbol, interval);
+    nlohmann::json data = nlohmann::json::array();
+    for (const auto& c : candles) {
+        data.push_back({{"time", c.open_time / 1000},
+                        {"open", c.open},
+                        {"high", c.high},
+                        {"low", c.low},
+                        {"close", c.close},
+                        {"volume", c.volume}});
+    }
+    return data;
 }
 
 
