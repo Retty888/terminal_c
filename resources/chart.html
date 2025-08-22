@@ -3,5 +3,13 @@
 <head><meta charset="utf-8"/></head>
 <body>
 <!-- Chart placeholder. TradingView integration will be added later. -->
+<script>
+  // Minimal stub chart API for native<->JS communication tests.
+  window.chart = {
+    addCandle: function(c) { console.log('candle', c); },
+    setMarkers: function(m) { console.log('markers', m); },
+    setPriceLine: function(p) { console.log('price line', p); }
+  };
+</script>
 </body>
 </html>

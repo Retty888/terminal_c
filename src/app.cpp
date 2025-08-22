@@ -504,6 +504,10 @@ void App::handle_http_updates() {
         if (vec.empty() ||
             latest.candles.back().open_time > vec.back().open_time) {
           vec.push_back(latest.candles.back());
+          if (it->first == this->ctx_->active_pair &&
+              it->second.interval == this->ctx_->active_interval) {
+            ui_manager_.push_candle(latest.candles.back());
+          }
           data_service_.append_candles(it->first, it->second.interval,
                                        {latest.candles.back()});
           auto p = Core::parse_interval(it->second.interval);
