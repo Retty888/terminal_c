@@ -94,6 +94,13 @@ TEST(CandleManagerTest, LoadCandlesJsonReturnsOHLC) {
         }}
     };
     EXPECT_EQ(json, expected);
+    // Ensure pagination works
+    auto paged = cm.load_candles_json("TEST", "1m", 1, 1);
+    nlohmann::json expected_paged = {
+        {"x", {"1970-01-01T00:01:00.000Z"}},
+        {"y", {{12.0, 18.0, 8.0, 22.0}}}
+    };
+    EXPECT_EQ(paged, expected_paged);
 
     std::filesystem::remove_all(dir);
 }

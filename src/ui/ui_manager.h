@@ -3,6 +3,8 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <optional>
+#include <chrono>
 
 struct GLFWwindow;
 namespace webview {
@@ -43,4 +45,9 @@ private:
   std::function<void(const std::string &)> status_callback_;
   std::unique_ptr<webview::webview> chart_view_;
   bool shutdown_called_ = false;
+
+  // Throttling for real-time candle pushes
+  std::chrono::steady_clock::time_point last_push_time_{};
+  std::chrono::milliseconds throttle_interval_{100};
+  std::optional<Core::Candle> cached_candle_{};
 };
