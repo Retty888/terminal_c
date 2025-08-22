@@ -2,13 +2,24 @@
 <html>
 <head><meta charset="utf-8"/></head>
 <body>
-<!-- Chart placeholder. TradingView integration will be added later. -->
+<div id="tvchart" style="width:100%;height:100%;"></div>
+<script src="https://unpkg.com/lightweight-charts@4.0.0/dist/lightweight-charts.standalone.production.js"></script>
 <script>
-  // Minimal stub chart API for native<->JS communication tests.
+  const chart = LightweightCharts.createChart(document.getElementById('tvchart'), {width:600, height:300});
+  const series = chart.addCandlestickSeries();
+  const data = [];
+  window.updateCandle = function(c) {
+    if (data.length && data[data.length-1].time === c.time) {
+      data[data.length-1] = c;
+      series.update(c);
+    } else {
+      data.push(c);
+      series.update(c);
+    }
+  };
   window.chart = {
-    addCandle: function(c) { console.log('candle', c); },
-    setMarkers: function(m) { console.log('markers', m); },
-    setPriceLine: function(p) { console.log('price line', p); }
+    setMarkers: function(m) { series.setMarkers(m); },
+    setPriceLine: function(p) { series.createPriceLine({price:p}); }
   };
 </script>
 </body>

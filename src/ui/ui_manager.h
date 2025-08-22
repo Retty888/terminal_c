@@ -1,10 +1,11 @@
 #pragma once
 
+#include <chrono>
 #include <functional>
 #include <memory>
-#include <string>
+#include <mutex>
 #include <optional>
-#include <chrono>
+#include <string>
 
 struct GLFWwindow;
 namespace webview {
@@ -29,6 +30,8 @@ public:
   void set_price_line(double price);
   // Sends a new candle to the chart for real-time updates.
   void push_candle(const Core::Candle &candle);
+  // Provides callback to forward candle JSON to the embedded chart.
+  std::function<void(const std::string &)> candle_callback();
   // Placeholder for future interval change notifications from embedded charts.
   void set_interval_callback(std::function<void(const std::string &)> cb);
   // Set callback for reporting status messages to the application.
@@ -45,6 +48,7 @@ private:
   std::function<void(const std::string &)> status_callback_;
   std::unique_ptr<webview::webview> chart_view_;
   bool shutdown_called_ = false;
+  mutable std::mutex ui_mutex_;
 
   // Throttling for real-time candle pushes
   std::chrono::steady_clock::time_point last_push_time_{};
