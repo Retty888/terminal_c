@@ -105,3 +105,28 @@ TEST(CandleManagerTest, LoadCandlesJsonReturnsOHLC) {
     std::filesystem::remove_all(dir);
 }
 
+TEST(CandleManagerTest, LoadCandlesTradingViewFormat) {
+    using namespace Core;
+    std::filesystem::path dir = std::filesystem::temp_directory_path() / "cm_tradingview_test";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    CandleManager cm(dir);
+
+    std::vector<Candle> candles = {
+        {0,10.0,20.0,5.0,15.0,1.0,59999,0.0,0,0.0,0.0,0.0},
+        {60000,12.0,22.0,8.0,18.0,2.0,119999,0.0,0,0.0,0.0,0.0}
+    };
+    cm.save_candles("TEST","1m",candles);
+
+    auto json = cm.load_candles_tradingview("TEST","1m");
+    ASSERT_EQ(json.size(), 2);
+    auto first = json[0];
+    EXPECT_EQ(first["time"].get<long long>(), 0);
+    EXPECT_DOUBLE_EQ(first["open"].get<double>(), 10.0);
+    EXPECT_DOUBLE_EQ(first["high"].get<double>(), 20.0);
+    EXPECT_DOUBLE_EQ(first["low"].get<double>(), 5.0);
+    EXPECT_DOUBLE_EQ(first["close"].get<double>(), 15.0);
+
+    std::filesystem::remove_all(dir);
+}
+

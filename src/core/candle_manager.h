@@ -31,6 +31,11 @@ public:
                                      std::size_t offset = 0,
                                      std::size_t limit = 0) const;
 
+    // Loads candles and converts them to TradingView compatible JSON
+    // array with fields time/open/high/low/close/volume.
+    nlohmann::json load_candles_tradingview(const std::string& symbol,
+                                            const std::string& interval) const;
+
     // Removes all files with the given symbol prefix (symbol_*).
     bool remove_candles(const std::string& symbol) const;
 

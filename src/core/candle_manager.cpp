@@ -302,6 +302,21 @@ nlohmann::json CandleManager::load_candles_json(const std::string& symbol,
     return nlohmann::json{{"x", std::move(x)}, {"y", std::move(y)}};
 }
 
+nlohmann::json CandleManager::load_candles_tradingview(const std::string& symbol,
+                                                        const std::string& interval) const {
+    auto candles = load_candles(symbol, interval);
+    nlohmann::json data = nlohmann::json::array();
+    for (const auto& c : candles) {
+        data.push_back({{"time", c.open_time / 1000},
+                        {"open", c.open},
+                        {"high", c.high},
+                        {"low", c.low},
+                        {"close", c.close},
+                        {"volume", c.volume}});
+    }
+    return data;
+}
+
 
 bool CandleManager::remove_candles(const std::string& symbol) const {
     std::lock_guard<std::mutex> lock(mutex_);
