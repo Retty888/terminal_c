@@ -36,6 +36,10 @@
 #include "ui/journal_window.h"
 #include "ui/signals_window.h"
 
+static void OnFramebufferResize(GLFWwindow * /*w*/, int width, int height) {
+  glViewport(0, 0, width, height);
+}
+
 
 void App::WindowDeleter::operator()(GLFWwindow *window) const {
   if (window)
@@ -89,6 +93,10 @@ bool App::init_window() {
   glfwMakeContextCurrent(window_.get());
   glfwSetWindowSize(window_.get(), 1280, 720);
   glfwSwapInterval(1);
+  glfwSetFramebufferSizeCallback(window_.get(), OnFramebufferResize);
+  int w, h;
+  glfwGetFramebufferSize(window_.get(), &w, &h);
+  OnFramebufferResize(window_.get(), w, h);
   return true;
 }
 
