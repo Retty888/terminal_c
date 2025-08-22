@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 
 #include <webview/webview.h>
 #include "core/candle.h"
@@ -19,8 +20,8 @@ public:
   ~UiManager();
   bool setup(GLFWwindow *window);
   void begin_frame();
-  // Draw docked panels each frame. Currently hosts a placeholder chart panel.
-  void draw_chart_panel(const std::string &selected_interval);
+  // Draw docked panels each frame.
+  void draw_chart_panel([[maybe_unused]] const std::string &selected_interval);
   // Pushes trade markers to the chart via series.setMarkers.
   void set_markers(const std::string &markers_json);
   // Draws/updates a price line for the currently open position.
@@ -44,6 +45,7 @@ private:
   std::function<void(const std::string &)> on_interval_changed_;
   std::function<void(const std::string &)> status_callback_;
   std::unique_ptr<webview::webview> chart_view_;
+  std::jthread chart_thread_;
   bool shutdown_called_ = false;
   mutable std::mutex ui_mutex_;
 

@@ -79,6 +79,7 @@ bool UiManager::setup(GLFWwindow *window) {
       chart_view_->set_title("Chart");
       auto chart_path = Core::path_from_executable(cfg->chart_html_path);
       chart_view_->navigate(std::string("file://") + chart_path.string());
+      chart_thread_ = std::jthread([this] { chart_view_->run(); });
       auto end = std::chrono::steady_clock::now();
       auto mem_after = current_memory_kb();
       auto duration =
@@ -100,12 +101,10 @@ void UiManager::begin_frame() {
   ImGui::NewFrame();
 }
 
-void UiManager::draw_chart_panel(const std::string &selected_interval) {
+void UiManager::draw_chart_panel([[maybe_unused]] const std::string &selected_interval) {
   ImGui::Begin("Chart");
   if (!chart_enabled_) {
     ImGui::Text("Chart disabled by configuration");
-  } else {
-    ImGui::Text("Chart panel placeholder (%s)", selected_interval.c_str());
   }
   ImGui::End();
 }
@@ -190,6 +189,10 @@ void UiManager::shutdown() {
     return;
   shutdown_called_ = true;
   if (chart_view_) {
+    if (chart_thread_.joinable()) {
+      chart_thread_.request_stop();
+      chart_thread_.join();
+    }
     chart_view_->terminate();
     chart_view_.reset();
   }
