@@ -47,14 +47,18 @@ double exponential_moving_average(const std::vector<Core::Candle>& candles,
     if (period == 0 || index >= candles.size() || index + 1 < period) {
         return 0.0;
     }
+
     const double k = 2.0 / (static_cast<double>(period) + 1.0);
-    // Start with SMA for the first period
-    std::size_t start = index + 1 - period;
-    double ema = simple_moving_average(candles, index - (period > 1 ? 1 : 0), period);
-    for (std::size_t i = start; i <= index; ++i) {
-        ema = (candles[i].close - ema) * k + ema;
+
+    // For the first complete window, seed the EMA with the SMA at the
+    // current index to avoid relying on a previous index.
+    if (index + 1 == period) {
+        return simple_moving_average(candles, index, period);
     }
-    return ema;
+
+    // Recursively compute the previous EMA and update with the current price.
+    double prev_ema = exponential_moving_average(candles, index - 1, period);
+    return (candles[index].close - prev_ema) * k + prev_ema;
 }
 
 int ema_signal(const std::vector<Core::Candle>& candles,

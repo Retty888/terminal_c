@@ -90,7 +90,7 @@ TEST(SignalIndicators, CalculatesEmaAndRsi) {
         candles.emplace_back(i,0,0,0,closes[i],0,0,0,0,0,0,0);
     }
     double ema = Signal::exponential_moving_average(candles,4,3);
-    EXPECT_NEAR(ema, 4.25, 1e-2);
+    EXPECT_NEAR(ema, 4.0, 1e-2);
     double rsi = Signal::relative_strength_index(candles,4,3);
     EXPECT_NEAR(rsi, 100.0, 1e-6);
 }
@@ -102,15 +102,15 @@ TEST(SignalIndicators, CalculatesMacd) {
         candles.emplace_back(i,0,0,0,closes[i],0,0,0,0,0,0,0);
     }
     Signal::MACDResult res = Signal::macd(candles,5,2,3,2);
-    EXPECT_NEAR(res.macd, -0.3194444444, 1e-6);
-    EXPECT_NEAR(res.signal, -0.2546296296, 1e-6);
-    EXPECT_NEAR(res.histogram, -0.0648148148, 1e-6);
+    EXPECT_NEAR(res.macd, -0.1990740741, 1e-6);
+    EXPECT_NEAR(res.signal, -0.1234567901, 1e-6);
+    EXPECT_NEAR(res.histogram, -0.0756172840, 1e-6);
     for (int i = 1; i <= 50; ++i) {
         candles.emplace_back(i,0,0,0,i,0,0,0,0,0,0,0);
     }
     auto m = Signal::macd(candles, 49, 12, 26, 9);
-    EXPECT_NEAR(m.macd, 5.1017391484568435, 1e-6);
-    EXPECT_NEAR(m.signal, 5.1017391484568524, 1e-6);
-    EXPECT_NEAR(m.histogram, 0.0, 1e-6);
+    EXPECT_NEAR(m.macd, 6.8401731354, 1e-6);
+    EXPECT_NEAR(m.signal, 6.7908355919, 1e-6);
+    EXPECT_NEAR(m.histogram, 0.0493375435, 1e-6);
 }
 
