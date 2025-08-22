@@ -1,8 +1,2 @@
-include(vcpkg_common_functions)
-
-vcpkg_copy_sources(
-    SOURCE_PATH "${CURRENT_PORT_DIR}"
-    DESTINATION_PATH "${CURRENT_BUILDTREES_DIR}/src"
-)
-file(INSTALL "${CURRENT_PORT_DIR}/include" DESTINATION "${CURRENT_PACKAGES_DIR}")
-file(INSTALL "${CURRENT_PORT_DIR}/webviewConfig.cmake" DESTINATION "${CURRENT_PACKAGES_DIR}/share/webview")
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/include" DESTINATION "${CURRENT_PACKAGES_DIR}")
+file(INSTALL "${CMAKE_CURRENT_LIST_DIR}/webviewConfig.cmake" DESTINATION "${CURRENT_PACKAGES_DIR}/share/webview")
