@@ -101,7 +101,8 @@ void UiManager::begin_frame() {
   ImGui::NewFrame();
 }
 
-void UiManager::draw_chart_panel([[maybe_unused]] const std::string &selected_interval) {
+void UiManager::draw_chart_panel(
+    [[maybe_unused]] const std::string &selected_interval) {
   ImGui::Begin("Chart");
   if (!chart_enabled_) {
     ImGui::Text("Chart disabled by configuration");
@@ -145,7 +146,7 @@ void UiManager::push_candle(const Core::Candle &candle) {
     return;
   const auto &c = *cached_candle_;
   std::ostringstream js;
-  js << "window.chart && window.chart.addCandle({";
+  js << "updateCandle({";
   js << "time:" << c.open_time << ",";
   js << "open:" << c.open << ",";
   js << "high:" << c.high << ",";
