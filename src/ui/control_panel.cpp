@@ -372,8 +372,6 @@ static void RenderStatusPane(AppStatus &status) {
   ImGui::Separator();
   ImGui::Text("Status");
   ImGui::Text("Candles: %.0f%%", status.candle_progress * 100.0f);
-  ImGui::Text("Analysis: %s", status.analysis_message.c_str());
-  ImGui::Text("Signals: %s", status.signal_message.c_str());
   if (!status.error_message.empty())
     ImGui::TextColored(COLOR_LOW, "%s", status.error_message.c_str());
   if (ImGui::BeginListBox("##status_log", ImVec2(-FLT_MIN, 100))) {

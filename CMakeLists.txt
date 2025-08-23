@@ -28,15 +28,9 @@ if(NOT imgui_FOUND)
   target_include_directories(imgui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
   add_library(imgui::imgui ALIAS imgui)
 endif()
-find_package(cpr CONFIG QUIET)
-if(NOT cpr_FOUND)
-  message(WARNING "cpr not found, skipping targets that require it")
-endif()
-
-if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
+if(BUILD_TRADING_TERMINAL)
   find_package(glfw3 CONFIG REQUIRED)
   find_package(OpenGL REQUIRED)
-  find_package(webview CONFIG REQUIRED)
 
   add_executable(TradingTerminal
     main.cpp
@@ -45,7 +39,6 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
     src/config_schema.cpp
     src/config_path.cpp
       src/candle.cpp
-      src/signal.cpp
       src/core/candle_manager.cpp
     src/core/data_fetcher.cpp
     src/core/interval_utils.cpp
@@ -54,22 +47,14 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
     src/core/exchange_utils.cpp
     src/core/net/token_bucket_rate_limiter.cpp
     src/core/net/cpr_http_client.cpp
-    src/core/backtester.cpp
     src/core/kline_stream.cpp
     src/core/iwebsocket.cpp
     src/core/logger.cpp
     src/core/path_utils.cpp
     src/core/glfw_context.cpp
-    src/journal.cpp
     src/services/data_service.cpp
-    src/services/journal_service.cpp
-    src/services/signal_bot.cpp
     src/ui/control_panel.cpp
-    src/ui/signals_window.cpp
-      src/ui/analytics_window.cpp
-      src/ui/journal_window.cpp
-      src/ui/ui_manager.cpp
-    src/ui/webview_impl.cpp
+    src/ui/ui_manager.cpp
   )
 
   target_sources(TradingTerminal PRIVATE
@@ -79,10 +64,8 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
 
   target_link_libraries(TradingTerminal PRIVATE
       imgui::imgui
-      cpr::cpr
     glfw
     OpenGL::GL
-    webview::webview
   )
 
   target_include_directories(TradingTerminal PRIVATE
@@ -94,15 +77,6 @@ if(BUILD_TRADING_TERMINAL AND cpr_FOUND)
 endif()
 
 enable_testing()
-
-add_executable(test_backtester
-  tests/test_backtester.cpp
-  src/core/backtester.cpp
-  src/candle.cpp
-)
-target_include_directories(test_backtester PRIVATE src include)
-target_link_libraries(test_backtester PRIVATE GTest::gtest_main)
-add_test(NAME test_backtester COMMAND test_backtester)
 
 add_executable(test_candle_manager
   tests/test_candle_manager.cpp
@@ -117,21 +91,6 @@ add_executable(test_candle_manager
 target_include_directories(test_candle_manager PRIVATE src include)
 target_link_libraries(test_candle_manager PRIVATE GTest::gtest_main)
 add_test(NAME test_candle_manager COMMAND test_candle_manager)
-
-add_executable(test_signal
-  tests/test_signal.cpp
-  src/signal.cpp
-  src/candle.cpp
-  src/services/signal_bot.cpp
-  src/config_manager.cpp
-  src/config_schema.cpp
-  src/core/logger.cpp
-  src/config_path.cpp
-  src/core/path_utils.cpp
-)
-target_include_directories(test_signal PRIVATE src include)
-target_link_libraries(test_signal PRIVATE GTest::gtest_main)
-add_test(NAME test_signal COMMAND test_signal)
 
 add_executable(test_data_fetcher
   tests/test_data_fetcher.cpp
@@ -179,15 +138,6 @@ target_include_directories(test_kline_stream PRIVATE src include)
 target_link_libraries(test_kline_stream PRIVATE GTest::gtest_main)
 add_test(NAME test_kline_stream COMMAND test_kline_stream)
 
-add_executable(test_journal
-  tests/test_journal.cpp
-  src/journal.cpp
-  src/core/logger.cpp
-)
-target_include_directories(test_journal PRIVATE src include)
-target_link_libraries(test_journal PRIVATE GTest::gtest_main)
-add_test(NAME test_journal COMMAND test_journal)
-
   add_executable(test_logger
     tests/test_logger.cpp
     src/core/logger.cpp
@@ -198,6 +148,6 @@ add_test(NAME test_journal COMMAND test_journal)
 
 
   add_custom_target(ctest COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-      DEPENDS test_backtester test_candle_manager test_signal test_scheduler test_kline_stream test_data_fetcher test_interval_utils test_logger test_journal
+      DEPENDS test_candle_manager test_scheduler test_kline_stream test_data_fetcher test_interval_utils test_logger
     )
 

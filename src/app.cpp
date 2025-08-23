@@ -2,7 +2,6 @@
 
 #include "config_manager.h"
 #include "config_path.h"
-#include "core/backtester.h"
 #include "core/candle.h"
 #include "core/candle_manager.h"
 #include "core/interval_utils.h"
@@ -10,7 +9,6 @@
 #include "core/logger.h"
 #include "imgui.h"
 #include "imgui_internal.h"
-#include "signal.h"
 
 #include <algorithm>
 #include <chrono>
@@ -30,11 +28,7 @@
 
 #include <GLFW/glfw3.h>
 
-#include "services/signal_bot.h"
-#include "ui/analytics_window.h"
 #include "ui/control_panel.h"
-#include "ui/journal_window.h"
-#include "ui/signals_window.h"
 
 static void OnFramebufferResize(GLFWwindow * /*w*/, int width, int height) {
   glViewport(0, 0, width, height);
@@ -186,7 +180,6 @@ void App::load_pairs(std::vector<std::string> &pair_names) {
   this->ctx_->selected_interval =
       this->ctx_->intervals.empty() ? "1m" : this->ctx_->intervals[0];
   ui_manager_.set_initial_interval(this->ctx_->selected_interval);
-  journal_service_.load("journal.json");
 }
 
 void App::load_existing_candles() {
@@ -562,34 +555,10 @@ void App::update_next_fetch_time(long long candidate) {
 
 void App::render_ui() {
   ui_manager_.begin_frame();
-  render_dockspace();
   render_status_window();
   render_main_windows();
-  render_backtest_panel();
   handle_active_pair_change();
   ui_manager_.end_frame(window_.get());
-}
-
-void App::render_dockspace() {
-  ImGuiViewport *viewport = ImGui::GetMainViewport();
-  ImGuiID dockspace_id = ImGui::DockSpaceOverViewport(viewport->ID, viewport);
-  if (ImGui::DockBuilderGetNode(dockspace_id) == nullptr) {
-    ImGui::DockBuilderRemoveNode(dockspace_id);
-    ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
-    ImGuiID dock_main_top, dock_bottom;
-    ImGui::DockBuilderSplitNode(dockspace_id, ImGuiDir_Down, 0.25f,
-                                &dock_bottom, &dock_main_top);
-    ImGuiID dock_left, dock_right;
-    ImGui::DockBuilderSplitNode(dock_main_top, ImGuiDir_Left, 0.2f, &dock_left,
-                                &dock_right);
-    ImGui::DockBuilderDockWindow("Control Panel", dock_left);
-    ImGui::DockBuilderDockWindow("Chart", dock_right);
-    ImGui::DockBuilderDockWindow("Journal", dock_bottom);
-    ImGui::DockBuilderDockWindow("Signals", dock_bottom);
-    ImGui::DockBuilderDockWindow("Backtest", dock_bottom);
-    ImGui::DockBuilderDockWindow("Analytics", dock_bottom);
-    ImGui::DockBuilderFinish(dockspace_id);
-  }
 }
 
 void App::render_status_window() {
@@ -608,91 +577,13 @@ void App::render_status_window() {
 }
 
 void App::render_main_windows() {
-  {
-    std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
-    DrawControlPanel(this->ctx_->pairs, this->ctx_->selected_pairs,
-                     this->ctx_->active_pair, this->ctx_->intervals,
-                     this->ctx_->selected_interval, this->ctx_->all_candles,
-                     this->ctx_->save_pairs, this->ctx_->exchange_pairs,
-                     status_, data_service_, this->ctx_->cancel_pair);
-
-    DrawSignalsWindow(
-        this->ctx_->strategy, this->ctx_->short_period, this->ctx_->long_period,
-        this->ctx_->oversold, this->ctx_->overbought, this->ctx_->show_on_chart,
-        this->ctx_->signal_entries, this->ctx_->trades, this->ctx_->all_candles,
-        this->ctx_->active_pair, this->ctx_->selected_interval, status_);
-
-    DrawAnalyticsWindow(this->ctx_->all_candles, this->ctx_->active_pair,
-                        this->ctx_->selected_interval);
-    DrawJournalWindow(journal_service_);
-  }
+  std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
+  DrawControlPanel(this->ctx_->pairs, this->ctx_->selected_pairs,
+                   this->ctx_->active_pair, this->ctx_->intervals,
+                   this->ctx_->selected_interval, this->ctx_->all_candles,
+                   this->ctx_->save_pairs, this->ctx_->exchange_pairs, status_,
+                   data_service_, this->ctx_->cancel_pair);
   ui_manager_.draw_chart_panel(this->ctx_->selected_interval);
-}
-
-void App::render_backtest_panel() {
-  ImGui::Begin("Backtest");
-  ImGui::Text("Strategy: %s", this->ctx_->strategy.c_str());
-  if (this->ctx_->strategy == "sma_crossover") {
-    ImGui::Text("Short SMA: %d", this->ctx_->short_period);
-    ImGui::Text("Long SMA: %d", this->ctx_->long_period);
-  } else if (this->ctx_->strategy == "ema") {
-    ImGui::Text("EMA Period: %d", this->ctx_->short_period);
-  } else if (this->ctx_->strategy == "rsi") {
-    ImGui::Text("RSI Period: %d", this->ctx_->short_period);
-    ImGui::Text("Oversold: %.2f", this->ctx_->oversold);
-    ImGui::Text("Overbought: %.2f", this->ctx_->overbought);
-  }
-  if (ImGui::Button("Run Backtest")) {
-    status_.analysis_message = "Running backtest";
-    add_status("Backtest started");
-    Config::SignalConfig cfg;
-    cfg.type = this->ctx_->strategy;
-    cfg.short_period = static_cast<std::size_t>(this->ctx_->short_period);
-    cfg.long_period = static_cast<std::size_t>(this->ctx_->long_period);
-    if (this->ctx_->strategy == "rsi") {
-      cfg.params["oversold"] = this->ctx_->oversold;
-      cfg.params["overbought"] = this->ctx_->overbought;
-    }
-    SignalBot bot(cfg);
-    {
-      std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
-      auto pair_it = this->ctx_->all_candles.find(this->ctx_->active_pair);
-      if (pair_it != this->ctx_->all_candles.end()) {
-        auto interval_it = pair_it->second.find(this->ctx_->active_interval);
-        if (interval_it != pair_it->second.end()) {
-          Core::Backtester bt(interval_it->second, bot);
-          this->ctx_->last_result = bt.run();
-          this->ctx_->last_signal_cfg = cfg;
-        }
-      }
-    }
-    status_.analysis_message = "Backtest done";
-    add_status("Backtest finished");
-  }
-  if (!this->ctx_->last_result.equity_curve.empty()) {
-    ImGui::Text("Strategy: %s", this->ctx_->last_signal_cfg.type.c_str());
-    if (this->ctx_->last_signal_cfg.type == "sma_crossover") {
-      ImGui::Text("Short SMA: %zu", this->ctx_->last_signal_cfg.short_period);
-      ImGui::Text("Long SMA: %zu", this->ctx_->last_signal_cfg.long_period);
-    } else if (this->ctx_->last_signal_cfg.type == "ema") {
-      ImGui::Text("EMA Period: %zu", this->ctx_->last_signal_cfg.short_period);
-    } else if (this->ctx_->last_signal_cfg.type == "rsi") {
-      ImGui::Text("RSI Period: %zu", this->ctx_->last_signal_cfg.short_period);
-      auto it_os = this->ctx_->last_signal_cfg.params.find("oversold");
-      if (it_os != this->ctx_->last_signal_cfg.params.end())
-        ImGui::Text("Oversold: %.2f", it_os->second);
-      auto it_ob = this->ctx_->last_signal_cfg.params.find("overbought");
-      if (it_ob != this->ctx_->last_signal_cfg.params.end())
-        ImGui::Text("Overbought: %.2f", it_ob->second);
-    }
-    ImGui::Text("Total PnL: %.2f", this->ctx_->last_result.total_pnl);
-    ImGui::Text("Win rate: %.2f%%", this->ctx_->last_result.win_rate * 100.0);
-    ImGui::Text("Max Drawdown: %.2f", this->ctx_->last_result.max_drawdown);
-    ImGui::Text("Sharpe Ratio: %.2f", this->ctx_->last_result.sharpe_ratio);
-    ImGui::Text("Average Win: %.2f", this->ctx_->last_result.avg_win);
-    ImGui::Text("Average Loss: %.2f", this->ctx_->last_result.avg_loss);
-  }
-  ImGui::End();
 }
 
 void App::handle_active_pair_change() {

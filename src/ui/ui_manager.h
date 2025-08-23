@@ -6,9 +6,6 @@
 #include <mutex>
 #include <optional>
 #include <string>
-#include <thread>
-
-#include <webview/webview.h>
 #include "core/candle.h"
 
 struct GLFWwindow;
@@ -44,8 +41,6 @@ private:
   std::string current_interval_;
   std::function<void(const std::string &)> on_interval_changed_;
   std::function<void(const std::string &)> status_callback_;
-  std::unique_ptr<webview::webview> chart_view_;
-  std::jthread chart_thread_;
   bool shutdown_called_ = false;
   mutable std::mutex ui_mutex_;
 

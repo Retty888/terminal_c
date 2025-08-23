@@ -13,20 +13,12 @@
 #include <set>
 #include <vector>
 
-#include "config_types.h"
-#include "core/backtester.h"
 #include "core/candle.h"
 #include "core/data_fetcher.h"
 #include "core/kline_stream.h"
 #include "ui/control_panel.h"
-#include "ui/signal_entry.h"
 
 struct AppContext {
-  struct TradeEvent {
-    double time;
-    double price;
-    enum class Side { Buy, Sell } side;
-  };
   std::vector<PairItem> pairs;
   std::vector<std::string> selected_pairs;
   std::string active_pair;
@@ -34,14 +26,6 @@ struct AppContext {
   std::vector<std::string> intervals;
   std::vector<std::string> exchange_pairs;
   std::string selected_interval;
-  std::string strategy = "sma_crossover";
-  int short_period = 9;
-  int long_period = 21;
-  double oversold = 30.0;
-  double overbought = 70.0;
-  bool show_on_chart = false;
-  std::vector<SignalEntry> signal_entries;
-  std::vector<TradeEvent> trades;
   std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>
       all_candles;
   std::mutex candles_mutex;
@@ -52,8 +36,6 @@ struct AppContext {
     std::future<Core::KlinesResult> future;
   };
   std::map<std::string, PendingFetch> pending_fetches;
-  Core::BacktestResult last_result;
-  Config::SignalConfig last_signal_cfg;
   struct FetchTask {
     std::string pair;
     std::string interval;
