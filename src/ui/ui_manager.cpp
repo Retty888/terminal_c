@@ -57,6 +57,26 @@ bool UiManager::setup(GLFWwindow *window) {
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 130");
   chart_enabled_ = false;
+  auto cfg = Config::ConfigManager::load(resolve_config_path().string());
+  if (!cfg) {
+    Core::Logger::instance().warn(
+        "WebView initialization skipped: config not loaded");
+  } else if (!cfg->enable_chart) {
+    Core::Logger::instance().info(
+        "WebView initialization disabled by configuration");
+  } else {
+    std::filesystem::path chart_path = cfg->chart_html_path;
+    Core::Logger::instance().info("Initializing WebView with " +
+                                  chart_path.string());
+    if (std::filesystem::exists(chart_path)) {
+      Core::Logger::instance().info("WebView initialized successfully");
+      chart_enabled_ = true;
+    } else {
+      Core::Logger::instance().error(
+          "WebView initialization failed: file not found - " +
+          chart_path.string());
+    }
+  }
   return true;
 }
 
