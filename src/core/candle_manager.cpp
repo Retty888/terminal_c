@@ -58,6 +58,12 @@ std::filesystem::path CandleManager::get_candle_path(const std::string& symbol, 
     return data_dir_ / filename;
 }
 
+std::filesystem::path CandleManager::get_candle_json_path(const std::string& symbol, const std::string& interval) const {
+    std::filesystem::create_directories(data_dir_);
+    std::string filename = symbol + "_" + interval + ".json";
+    return data_dir_ / filename;
+}
+
 std::filesystem::path CandleManager::get_index_path(const std::string& symbol, const std::string& interval) const {
     std::filesystem::create_directories(data_dir_);
     std::string filename = symbol + "_" + interval + ".idx";
@@ -114,40 +120,60 @@ void CandleManager::write_last_open_time(const std::string& symbol, const std::s
 }
 
 bool CandleManager::save_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    std::filesystem::path path_to_save = get_candle_path(symbol, interval);
-    std::ofstream file(path_to_save);
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::filesystem::path path_to_save = get_candle_path(symbol, interval);
+        std::ofstream file(path_to_save);
 
-    if (!file.is_open()) {
-        Logger::instance().error("Could not open file for writing: " + path_to_save.string());
-        return false;
+        if (!file.is_open()) {
+            Logger::instance().error("Could not open file for writing: " + path_to_save.string());
+            return false;
+        }
+
+        // Write header
+        file << "open_time,open,high,low,close,volume,close_time,quote_asset_volume,number_of_trades,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore\n";
+        file.setf(std::ios::fixed);
+        file << std::setprecision(8);
+
+        // Write candle data
+        for (const auto& candle : candles) {
+            file << candle.open_time << ","
+                 << candle.open << ","
+                 << candle.high << ","
+                 << candle.low << ","
+                 << candle.close << ","
+                 << candle.volume << ","
+                 << candle.close_time << ","
+                 << candle.quote_asset_volume << ","
+                 << candle.number_of_trades << ","
+                 << candle.taker_buy_base_asset_volume << ","
+                 << candle.taker_buy_quote_asset_volume << ","
+                 << candle.ignore << "\n";
+        }
+
+        file.close();
+
+        if (!candles.empty()) {
+            write_last_open_time(symbol, interval, candles.back().open_time);
+        }
     }
-
-    // Write header
-    file << "open_time,open,high,low,close,volume,close_time,quote_asset_volume,number_of_trades,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore\n";
-    file.setf(std::ios::fixed);
-    file << std::setprecision(8);
-
-    // Write candle data
-    for (const auto& candle : candles) {
-        file << candle.open_time << ","
-             << candle.open << ","
-             << candle.high << ","
-             << candle.low << ","
-             << candle.close << ","
-             << candle.volume << ","
-             << candle.close_time << ","
-             << candle.quote_asset_volume << ","
-             << candle.number_of_trades << ","
-             << candle.taker_buy_base_asset_volume << ","
-             << candle.taker_buy_quote_asset_volume << ","
-             << candle.ignore << "\n";
-    }
-
-    file.close();
 
     if (!candles.empty()) {
-        write_last_open_time(symbol, interval, candles.back().open_time);
+        auto loaded = load_candles(symbol, interval);
+        if (loaded.size() >= candles.size()) {
+            const auto& orig = candles.back();
+            const auto& read = loaded[candles.size() - 1];
+            if (orig.open_time != read.open_time ||
+                orig.open != read.open ||
+                orig.high != read.high ||
+                orig.low != read.low ||
+                orig.close != read.close ||
+                orig.volume != read.volume) {
+                Logger::instance().warn("Mismatch after save/load for " + symbol + " " + interval);
+            }
+        } else {
+            Logger::instance().warn("Loaded fewer candles than saved for " + symbol + " " + interval);
+        }
     }
     return true;
 }
@@ -189,6 +215,106 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
     file.close();
     write_last_open_time(symbol, interval, last_open_time);
     return true;
+}
+
+bool CandleManager::save_candles_json(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) const {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::filesystem::path path_to_save = get_candle_json_path(symbol, interval);
+        std::ofstream file(path_to_save);
+        if (!file.is_open()) {
+            Logger::instance().error("Could not open JSON file for writing: " + path_to_save.string());
+            return false;
+        }
+        nlohmann::json j = nlohmann::json::array();
+        for (const auto& c : candles) {
+            j.push_back({
+                {"open_time", c.open_time},
+                {"open", c.open},
+                {"high", c.high},
+                {"low", c.low},
+                {"close", c.close},
+                {"volume", c.volume},
+                {"close_time", c.close_time},
+                {"quote_asset_volume", c.quote_asset_volume},
+                {"number_of_trades", c.number_of_trades},
+                {"taker_buy_base_asset_volume", c.taker_buy_base_asset_volume},
+                {"taker_buy_quote_asset_volume", c.taker_buy_quote_asset_volume},
+                {"ignore", c.ignore}
+            });
+        }
+        file << j.dump();
+        file.close();
+        if (!candles.empty()) {
+            write_last_open_time(symbol, interval, candles.back().open_time);
+        }
+    }
+
+    if (!candles.empty()) {
+        auto loaded = load_candles_from_json(symbol, interval);
+        if (loaded.size() >= candles.size()) {
+            const auto& orig = candles.back();
+            const auto& read = loaded[candles.size() - 1];
+            if (orig.open_time != read.open_time ||
+                orig.open != read.open ||
+                orig.high != read.high ||
+                orig.low != read.low ||
+                orig.close != read.close ||
+                orig.volume != read.volume) {
+                Logger::instance().warn("Mismatch after JSON save/load for " + symbol + " " + interval);
+            }
+        } else {
+            Logger::instance().warn("Loaded fewer candles than saved (JSON) for " + symbol + " " + interval);
+        }
+    }
+    return true;
+}
+
+std::vector<Candle> CandleManager::load_candles_from_json(const std::string& symbol, const std::string& interval) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::filesystem::path path = get_candle_json_path(symbol, interval);
+    std::vector<Candle> candles;
+    if (!std::filesystem::exists(path)) {
+        return candles;
+    }
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        Logger::instance().error("Could not open JSON file for reading: " + path.string());
+        return candles;
+    }
+    nlohmann::json j;
+    try {
+        file >> j;
+    } catch (const std::exception& e) {
+        Logger::instance().error(std::string("Failed to parse JSON: ") + e.what());
+        return candles;
+    }
+    for (const auto& item : j) {
+        Candle c;
+        c.open_time = item.value("open_time", 0LL);
+        c.open = item.value("open", 0.0);
+        c.high = item.value("high", 0.0);
+        c.low = item.value("low", 0.0);
+        c.close = item.value("close", 0.0);
+        c.volume = item.value("volume", 0.0);
+        c.close_time = item.value("close_time", 0LL);
+        c.quote_asset_volume = item.value("quote_asset_volume", 0.0);
+        c.number_of_trades = item.value("number_of_trades", 0);
+        c.taker_buy_base_asset_volume = item.value("taker_buy_base_asset_volume", 0.0);
+        c.taker_buy_quote_asset_volume = item.value("taker_buy_quote_asset_volume", 0.0);
+        c.ignore = item.value("ignore", 0.0);
+        candles.push_back(c);
+    }
+    file.close();
+
+    auto interval_ms = parse_interval(interval).count();
+    if (interval_ms > 0) {
+        fill_missing(candles, interval_ms);
+    } else {
+        Logger::instance().warn("Could not determine interval '" + interval + "' for " + symbol);
+    }
+
+    return candles;
 }
 
 std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const std::string& interval) const {

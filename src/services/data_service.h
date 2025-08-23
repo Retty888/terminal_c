@@ -57,6 +57,12 @@ public:
                                          const std::string &interval) const;
   void save_candles(const std::string &pair, const std::string &interval,
                     const std::vector<Core::Candle> &candles) const;
+
+  // JSON storage helpers ---------------------------------------------------
+  std::vector<Core::Candle> load_candles_json(const std::string &pair,
+                                              const std::string &interval) const;
+  void save_candles_json(const std::string &pair, const std::string &interval,
+                         const std::vector<Core::Candle> &candles) const;
   void append_candles(const std::string &pair, const std::string &interval,
                       const std::vector<Core::Candle> &candles) const;
   bool remove_candles(const std::string &pair) const;

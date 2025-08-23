@@ -249,6 +249,32 @@ void DataService::save_candles(const std::string &pair,
   candle_manager_.save_candles(pair, interval, candles);
 }
 
+std::vector<Core::Candle> DataService::load_candles_json(
+    const std::string &pair, const std::string &interval) const {
+  return candle_manager_.load_candles_from_json(pair, interval);
+}
+
+void DataService::save_candles_json(
+    const std::string &pair, const std::string &interval,
+    const std::vector<Core::Candle> &candles) const {
+  candle_manager_.save_candles_json(pair, interval, candles);
+  if (!candles.empty()) {
+    auto loaded = candle_manager_.load_candles_from_json(pair, interval);
+    if (loaded.size() >= candles.size()) {
+      const auto &orig = candles.back();
+      const auto &read = loaded[candles.size() - 1];
+      if (orig.open_time != read.open_time || orig.open != read.open ||
+          orig.close != read.close || orig.volume != read.volume) {
+        Core::Logger::instance().warn(
+            "Data mismatch after JSON save/load for " + pair + " " + interval);
+      }
+    } else {
+      Core::Logger::instance().warn(
+          "Loaded fewer candles than saved (JSON) for " + pair + " " + interval);
+    }
+  }
+}
+
 void DataService::append_candles(
     const std::string &pair, const std::string &interval,
     const std::vector<Core::Candle> &candles) const {

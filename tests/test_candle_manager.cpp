@@ -130,3 +130,26 @@ TEST(CandleManagerTest, LoadCandlesTradingViewFormat) {
     std::filesystem::remove_all(dir);
 }
 
+TEST(CandleManagerTest, SaveLoadJsonFile) {
+    using namespace Core;
+    std::filesystem::path dir = std::filesystem::temp_directory_path() / "cm_json_file_test";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    CandleManager cm(dir);
+
+    std::vector<Candle> candles = {
+        {1,1,1,1,1,1,1,1,1,1,1,0},
+        {2,2,2,2,2,2,2,2,2,2,2,0}
+    };
+
+    ASSERT_TRUE(cm.save_candles_json("TEST","1m",candles));
+    auto loaded = cm.load_candles_from_json("TEST","1m");
+    ASSERT_EQ(loaded.size(), candles.size());
+    EXPECT_EQ(loaded[1].open_time, candles[1].open_time);
+    EXPECT_DOUBLE_EQ(loaded[1].open, candles[1].open);
+    EXPECT_DOUBLE_EQ(loaded[1].close, candles[1].close);
+    EXPECT_DOUBLE_EQ(loaded[1].volume, candles[1].volume);
+
+    std::filesystem::remove_all(dir);
+}
+

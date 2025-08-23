@@ -24,6 +24,12 @@ public:
     // Loads candles from a CSV file into a vector.
     std::vector<Candle> load_candles(const std::string& symbol, const std::string& interval) const;
 
+    // Saves candles in JSON format to a separate file.
+    bool save_candles_json(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) const;
+
+    // Loads candles from a JSON file.
+    std::vector<Candle> load_candles_from_json(const std::string& symbol, const std::string& interval) const;
+
     // Loads candles and converts them to JSON with timestamps "x" and
     // OHLC arrays "y" for candlestick charts. Supports basic pagination
     // via offset/limit to avoid serializing excessive data at once.
@@ -56,6 +62,7 @@ public:
 private:
     // Helper functions to get the full path for candle CSV and index files.
     std::filesystem::path get_candle_path(const std::string& symbol, const std::string& interval) const;
+    std::filesystem::path get_candle_json_path(const std::string& symbol, const std::string& interval) const;
     std::filesystem::path get_index_path(const std::string& symbol, const std::string& interval) const;
     long long read_last_open_time(const std::string& symbol, const std::string& interval) const;
     void write_last_open_time(const std::string& symbol, const std::string& interval, long long open_time) const;
