@@ -2,7 +2,6 @@
 
 #include "app_context.h"
 #include "services/data_service.h"
-#include "services/journal_service.h"
 #include "ui/ui_manager.h"
 #include "core/glfw_context.h"
 
@@ -23,8 +22,6 @@ struct GLFWwindow;
 
 struct AppStatus {
   float candle_progress = 0.0f;
-  std::string analysis_message = "Idle";
-  std::string signal_message = "Idle";
   std::string error_message;
   struct LogEntry {
     std::chrono::system_clock::time_point time;
@@ -65,17 +62,14 @@ private:
                              long long now_ms);
   void handle_http_updates();
   void update_candle_progress();
-  void render_dockspace();
   void render_status_window();
   void render_main_windows();
-  void render_backtest_panel();
   void handle_active_pair_change();
   void start_fetch_thread();
   void stop_fetch_thread();
 
   std::unique_ptr<AppContext> ctx_;
   DataService data_service_;
-  JournalService journal_service_;
   AppStatus status_;
   mutable std::mutex status_mutex_;
   struct WindowDeleter {

@@ -22,18 +22,6 @@
 
 UiManager::~UiManager() { shutdown(); }
 
-namespace {
-std::size_t current_memory_kb() {
-#ifndef _WIN32
-  struct rusage usage;
-  if (getrusage(RUSAGE_SELF, &usage) == 0) {
-    return usage.ru_maxrss;
-  }
-#endif
-  return 0;
-}
-} // namespace
-
 bool UiManager::setup(GLFWwindow *window) {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
@@ -65,40 +53,10 @@ bool UiManager::setup(GLFWwindow *window) {
   if (load_ini) {
     ImGui::LoadIniSettingsFromDisk(io.IniFilename);
   }
-  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   ImGui::StyleColorsDark();
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 130");
-
-  if (auto cfg = Config::ConfigManager::load(resolve_config_path().string())) {
-    chart_enabled_ = cfg->enable_chart;
-    if (chart_enabled_) {
-      auto start = std::chrono::steady_clock::now();
-      auto mem_before = current_memory_kb();
-      chart_view_ = std::make_unique<webview::webview>(false, nullptr);
-      chart_view_->set_title("Chart");
-      auto chart_path = Core::path_from_executable(cfg->chart_html_path);
-      if (std::filesystem::exists(chart_path)) {
-        chart_view_->navigate(std::string("file://") + chart_path.string());
-        chart_thread_ = std::jthread([this] { chart_view_->run(); });
-      } else {
-        Core::Logger::instance().warn("Chart HTML not found: " +
-                                      chart_path.string());
-        chart_view_.reset();
-        chart_enabled_ = false;
-      }
-      auto end = std::chrono::steady_clock::now();
-      auto mem_after = current_memory_kb();
-      auto duration =
-          std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-      Core::Logger::instance().info(
-          "Webview init time: " + std::to_string(duration.count()) +
-          " ms, memory delta: " +
-          std::to_string(static_cast<long long>(mem_after) -
-                         static_cast<long long>(mem_before)) +
-          " KB");
-    }
-  }
+  chart_enabled_ = false;
   return true;
 }
 
@@ -120,52 +78,19 @@ void UiManager::draw_chart_panel(
 }
 
 void UiManager::set_markers(const std::string &markers_json) {
-  std::lock_guard<std::mutex> lock(ui_mutex_);
-  if (chart_view_) {
-    chart_view_->eval(std::string("window.chart && window.chart.setMarkers(") +
-                      markers_json + ");");
-  }
+  (void)markers_json;
 }
 
 void UiManager::set_price_line(double price) {
-  std::lock_guard<std::mutex> lock(ui_mutex_);
-  if (chart_view_) {
-    std::ostringstream js;
-    js << "window.chart && window.chart.setPriceLine(" << price << ");";
-    chart_view_->eval(js.str());
-  }
+  (void)price;
 }
 
 std::function<void(const std::string &)> UiManager::candle_callback() {
-  return [this](const std::string &json) {
-    std::lock_guard<std::mutex> lock(ui_mutex_);
-    if (chart_view_) {
-      chart_view_->eval(std::string("updateCandle(") + json + ");");
-    }
-  };
+  return [](const std::string &) {};
 }
 
 void UiManager::push_candle(const Core::Candle &candle) {
-  std::lock_guard<std::mutex> lock(ui_mutex_);
-  cached_candle_ = candle;
-  if (!chart_view_)
-    return;
-  auto now = std::chrono::steady_clock::now();
-  if (now - last_push_time_ < throttle_interval_)
-    return;
-  const auto &c = *cached_candle_;
-  std::ostringstream js;
-  js << "updateCandle({";
-  js << "time:" << c.open_time << ",";
-  js << "open:" << c.open << ",";
-  js << "high:" << c.high << ",";
-  js << "low:" << c.low << ",";
-  js << "close:" << c.close << ",";
-  js << "volume:" << c.volume;
-  js << "});";
-  chart_view_->eval(js.str());
-  last_push_time_ = now;
-  cached_candle_.reset();
+  (void)candle;
 }
 
 void UiManager::set_interval_callback(
@@ -198,14 +123,6 @@ void UiManager::shutdown() {
   if (shutdown_called_)
     return;
   shutdown_called_ = true;
-  if (chart_view_) {
-    if (chart_thread_.joinable()) {
-      chart_thread_.request_stop();
-      chart_thread_.join();
-    }
-    chart_view_->terminate();
-    chart_view_.reset();
-  }
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
