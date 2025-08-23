@@ -3,8 +3,20 @@
 ## Session Start: 2025-08-07 (Approximate)
 _Updated after removing the previous charting implementation._
 
-### Project Goal
-Create a high-performance C++ desktop application for Windows that serves as a terminal for analysis, backtesting, and algorithmic trading experiments.
+### Main Goal
+Build a high-performance C++ desktop terminal centered on trade journaling, strategy testing and backtesting, analytics, and signal generation, with room for potential exchange integration.
+
+### Upcoming Capabilities
+- Selectable trading pairs
+- Candle data storage and loading
+- Chart display
+- Minimal user interface
+
+### Future Plans
+- Detailed journaling features
+- Strategy management tools
+- Automated trading signals
+- Exchange connectivity
 
 ### Chosen Technology Stack
 - **Language:** C++20
