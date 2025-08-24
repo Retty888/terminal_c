@@ -1,8 +1,8 @@
 @echo off
 set PROJECT_DIR=%~dp0
-set BUILD_DIR=%PROJECT_DIR%\build
-set VCPKG_TOOLCHAIN_FILE=%PROJECT_DIR%vcpkg\scripts\buildsystems\vcpkg.cmake
-set VCPKG_OVERLAY_PORTS=%PROJECT_DIR%ports
+set BUILD_DIR=%PROJECT_DIR%..\build
+set VCPKG_TOOLCHAIN_FILE=%PROJECT_DIR%..\vcpkg\scripts\buildsystems\vcpkg.cmake
+set VCPKG_OVERLAY_PORTS=%PROJECT_DIR%..\ports
 
 echo Creating build directory if it doesn't exist...
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
