@@ -268,6 +268,10 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
         on_interval_changed_(current_interval_);
     }
   }
+  ImGui::SameLine();
+  if (ImGui::Button("Fit")) {
+    fit_next_plot_ = true;
+  }
   int series_index = static_cast<int>(current_series_);
   const char *series_items[] = {"CandlestickSeries", "LineSeries",
                                 "AreaSeries"};
@@ -427,6 +431,10 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
       lows.push_back(c.low);
       highs.push_back(c.high);
     }
+  }
+  if (fit_next_plot_) {
+    ImPlot::SetNextAxesToFit();
+    fit_next_plot_ = false;
   }
   if (ImPlot::BeginPlot("Candles", ImVec2(-1, -1))) {
     ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
@@ -609,12 +617,10 @@ void UiManager::add_position(const Position &p) {
   std::lock_guard<std::mutex> lock(ui_mutex_);
 #ifdef HAVE_WEBVIEW
   if (webview_) {
-    nlohmann::json j = {{"id", p.id},
-                        {"tool", p.is_long ? "long" : "short"},
-                        {"time1", p.time1},
-                        {"price1", p.price1},
-                        {"time2", p.time2},
-                        {"price2", p.price2}};
+    nlohmann::json j = {
+        {"id", p.id},       {"tool", p.is_long ? "long" : "short"},
+        {"time1", p.time1}, {"price1", p.price1},
+        {"time2", p.time2}, {"price2", p.price2}};
     std::string js = "addPosition(" + j.dump() + ");";
     webview_eval(static_cast<webview_t>(webview_), js.c_str());
   }
@@ -627,9 +633,7 @@ void UiManager::add_position(const Position &p) {
     *it = p;
 }
 
-void UiManager::update_position(const Position &p) {
-  add_position(p);
-}
+void UiManager::update_position(const Position &p) { add_position(p); }
 
 void UiManager::remove_position(int id) {
   std::lock_guard<std::mutex> lock(ui_mutex_);
@@ -640,9 +644,10 @@ void UiManager::remove_position(int id) {
     webview_eval(static_cast<webview_t>(webview_), oss.str().c_str());
   }
 #endif
-  positions_.erase(std::remove_if(positions_.begin(), positions_.end(),
-                                  [id](const Position &x) { return x.id == id; }),
-                   positions_.end());
+  positions_.erase(
+      std::remove_if(positions_.begin(), positions_.end(),
+                     [id](const Position &x) { return x.id == id; }),
+      positions_.end());
 }
 
 std::function<void(const std::string &)> UiManager::candle_callback() {

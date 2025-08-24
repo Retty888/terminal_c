@@ -21,6 +21,7 @@
       <option value="LineSeries">LineSeries</option>
       <option value="AreaSeries">AreaSeries</option>
     </select>
+    <button id="fit-btn">Fit</button>
     <button id="tool-cross" data-tool="cross">✖</button>
     <button id="tool-ruler" data-tool="ruler">📏</button>
     <button id="tool-trend" data-tool="trend">／</button>
@@ -67,7 +68,7 @@
 
   function setActiveTool(t) {
     currentTool = t;
-    document.querySelectorAll('#toolbar button').forEach(b => {
+    document.querySelectorAll('#toolbar button[data-tool]').forEach(b => {
       b.classList.toggle('active', b.dataset.tool === t);
     });
     overlay.style.pointerEvents = t === 'cross' ? 'none' : 'auto';
@@ -79,8 +80,13 @@
     if (typeof setTool === 'function') setTool(t);
   }
 
-  document.querySelectorAll('#toolbar button').forEach(b => {
+  document.querySelectorAll('#toolbar button[data-tool]').forEach(b => {
     b.addEventListener('click', () => selectTool(b.dataset.tool));
+  });
+
+  document.getElementById('fit-btn').addEventListener('click', () => {
+    chart.timeScale().fitContent();
+    chart.timeScale().scrollToRealTime();
   });
 
   const seriesSelect = document.getElementById('series-select');
