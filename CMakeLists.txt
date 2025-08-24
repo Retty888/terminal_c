@@ -44,9 +44,7 @@ endif()
 if(BUILD_TRADING_TERMINAL)
   find_package(glfw3 CONFIG REQUIRED)
   find_package(OpenGL REQUIRED)
-
-  set(CPR_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-  add_subdirectory(third_party/cpr)
+  find_package(cpr CONFIG REQUIRED)
 
   add_executable(TradingTerminal
     main.cpp
