@@ -56,10 +56,10 @@ if exist "%VCPKG_PATH%" (
 )
 
 set TOOLCHAIN_FILE=%VCPKG_PATH%\scripts\buildsystems\vcpkg.cmake
-set OVERLAY_PORTS=%SCRIPT_DIR%ports
+set OVERLAY_PORTS=%SCRIPT_DIR%..\ports
 
 REM Install dependencies using manifest if available
-if exist "%SCRIPT_DIR%vcpkg.json" (
+if exist "%SCRIPT_DIR%..\vcpkg.json" (
     echo Installing packages from manifest...
     "%VCPKG_PATH%\vcpkg.exe" install --recurse --overlay-ports="%OVERLAY_PORTS%"
 ) else (
@@ -73,7 +73,7 @@ if %errorlevel% neq 0 (
 )
 "%VCPKG_PATH%\vcpkg.exe" list
 
-set BUILD_DIR=%SCRIPT_DIR%build
+set BUILD_DIR=%SCRIPT_DIR%..\build
 if exist "%BUILD_DIR%" (
     echo Removing existing build directory...
     rmdir /s /q "%BUILD_DIR%"
