@@ -6,7 +6,6 @@
 #include <mutex>
 #include <optional>
 #include <string>
-#include <thread>
 #include "core/candle.h"
 
 #ifdef HAVE_WEBVIEW
@@ -56,7 +55,6 @@ private:
 
 #ifdef HAVE_WEBVIEW
   std::unique_ptr<webview::webview> webview_;
-  std::thread webview_thread_;
 #else
   // WebView is unavailable; members omitted
 #endif
