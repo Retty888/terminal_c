@@ -47,6 +47,14 @@ public:
 
 private:
   std::vector<Core::Candle> candles_;
+  enum class DrawTool { None, Line, HLine };
+  struct DrawObject {
+    DrawTool type;
+    double x1;
+    double y1;
+    double x2;
+    double y2;
+  };
   struct Marker {
     double time;
     bool above;
@@ -54,6 +62,13 @@ private:
     std::string text;
   };
   std::vector<Marker> markers_;
+  DrawTool current_tool_ = DrawTool::None;
+  std::vector<DrawObject> draw_objects_;
+  bool drawing_first_point_ = false;
+  int editing_object_ = -1;
+  double temp_x_ = 0.0;
+  double temp_y_ = 0.0;
+  int context_object_ = -1;
   std::optional<double> price_line_;
   std::string current_interval_;
   std::string current_pair_;
