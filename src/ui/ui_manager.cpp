@@ -1,6 +1,15 @@
 #include "ui_manager.h"
 
 #include <GLFW/glfw3.h>
+#if defined(_WIN32)
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
+#include <windows.h>
+#elif defined(__linux__)
+#define GLFW_EXPOSE_NATIVE_X11
+#include <GLFW/glfw3native.h>
+#include <X11/Xlib.h>
+#endif
 #include <cassert>
 #include <chrono>
 #include <filesystem>
@@ -71,10 +80,15 @@ bool UiManager::setup(GLFWwindow *window) {
 #ifdef HAVE_WEBVIEW
     if (std::filesystem::exists(chart_path)) {
       chart_enabled_ = true;
-      webview_ = std::make_unique<webview::webview>(false, nullptr);
+      void *native_handle = nullptr;
+#if defined(_WIN32)
+      native_handle = glfwGetWin32Window(window);
+#elif defined(__linux__)
+      native_handle = reinterpret_cast<void *>(glfwGetX11Window(window));
+#endif
+      webview_ = std::make_unique<webview::webview>(false, native_handle);
       webview_->set_title("Chart");
       webview_->navigate("file://" + chart_path);
-      webview_thread_ = std::thread([this]() { webview_->run(); });
       Core::Logger::instance().info("WebView initialized successfully");
     } else {
       Core::Logger::instance().error(
@@ -121,8 +135,41 @@ void UiManager::draw_chart_panel(
   ImGui::Begin("Chart");
   if (!chart_enabled_) {
     ImGui::Text("Chart disabled (missing file or disabled by configuration)");
-  } else {
-    ImGui::Text("Chart opened in a separate window");
+  } else if (webview_) {
+#ifdef HAVE_WEBVIEW
+    ImVec2 pos = ImGui::GetWindowPos();
+    ImVec2 size = ImGui::GetContentRegionAvail();
+    if (size.x > 0 && size.y > 0) {
+#if defined(_WIN32)
+      auto hwnd = static_cast<HWND>(
+          webview_get_native_handle(static_cast<webview_t>(webview_.get()),
+                                    WEBVIEW_NATIVE_HANDLE_KIND_UI_WIDGET));
+      if (hwnd) {
+        SetWindowPos(hwnd, nullptr, static_cast<int>(pos.x),
+                     static_cast<int>(pos.y), static_cast<int>(size.x),
+                     static_cast<int>(size.y),
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+      }
+#elif defined(__linux__)
+      auto widget = static_cast<Window>(reinterpret_cast<uintptr_t>(
+          webview_get_native_handle(static_cast<webview_t>(webview_.get()),
+                                    WEBVIEW_NATIVE_HANDLE_KIND_UI_WIDGET)));
+      if (widget) {
+        Display *dpy = glfwGetX11Display();
+        XMoveResizeWindow(dpy, widget, static_cast<int>(pos.x),
+                          static_cast<int>(pos.y),
+                          static_cast<unsigned int>(size.x),
+                          static_cast<unsigned int>(size.y));
+        XFlush(dpy);
+      }
+#endif
+      webview_->set_size(static_cast<int>(size.x), static_cast<int>(size.y),
+                         WEBVIEW_HINT_NONE);
+      ImGui::Dummy(size);
+    }
+#else
+    ImGui::Text("WebView library not available");
+#endif
   }
   ImGui::End();
 }
@@ -219,8 +266,6 @@ void UiManager::shutdown() {
 #ifdef HAVE_WEBVIEW
   if (webview_) {
     webview_->terminate();
-    if (webview_thread_.joinable())
-      webview_thread_.join();
     webview_.reset();
   }
 #else
