@@ -68,9 +68,9 @@ if(BUILD_TRADING_TERMINAL)
     OpenGL::GL
   )
 
-  find_path(ZSERGE_WEBVIEW_INCLUDE_DIR "webview.h")
-  if (ZSERGE_WEBVIEW_INCLUDE_DIR)
-    target_include_directories(TradingTerminal PRIVATE ${ZSERGE_WEBVIEW_INCLUDE_DIR})
+  find_path(WEBVIEW_INCLUDE_DIR "webview.h")
+  if (WEBVIEW_INCLUDE_DIR)
+    target_include_directories(TradingTerminal PRIVATE ${WEBVIEW_INCLUDE_DIR})
     target_compile_definitions(TradingTerminal PRIVATE HAVE_WEBVIEW)
     if (WIN32 AND TARGET WebView2LoaderStatic)
       target_link_libraries(TradingTerminal PRIVATE WebView2LoaderStatic)
@@ -88,7 +88,7 @@ if(BUILD_TRADING_TERMINAL)
       endif()
     endif()
   else()
-    message(WARNING "zserge-webview headers not found; chart window will be disabled.")
+    message(WARNING "webview headers not found; chart window will be disabled.")
   endif()
 
   target_include_directories(TradingTerminal PRIVATE
