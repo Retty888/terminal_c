@@ -9,11 +9,6 @@
 #include <optional>
 #include <sstream>
 #include <nlohmann/json.hpp>
-#ifdef HAVE_WEBVIEW
-#include <webview/webview.h>
-#else
-// WebView library not available; chart functionality will be disabled
-#endif
 
 #include "config_manager.h"
 #include "config_path.h"
