@@ -34,6 +34,9 @@ if(BUILD_TRADING_TERMINAL)
   find_package(glfw3 CONFIG REQUIRED)
   find_package(OpenGL REQUIRED)
 
+  set(CPR_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  add_subdirectory(third_party/cpr)
+
   add_executable(TradingTerminal
     main.cpp
     src/app.cpp
@@ -68,6 +71,7 @@ if(BUILD_TRADING_TERMINAL)
       imgui::imgui
     glfw
     OpenGL::GL
+    cpr::cpr
   )
 
   target_include_directories(TradingTerminal PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview_legacy/webview)
