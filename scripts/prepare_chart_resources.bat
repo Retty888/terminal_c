@@ -8,7 +8,7 @@ if "%~1"=="" (
 
 set "BUILD_DIR=%~1"
 
-set "SRC_DIR=%~dp0resources"
+set "SRC_DIR=%~dp0..\\resources"
 set "LC_FILE=lightweight-charts.standalone.production.js"
 
 if not exist "%SRC_DIR%\%LC_FILE%" (
