@@ -30,6 +30,17 @@ if(NOT imgui_FOUND)
   target_include_directories(imgui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
   add_library(imgui::imgui ALIAS imgui)
 endif()
+find_package(implot CONFIG QUIET)
+if(NOT implot_FOUND)
+  message(WARNING "implot not found, using bundled sources")
+  add_library(implot
+    third_party/implot/implot.cpp
+    third_party/implot/implot_items.cpp
+  )
+  target_include_directories(implot PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/implot)
+  target_link_libraries(implot PUBLIC imgui::imgui)
+  add_library(implot::implot ALIAS implot)
+endif()
 if(BUILD_TRADING_TERMINAL)
   find_package(glfw3 CONFIG REQUIRED)
   find_package(OpenGL REQUIRED)
@@ -69,28 +80,11 @@ if(BUILD_TRADING_TERMINAL)
 
   target_link_libraries(TradingTerminal PRIVATE
       imgui::imgui
+      implot::implot
     glfw
     OpenGL::GL
     cpr::cpr
   )
-
-  target_include_directories(TradingTerminal PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview_legacy/webview)
-  target_compile_definitions(TradingTerminal PRIVATE HAVE_WEBVIEW)
-  if (WIN32 AND TARGET WebView2LoaderStatic)
-    target_link_libraries(TradingTerminal PRIVATE WebView2LoaderStatic)
-  elseif(UNIX AND NOT APPLE)
-    find_package(PkgConfig QUIET)
-    if (PkgConfig_FOUND)
-      pkg_check_modules(WEBVIEWGTK QUIET gtk+-3.0 webkit2gtk-4.0)
-      if (WEBVIEWGTK_FOUND)
-        target_include_directories(TradingTerminal PRIVATE ${WEBVIEWGTK_INCLUDE_DIRS})
-        target_link_libraries(TradingTerminal PRIVATE ${WEBVIEWGTK_LIBRARIES})
-        target_compile_options(TradingTerminal PRIVATE ${WEBVIEWGTK_CFLAGS_OTHER})
-      else()
-        message(WARNING "gtk+-3.0 or webkit2gtk-4.0 not found; chart window will be disabled.")
-      endif()
-    endif()
-  endif()
 
   target_include_directories(TradingTerminal PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include

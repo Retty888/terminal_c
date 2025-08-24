@@ -9,6 +9,7 @@
     "glfw3",
     "opengl",
     "gtest",
+    "implot",
     { "name": "webview2", "platform": "windows" }
   ]
 }
