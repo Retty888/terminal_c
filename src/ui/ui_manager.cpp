@@ -225,7 +225,82 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
     editing_object_ = -1;
   }
 #ifdef HAVE_WEBVIEW
-  ImGui::TextUnformatted("WebView chart unavailable in this environment.");
+  if (!webview_) {
+    webview_ = webview_create(0, nullptr);
+    auto html_path = Core::path_from_executable("chart.html");
+    std::string url = std::string("file://") + html_path.generic_string();
+    webview_navigate(static_cast<webview_t>(webview_), url.c_str());
+    webview_bind(
+        static_cast<webview_t>(webview_), "setInterval",
+        [](webview_t w, const char *seq, const char *req, void *arg) {
+          auto self = static_cast<UiManager *>(arg);
+          if (self->on_interval_changed_) {
+            try {
+              auto j = nlohmann::json::parse(req);
+              if (j.is_array() && !j.empty())
+                self->on_interval_changed_(j[0].get<std::string>());
+            } catch (...) {
+            }
+          }
+          webview_return(w, seq, 0, nullptr);
+        },
+        this);
+    webview_bind(
+        static_cast<webview_t>(webview_), "setPair",
+        [](webview_t w, const char *seq, const char *req, void *arg) {
+          auto self = static_cast<UiManager *>(arg);
+          if (self->on_pair_changed_) {
+            try {
+              auto j = nlohmann::json::parse(req);
+              if (j.is_array() && !j.empty())
+                self->on_pair_changed_(j[0].get<std::string>());
+            } catch (...) {
+            }
+          }
+          webview_return(w, seq, 0, nullptr);
+        },
+        this);
+    webview_bind(
+        static_cast<webview_t>(webview_), "status",
+        [](webview_t w, const char *seq, const char *req, void *arg) {
+          auto self = static_cast<UiManager *>(arg);
+          if (self->status_callback_) {
+            try {
+              auto j = nlohmann::json::parse(req);
+              if (j.is_array() && !j.empty())
+                self->status_callback_(j[0].get<std::string>());
+            } catch (...) {
+            }
+          }
+          webview_return(w, seq, 0, nullptr);
+        },
+        this);
+    webview_thread_ = std::jthread([
+      this
+    ](std::stop_token) { webview_run(static_cast<webview_t>(webview_)); });
+    webview_ready_ = true;
+    {
+      std::lock_guard<std::mutex> lock(ui_mutex_);
+      if (!candles_.empty()) {
+        nlohmann::json arr = nlohmann::json::array();
+        for (const auto &c : candles_) {
+          arr.push_back({{"time", c.open_time / 1000},
+                         {"open", c.open},
+                         {"high", c.high},
+                         {"low", c.low},
+                         {"close", c.close}});
+        }
+        std::string js = "series.setData(" + arr.dump() + ");";
+        webview_eval(static_cast<webview_t>(webview_), js.c_str());
+      }
+      if (price_line_) {
+        std::ostringstream oss;
+        oss << "chart.setPriceLine(" << *price_line_ << ");";
+        webview_eval(static_cast<webview_t>(webview_), oss.str().c_str());
+      }
+    }
+  }
+  ImGui::TextUnformatted("WebView chart running in external window.");
 #else
   ImGui::TextUnformatted(
       "WebView support disabled; displaying fallback candlestick chart.");
@@ -387,6 +462,12 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
 
 void UiManager::set_markers(const std::string &markers_json) {
   std::lock_guard<std::mutex> lock(ui_mutex_);
+#ifdef HAVE_WEBVIEW
+  if (webview_) {
+    std::string js = "chart.setMarkers(" + markers_json + ");";
+    webview_eval(static_cast<webview_t>(webview_), js.c_str());
+  }
+#endif
   markers_.clear();
   try {
     auto arr = nlohmann::json::parse(markers_json);
@@ -406,6 +487,13 @@ void UiManager::set_markers(const std::string &markers_json) {
 
 void UiManager::set_price_line(double price) {
   std::lock_guard<std::mutex> lock(ui_mutex_);
+#ifdef HAVE_WEBVIEW
+  if (webview_) {
+    std::ostringstream oss;
+    oss << "chart.setPriceLine(" << price << ");";
+    webview_eval(static_cast<webview_t>(webview_), oss.str().c_str());
+  }
+#endif
   price_line_ = price;
 }
 
@@ -429,6 +517,20 @@ std::function<void(const std::string &)> UiManager::candle_callback() {
 
 void UiManager::set_candles(const std::vector<Core::Candle> &candles) {
   std::lock_guard<std::mutex> lock(ui_mutex_);
+#ifdef HAVE_WEBVIEW
+  if (webview_) {
+    nlohmann::json arr = nlohmann::json::array();
+    for (const auto &c : candles) {
+      arr.push_back({{"time", c.open_time / 1000},
+                     {"open", c.open},
+                     {"high", c.high},
+                     {"low", c.low},
+                     {"close", c.close}});
+    }
+    std::string js = "series.setData(" + arr.dump() + ");";
+    webview_eval(static_cast<webview_t>(webview_), js.c_str());
+  }
+#endif
   candles_.clear();
   candles_.reserve(candles.size());
   candles_.insert(candles_.end(), candles.begin(), candles.end());
@@ -444,6 +546,17 @@ void UiManager::push_candle(const Core::Candle &candle) {
   }
   last_push_time_ = now;
   AddCandle(candles_, candle);
+#ifdef HAVE_WEBVIEW
+  if (webview_) {
+    nlohmann::json j = {{"time", candle.open_time / 1000},
+                        {"open", candle.open},
+                        {"high", candle.high},
+                        {"low", candle.low},
+                        {"close", candle.close}};
+    std::string js = "updateCandle(" + j.dump() + ");";
+    webview_eval(static_cast<webview_t>(webview_), js.c_str());
+  }
+#endif
 }
 
 void UiManager::set_interval_callback(
@@ -484,6 +597,18 @@ void UiManager::shutdown() {
   if (shutdown_called_)
     return;
   shutdown_called_ = true;
+#ifdef HAVE_WEBVIEW
+  if (webview_) {
+    webview_dispatch(static_cast<webview_t>(webview_),
+                     [](webview_t w, void *) { webview_terminate(w); },
+                     nullptr);
+    if (webview_thread_.joinable())
+      webview_thread_.join();
+    webview_destroy(static_cast<webview_t>(webview_));
+    webview_ = nullptr;
+    webview_ready_ = false;
+  }
+#endif
   ImPlot::DestroyContext();
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();

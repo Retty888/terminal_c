@@ -7,6 +7,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <thread>
 #include <string>
 #include <vector>
 
@@ -82,4 +83,10 @@ private:
   std::chrono::steady_clock::time_point last_push_time_{};
   std::chrono::milliseconds throttle_interval_{100};
   std::optional<Core::Candle> cached_candle_{};
+
+#ifdef HAVE_WEBVIEW
+  void *webview_ = nullptr;
+  std::jthread webview_thread_{};
+  bool webview_ready_ = false;
+#endif
 };
