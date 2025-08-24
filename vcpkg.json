@@ -9,7 +9,7 @@
     "glfw3",
     "opengl",
     "gtest",
-    { "name": "webview", "version>=": "0.12.0" },
+    "zserge-webview",
     { "name": "webview2", "platform": "windows" }
   ]
 }

@@ -31,7 +31,6 @@ endif()
 if(BUILD_TRADING_TERMINAL)
   find_package(glfw3 CONFIG REQUIRED)
   find_package(OpenGL REQUIRED)
-  find_package(webview CONFIG QUIET)
 
   add_executable(TradingTerminal
     main.cpp
@@ -69,11 +68,27 @@ if(BUILD_TRADING_TERMINAL)
     OpenGL::GL
   )
 
-  if(webview_FOUND)
-    target_link_libraries(TradingTerminal PRIVATE webview::webview)
+  find_path(ZSERGE_WEBVIEW_INCLUDE_DIR "webview.h")
+  if (ZSERGE_WEBVIEW_INCLUDE_DIR)
+    target_include_directories(TradingTerminal PRIVATE ${ZSERGE_WEBVIEW_INCLUDE_DIR})
     target_compile_definitions(TradingTerminal PRIVATE HAVE_WEBVIEW)
+    if (WIN32 AND TARGET WebView2LoaderStatic)
+      target_link_libraries(TradingTerminal PRIVATE WebView2LoaderStatic)
+    elseif(UNIX AND NOT APPLE)
+      find_package(PkgConfig QUIET)
+      if (PkgConfig_FOUND)
+        pkg_check_modules(WEBVIEWGTK QUIET gtk+-3.0 webkit2gtk-4.0)
+        if (WEBVIEWGTK_FOUND)
+          target_include_directories(TradingTerminal PRIVATE ${WEBVIEWGTK_INCLUDE_DIRS})
+          target_link_libraries(TradingTerminal PRIVATE ${WEBVIEWGTK_LIBRARIES})
+          target_compile_options(TradingTerminal PRIVATE ${WEBVIEWGTK_CFLAGS_OTHER})
+        else()
+          message(WARNING "gtk+-3.0 or webkit2gtk-4.0 not found; chart window will be disabled.")
+        endif()
+      endif()
+    endif()
   else()
-    message(WARNING "webview package not found; chart window will be disabled.")
+    message(WARNING "zserge-webview headers not found; chart window will be disabled.")
   endif()
 
   target_include_directories(TradingTerminal PRIVATE
