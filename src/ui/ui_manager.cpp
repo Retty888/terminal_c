@@ -481,6 +481,30 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
       double x_max = xs.back();
       ImPlotPoint mouse = ImPlot::GetPlotMousePos();
       if (ImPlot::IsPlotHovered()) {
+        if (current_tool_ == DrawTool::None) {
+          ImPlotRect lims = ImPlot::GetPlotLimits();
+          ImDrawList *dl = ImPlot::GetPlotDrawList();
+          ImVec2 top = ImPlot::PlotToPixels(mouse.x, lims.Y.Max);
+          ImVec2 bottom = ImPlot::PlotToPixels(mouse.x, lims.Y.Min);
+          ImVec2 left = ImPlot::PlotToPixels(lims.X.Min, mouse.y);
+          ImVec2 right = ImPlot::PlotToPixels(lims.X.Max, mouse.y);
+          ImPlot::PushPlotClipRect();
+          dl->AddLine(top, bottom, IM_COL32(128, 128, 128, 128));
+          dl->AddLine(left, right, IM_COL32(128, 128, 128, 128));
+          ImPlot::PopPlotClipRect();
+          char price_buf[32];
+          std::snprintf(price_buf, sizeof(price_buf), "%.2f", mouse.y);
+          ImPlot::Annotation(lims.X.Max, mouse.y, ImVec4(1, 1, 1, 1),
+                             ImVec2(5, 0), true, price_buf);
+          auto tp = std::chrono::system_clock::time_point(
+              std::chrono::seconds(static_cast<long long>(mouse.x)));
+          std::time_t tt = std::chrono::system_clock::to_time_t(tp);
+          std::tm tm = *std::gmtime(&tt);
+          char time_buf[32];
+          std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M", &tm);
+          ImPlot::Annotation(mouse.x, lims.Y.Min, ImVec4(1, 1, 1, 1),
+                             ImVec2(0, 5), true, time_buf);
+        }
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
           if (editing_object_ >= 0) {
             auto &obj = draw_objects_[editing_object_];
