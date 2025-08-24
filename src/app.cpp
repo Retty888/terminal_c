@@ -599,6 +599,7 @@ void App::handle_active_pair_change() {
       if (candles.empty())
         candles = data_service_.load_candles(this->ctx_->active_pair,
                                              this->ctx_->active_interval);
+      ui_manager_.set_candles(candles);
       miss = this->ctx_->candles_limit - static_cast<int>(candles.size());
     }
     bool exists;
