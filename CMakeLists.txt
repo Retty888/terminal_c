@@ -139,7 +139,7 @@ add_executable(test_candle_manager
   src/config_path.cpp
   src/core/path_utils.cpp
 )
-target_include_directories(test_candle_manager PRIVATE src include)
+target_include_directories(test_candle_manager PRIVATE src include third_party/imgui)
 target_link_libraries(test_candle_manager PRIVATE GTest::gtest_main)
 add_test(NAME test_candle_manager COMMAND test_candle_manager)
 
@@ -152,7 +152,7 @@ add_executable(test_data_fetcher
   src/candle.cpp
   src/core/logger.cpp
 )
-target_include_directories(test_data_fetcher PRIVATE src include)
+target_include_directories(test_data_fetcher PRIVATE src include third_party/imgui)
 target_link_libraries(test_data_fetcher PRIVATE GTest::gtest_main)
 add_test(NAME test_data_fetcher COMMAND test_data_fetcher)
 
@@ -160,7 +160,7 @@ add_executable(test_interval_utils
   tests/test_interval_utils.cpp
   src/core/interval_utils.cpp
 )
-target_include_directories(test_interval_utils PRIVATE src include)
+target_include_directories(test_interval_utils PRIVATE src include third_party/imgui)
 target_link_libraries(test_interval_utils PRIVATE GTest::gtest_main)
 add_test(NAME test_interval_utils COMMAND test_interval_utils)
 
@@ -169,7 +169,7 @@ add_executable(test_scheduler
   src/core/interval_utils.cpp
   src/candle.cpp
 )
-target_include_directories(test_scheduler PRIVATE src include)
+target_include_directories(test_scheduler PRIVATE src include third_party/imgui)
 target_link_libraries(test_scheduler PRIVATE GTest::gtest_main)
 add_test(NAME test_scheduler COMMAND test_scheduler)
 
@@ -185,7 +185,7 @@ add_executable(test_kline_stream
   src/config_path.cpp
   src/core/path_utils.cpp
 )
-target_include_directories(test_kline_stream PRIVATE src include)
+target_include_directories(test_kline_stream PRIVATE src include third_party/imgui)
 target_link_libraries(test_kline_stream PRIVATE GTest::gtest_main)
 add_test(NAME test_kline_stream COMMAND test_kline_stream)
 
@@ -193,7 +193,7 @@ add_test(NAME test_kline_stream COMMAND test_kline_stream)
     tests/test_logger.cpp
     src/core/logger.cpp
   )
-  target_include_directories(test_logger PRIVATE src include)
+  target_include_directories(test_logger PRIVATE src include third_party/imgui)
   target_link_libraries(test_logger PRIVATE GTest::gtest_main)
   add_test(NAME test_logger COMMAND test_logger)
 
