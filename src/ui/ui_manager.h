@@ -6,11 +6,9 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <vector>
+#include "imgui.h"
 #include "core/candle.h"
-
-#ifdef HAVE_WEBVIEW
-#include <webview.h>
-#endif
 
 struct GLFWwindow;
 
@@ -22,14 +20,14 @@ public:
   bool setup(GLFWwindow *window);
   void begin_frame();
   // Draw docked panels each frame.
-  void draw_chart_panel([[maybe_unused]] const std::string &selected_interval);
-  // Pushes trade markers to the chart via series.setMarkers.
+  void draw_chart_panel(const std::string &selected_interval);
+  // Pushes trade markers to the chart.
   void set_markers(const std::string &markers_json);
   // Draws/updates a price line for the currently open position.
   void set_price_line(double price);
   // Sends a new candle to the chart for real-time updates.
   void push_candle(const Core::Candle &candle);
-  // Provides callback to forward candle JSON to the embedded chart.
+  // Provides callback to forward candle JSON to the chart.
   std::function<void(const std::string &)> candle_callback();
   // Placeholder for future interval change notifications from embedded charts.
   void set_interval_callback(std::function<void(const std::string &)> cb);
@@ -41,7 +39,15 @@ public:
   void shutdown();
 
 private:
-  bool chart_enabled_ = true;
+  std::vector<Core::Candle> candles_;
+  struct Marker {
+    double time;
+    bool above;
+    ImVec4 color;
+    std::string text;
+  };
+  std::vector<Marker> markers_;
+  std::optional<double> price_line_;
   std::string current_interval_;
   std::function<void(const std::string &)> on_interval_changed_;
   std::function<void(const std::string &)> status_callback_;
@@ -52,10 +58,4 @@ private:
   std::chrono::steady_clock::time_point last_push_time_{};
   std::chrono::milliseconds throttle_interval_{100};
   std::optional<Core::Candle> cached_candle_{};
-
-#ifdef HAVE_WEBVIEW
-  std::unique_ptr<webview::webview> webview_;
-#else
-  // WebView is unavailable; members omitted
-#endif
 };

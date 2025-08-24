@@ -1,15 +1,7 @@
 #include "ui_manager.h"
 
 #include <GLFW/glfw3.h>
-#if defined(_WIN32)
-#define GLFW_EXPOSE_NATIVE_WIN32
-#include <GLFW/glfw3native.h>
-#include <windows.h>
-#elif defined(__linux__)
-#define GLFW_EXPOSE_NATIVE_X11
-#include <GLFW/glfw3native.h>
-#include <X11/Xlib.h>
-#endif
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <filesystem>
@@ -19,9 +11,6 @@
 #include <optional>
 #include <sstream>
 
-#include "config_manager.h"
-#include "config_path.h"
-#include "core/logger.h"
 #include "core/path_utils.h"
 #ifndef _WIN32
 #include <sys/resource.h>
@@ -29,12 +18,110 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "implot.h"
+
+namespace {
+template <typename T>
+int BinarySearch(const T *arr, int l, int r, T x) {
+  if (r >= l) {
+    int mid = l + (r - l) / 2;
+    if (arr[mid] == x)
+      return mid;
+    if (arr[mid] > x)
+      return BinarySearch(arr, l, mid - 1, x);
+    return BinarySearch(arr, mid + 1, r, x);
+  }
+  return -1;
+}
+
+void PlotCandlestick(const char *label_id, const double *xs, const double *opens,
+                     const double *closes, const double *lows,
+                     const double *highs, int count, bool tooltip = true,
+                     float width_percent = 0.25f,
+                     ImVec4 bullCol = ImVec4(0, 1, 0, 1),
+                     ImVec4 bearCol = ImVec4(1, 0, 0, 1)) {
+  ImDrawList *draw_list = ImPlot::GetPlotDrawList();
+  double half_width =
+      count > 1 ? (xs[1] - xs[0]) * width_percent : width_percent;
+
+  if (ImPlot::IsPlotHovered() && tooltip) {
+    ImPlotPoint mouse = ImPlot::GetPlotMousePos();
+    mouse.x = ImPlot::RoundTime(ImPlotTime::FromDouble(mouse.x),
+                                ImPlotTimeUnit_Day)
+                  .ToDouble();
+    float tool_l = ImPlot::PlotToPixels(mouse.x - half_width * 1.5, mouse.y).x;
+    float tool_r = ImPlot::PlotToPixels(mouse.x + half_width * 1.5, mouse.y).x;
+    float tool_t = ImPlot::GetPlotPos().y;
+    float tool_b = tool_t + ImPlot::GetPlotSize().y;
+    ImPlot::PushPlotClipRect();
+    draw_list->AddRectFilled(ImVec2(tool_l, tool_t), ImVec2(tool_r, tool_b),
+                             IM_COL32(128, 128, 128, 64));
+    ImPlot::PopPlotClipRect();
+    int idx = BinarySearch(xs, 0, count - 1, mouse.x);
+    if (idx != -1) {
+      ImGui::BeginTooltip();
+      char buff[32];
+      ImPlot::FormatDate(ImPlotTime::FromDouble(xs[idx]), buff, 32,
+                         ImPlotDateFmt_DayMoYr, ImPlot::GetStyle().UseISO8601);
+      ImGui::Text("Day:   %s", buff);
+      ImGui::Text("Open:  $%.2f", opens[idx]);
+      ImGui::Text("Close: $%.2f", closes[idx]);
+      ImGui::Text("Low:   $%.2f", lows[idx]);
+      ImGui::Text("High:  $%.2f", highs[idx]);
+      ImGui::EndTooltip();
+    }
+  }
+
+  if (ImPlot::BeginItem(label_id)) {
+    ImPlot::GetCurrentItem()->Color = IM_COL32(64, 64, 64, 255);
+    if (ImPlot::FitThisFrame()) {
+      for (int i = 0; i < count; ++i) {
+        ImPlot::FitPoint(ImPlotPoint(xs[i], lows[i]));
+        ImPlot::FitPoint(ImPlotPoint(xs[i], highs[i]));
+      }
+    }
+    for (int i = 0; i < count; ++i) {
+      ImVec2 open_pos = ImPlot::PlotToPixels(xs[i] - half_width, opens[i]);
+      ImVec2 close_pos = ImPlot::PlotToPixels(xs[i] + half_width, closes[i]);
+      ImVec2 low_pos = ImPlot::PlotToPixels(xs[i], lows[i]);
+      ImVec2 high_pos = ImPlot::PlotToPixels(xs[i], highs[i]);
+      ImU32 color =
+          ImGui::GetColorU32(opens[i] > closes[i] ? bearCol : bullCol);
+      draw_list->AddLine(low_pos, high_pos, color);
+      draw_list->AddRectFilled(open_pos, close_pos, color);
+    }
+    ImPlot::EndItem();
+  }
+}
+
+ImVec4 ColorFromHex(const std::string &hex) {
+  unsigned int c = 0;
+  if (hex.size() >= 7 && hex[0] == '#') {
+    std::stringstream ss;
+    ss << std::hex << hex.substr(1);
+    ss >> c;
+  }
+  float r = ((c >> 16) & 0xFF) / 255.0f;
+  float g = ((c >> 8) & 0xFF) / 255.0f;
+  float b = (c & 0xFF) / 255.0f;
+  return ImVec4(r, g, b, 1.0f);
+}
+
+void AddCandle(std::vector<Core::Candle> &candles,
+               const Core::Candle &candle) {
+  if (!candles.empty() && candles.back().open_time == candle.open_time)
+    candles.back() = candle;
+  else
+    candles.push_back(candle);
+}
+} // namespace
 
 UiManager::~UiManager() { shutdown(); }
 
 bool UiManager::setup(GLFWwindow *window) {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
+  ImPlot::CreateContext();
   ImGui::LoadIniSettingsFromMemory("");
   const auto ini_path = Core::path_from_executable("imgui.ini");
   std::filesystem::create_directories(ini_path.parent_path());
@@ -66,171 +153,123 @@ bool UiManager::setup(GLFWwindow *window) {
   ImGui::StyleColorsDark();
   ImGui_ImplGlfw_InitForOpenGL(window, true);
   ImGui_ImplOpenGL3_Init("#version 130");
-  chart_enabled_ = false;
-  auto cfg = Config::ConfigManager::load(resolve_config_path().string());
-  if (!cfg) {
-    Core::Logger::instance().warn(
-        "WebView initialization skipped: config not loaded");
-  } else if (!cfg->enable_chart) {
-    Core::Logger::instance().info(
-        "WebView initialization disabled by configuration");
-  } else {
-    auto chart_path = Core::path_from_executable(cfg->chart_html_path).string();
-    Core::Logger::instance().info("Initializing WebView with " + chart_path);
-#ifdef HAVE_WEBVIEW
-    if (std::filesystem::exists(chart_path)) {
-      chart_enabled_ = true;
-      void *native_handle = nullptr;
-#if defined(_WIN32)
-      native_handle = glfwGetWin32Window(window);
-#elif defined(__linux__)
-      native_handle = reinterpret_cast<void *>(glfwGetX11Window(window));
-#endif
-      webview_ = std::make_unique<webview::webview>(false, native_handle);
-      webview_->set_title("Chart");
-      webview_->navigate("file://" + chart_path);
-      Core::Logger::instance().info("WebView initialized successfully");
-    } else {
-      Core::Logger::instance().error(
-          "WebView initialization failed: file not found - " + chart_path);
-    }
-#else
-    Core::Logger::instance().warn(
-        "WebView library not available; chart disabled");
-#endif
-  }
   return true;
 }
 
 void UiManager::begin_frame() {
-#ifdef HAVE_WEBVIEW
   {
     std::lock_guard<std::mutex> lock(ui_mutex_);
-    if (cached_candle_ && chart_enabled_ && webview_) {
+    if (cached_candle_) {
       auto now = std::chrono::steady_clock::now();
       if (now - last_push_time_ >= throttle_interval_) {
         last_push_time_ = now;
-        nlohmann::json j{{"time", cached_candle_->open_time / 1000},
-                         {"open", cached_candle_->open},
-                         {"high", cached_candle_->high},
-                         {"low", cached_candle_->low},
-                         {"close", cached_candle_->close},
-                         {"volume", cached_candle_->volume}};
-        auto json = j.dump();
+        AddCandle(candles_, *cached_candle_);
         cached_candle_.reset();
-        webview_->eval("updateCandle(" + json + ");");
       }
     }
   }
-#else
-  // WebView library not available; skip chart updates
-#endif
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplGlfw_NewFrame();
   ImGui::NewFrame();
 }
 
-void UiManager::draw_chart_panel(
-    [[maybe_unused]] const std::string &selected_interval) {
+void UiManager::draw_chart_panel(const std::string &selected_interval) {
+  (void)selected_interval;
   ImGui::Begin("Chart");
-  if (!chart_enabled_) {
-    ImGui::Text("Chart disabled (missing file or disabled by configuration)");
-  } else if (webview_) {
-#ifdef HAVE_WEBVIEW
-    ImVec2 pos = ImGui::GetWindowPos();
-    ImVec2 size = ImGui::GetContentRegionAvail();
-    if (size.x > 0 && size.y > 0) {
-#if defined(_WIN32)
-      auto hwnd = static_cast<HWND>(
-          webview_get_native_handle(static_cast<webview_t>(webview_.get()),
-                                    WEBVIEW_NATIVE_HANDLE_KIND_UI_WIDGET));
-      if (hwnd) {
-        SetWindowPos(hwnd, nullptr, static_cast<int>(pos.x),
-                     static_cast<int>(pos.y), static_cast<int>(size.x),
-                     static_cast<int>(size.y),
-                     SWP_NOZORDER | SWP_NOACTIVATE);
-      }
-#elif defined(__linux__)
-      auto widget = static_cast<Window>(reinterpret_cast<uintptr_t>(
-          webview_get_native_handle(static_cast<webview_t>(webview_.get()),
-                                    WEBVIEW_NATIVE_HANDLE_KIND_UI_WIDGET)));
-      if (widget) {
-        Display *dpy = glfwGetX11Display();
-        XMoveResizeWindow(dpy, widget, static_cast<int>(pos.x),
-                          static_cast<int>(pos.y),
-                          static_cast<unsigned int>(size.x),
-                          static_cast<unsigned int>(size.y));
-        XFlush(dpy);
-      }
-#endif
-      webview_->set_size(static_cast<int>(size.x), static_cast<int>(size.y),
-                         WEBVIEW_HINT_NONE);
-      ImGui::Dummy(size);
+  std::vector<double> xs, opens, closes, lows, highs;
+  {
+    std::lock_guard<std::mutex> lock(ui_mutex_);
+    xs.reserve(candles_.size());
+    opens.reserve(candles_.size());
+    closes.reserve(candles_.size());
+    lows.reserve(candles_.size());
+    highs.reserve(candles_.size());
+    for (const auto &c : candles_) {
+      xs.push_back(c.open_time / 1000.0);
+      opens.push_back(c.open);
+      closes.push_back(c.close);
+      lows.push_back(c.low);
+      highs.push_back(c.high);
     }
-#else
-    ImGui::Text("WebView library not available");
-#endif
+  }
+  if (ImPlot::BeginPlot("Candles", ImVec2(-1, -1))) {
+    if (!xs.empty()) {
+      PlotCandlestick("price", xs.data(), opens.data(), closes.data(),
+                      lows.data(), highs.data(), (int)xs.size());
+      if (price_line_) {
+        double xline[2] = {xs.front(), xs.back()};
+        double yline[2] = {*price_line_, *price_line_};
+        ImPlot::PlotLine("PriceLine", xline, yline, 2);
+      }
+      for (const auto &m : markers_) {
+        auto it = std::find_if(candles_.begin(), candles_.end(),
+                               [&](const Core::Candle &c) {
+                                 return c.open_time / 1000.0 == m.time;
+                               });
+        if (it != candles_.end()) {
+          double price = m.above ? it->high : it->low;
+          ImPlot::Annotation(m.time, price, m.color,
+                             ImVec2(0, m.above ? -10.0f : 10.0f), true,
+                             m.text.c_str());
+        }
+      }
+    }
+    ImPlot::EndPlot();
   }
   ImGui::End();
 }
 
 void UiManager::set_markers(const std::string &markers_json) {
-#ifdef HAVE_WEBVIEW
   std::lock_guard<std::mutex> lock(ui_mutex_);
-  if (!chart_enabled_ || !webview_)
-    return;
-  webview_->eval("chart.setMarkers(" + markers_json + ");");
-#else
-  (void)markers_json;
-#endif
+  markers_.clear();
+  try {
+    auto arr = nlohmann::json::parse(markers_json);
+    for (auto &m : arr) {
+      Marker mk{};
+      mk.time = m.value("time", 0.0);
+      std::string pos = m.value("position", "aboveBar");
+      mk.above = pos != "belowBar";
+      mk.text = m.value("text", "");
+      mk.color = ColorFromHex(m.value("color", "#FF0000"));
+      markers_.push_back(std::move(mk));
+    }
+  } catch (...) {
+    // ignore parse errors
+  }
 }
 
 void UiManager::set_price_line(double price) {
-#ifdef HAVE_WEBVIEW
   std::lock_guard<std::mutex> lock(ui_mutex_);
-  if (!chart_enabled_ || !webview_)
-    return;
-  webview_->eval("chart.setPriceLine(" + std::to_string(price) + ");");
-#else
-  (void)price;
-#endif
+  price_line_ = price;
 }
 
 std::function<void(const std::string &)> UiManager::candle_callback() {
-#ifdef HAVE_WEBVIEW
   return [this](const std::string &json) {
-    std::lock_guard<std::mutex> lock(ui_mutex_);
-    if (!chart_enabled_ || !webview_)
-      return;
-    webview_->eval("updateCandle(" + json + ");");
+    try {
+      auto j = nlohmann::json::parse(json);
+      Core::Candle c{};
+      c.open_time = j.value("time", 0ULL) * 1000ULL;
+      c.open = j.value("open", 0.0);
+      c.high = j.value("high", 0.0);
+      c.low = j.value("low", 0.0);
+      c.close = j.value("close", 0.0);
+      c.volume = j.value("volume", 0.0);
+      push_candle(c);
+    } catch (...) {
+      // ignore parse errors
+    }
   };
-#else
-  return [](const std::string &) {};
-#endif
 }
 
 void UiManager::push_candle(const Core::Candle &candle) {
-#ifdef HAVE_WEBVIEW
   std::lock_guard<std::mutex> lock(ui_mutex_);
-  if (!chart_enabled_ || !webview_)
-    return;
   auto now = std::chrono::steady_clock::now();
   if (now - last_push_time_ < throttle_interval_) {
     cached_candle_ = candle;
     return;
   }
   last_push_time_ = now;
-  nlohmann::json j{{"time", candle.open_time / 1000},
-                   {"open", candle.open},
-                   {"high", candle.high},
-                   {"low", candle.low},
-                   {"close", candle.close},
-                   {"volume", candle.volume}};
-  auto json = j.dump();
-  webview_->eval("updateCandle(" + json + ");");
-#else
-  (void)candle;
-#endif
+  AddCandle(candles_, candle);
 }
 
 void UiManager::set_interval_callback(
@@ -263,15 +302,9 @@ void UiManager::shutdown() {
   if (shutdown_called_)
     return;
   shutdown_called_ = true;
-#ifdef HAVE_WEBVIEW
-  if (webview_) {
-    webview_->terminate();
-    webview_.reset();
-  }
-#else
-  // WebView library not available; nothing to shut down
-#endif
+  ImPlot::DestroyContext();
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
 }
+
