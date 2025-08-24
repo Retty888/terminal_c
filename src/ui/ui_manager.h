@@ -13,6 +13,10 @@
 namespace webview {
 class webview;
 }
+#else
+namespace webview {
+class webview {};
+}
 #endif
 
 struct GLFWwindow;
@@ -59,5 +63,7 @@ private:
 #ifdef HAVE_WEBVIEW
   std::unique_ptr<webview::webview> webview_;
   std::thread webview_thread_;
+#else
+  // WebView is unavailable; members omitted
 #endif
 };

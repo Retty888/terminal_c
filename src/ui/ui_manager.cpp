@@ -11,6 +11,8 @@
 #include <nlohmann/json.hpp>
 #ifdef HAVE_WEBVIEW
 #include <webview/webview.h>
+#else
+// WebView library not available; chart functionality will be disabled
 #endif
 
 #include "config_manager.h"
@@ -115,6 +117,8 @@ void UiManager::begin_frame() {
       }
     }
   }
+#else
+  // WebView library not available; skip chart updates
 #endif
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplGlfw_NewFrame();
@@ -236,6 +240,8 @@ void UiManager::shutdown() {
       webview_thread_.join();
     webview_.reset();
   }
+#else
+  // WebView library not available; nothing to shut down
 #endif
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
