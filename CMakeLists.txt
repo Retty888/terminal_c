@@ -73,9 +73,7 @@ if(BUILD_TRADING_TERMINAL)
     target_link_libraries(TradingTerminal PRIVATE webview::webview)
     target_compile_definitions(TradingTerminal PRIVATE HAVE_WEBVIEW)
   else()
-    message(WARNING "webview package not found; chart window will be disabled."
-                    " Provide src/ui/webview_impl.cpp for platform-specific implementations.")
-    # target_sources(TradingTerminal PRIVATE src/ui/webview_impl.cpp)
+    message(WARNING "webview package not found; chart window will be disabled.")
   endif()
 
   target_include_directories(TradingTerminal PRIVATE
