@@ -10,9 +10,7 @@
 #include "core/candle.h"
 
 #ifdef HAVE_WEBVIEW
-namespace webview {
-class webview;
-}
+#include <webview.h>
 #else
 namespace webview {
 class webview {};
