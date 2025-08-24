@@ -274,6 +274,14 @@ std::function<void(const std::string &)> UiManager::candle_callback() {
   };
 }
 
+void UiManager::set_candles(const std::vector<Core::Candle> &candles) {
+  std::lock_guard<std::mutex> lock(ui_mutex_);
+  candles_.clear();
+  candles_.reserve(candles.size());
+  candles_.insert(candles_.end(), candles.begin(), candles.end());
+  cached_candle_.reset();
+}
+
 void UiManager::push_candle(const Core::Candle &candle) {
   std::lock_guard<std::mutex> lock(ui_mutex_);
   auto now = std::chrono::steady_clock::now();

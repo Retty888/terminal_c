@@ -25,6 +25,8 @@ public:
   void set_markers(const std::string &markers_json);
   // Draws/updates a price line for the currently open position.
   void set_price_line(double price);
+  // Replaces all chart candles with the provided collection.
+  void set_candles(const std::vector<Core::Candle> &candles);
   // Sends a new candle to the chart for real-time updates.
   void push_candle(const Core::Candle &candle);
   // Provides callback to forward candle JSON to the chart.
