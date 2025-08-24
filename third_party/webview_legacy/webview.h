@@ -1,15 +1,14 @@
 /**
  * @file webview.h
  *
- * @deprecated This header file is deprecated. Use `webview/webview.h` instead.
+ * @deprecated This compatibility header is deprecated. Include `<webview.h>`
+ * directly instead.
  *
- * This file is provided for backward-compatibility with existing code
- * such as `#include "webview.h"`.
+ * This file is retained for backward-compatibility with existing code such as
+ * `#include "webview.h"` but intentionally contains no implementation.
  */
 
 #ifndef WEBVIEW_ROOT_H
 #define WEBVIEW_ROOT_H
-
-#include "webview/webview.h"
 
 #endif // WEBVIEW_ROOT_H
