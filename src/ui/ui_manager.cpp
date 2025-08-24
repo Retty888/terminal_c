@@ -173,8 +173,14 @@ void UiManager::begin_frame() {
 }
 
 void UiManager::draw_chart_panel(const std::string &selected_interval) {
-  (void)selected_interval;
-  ImGui::Begin("Chart");
+  // Display the currently selected interval in the panel title so users can
+  // easily confirm the timeframe of the data being shown. If the interval is
+  // empty, fall back to the plain "Chart" title.
+  std::string title = "Chart";
+  if (!selected_interval.empty()) {
+    title += " - " + selected_interval;
+  }
+  ImGui::Begin(title.c_str());
 #ifdef HAVE_WEBVIEW
   ImGui::TextUnformatted("WebView chart unavailable in this environment.");
 #else
