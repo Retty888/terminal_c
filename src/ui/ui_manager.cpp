@@ -7,6 +7,8 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <cmath>
+#include <cstdio>
 #include <mutex>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -214,6 +216,14 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
         on_interval_changed_(current_interval_);
     }
   }
+  int tool_index = static_cast<int>(current_tool_);
+  const char *tool_items[] = {"None", "Line", "HLine"};
+  if (ImGui::Combo("Tool", &tool_index, tool_items,
+                   static_cast<int>(IM_ARRAYSIZE(tool_items)))) {
+    current_tool_ = static_cast<DrawTool>(tool_index);
+    drawing_first_point_ = false;
+    editing_object_ = -1;
+  }
 #ifdef HAVE_WEBVIEW
   ImGui::TextUnformatted("WebView chart unavailable in this environment.");
 #else
@@ -256,6 +266,116 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
           ImPlot::Annotation(m.time, price, m.color,
                              ImVec2(0, m.above ? -10.0f : 10.0f), true,
                              m.text.c_str());
+        }
+      }
+      double x_min = xs.front();
+      double x_max = xs.back();
+      ImPlotPoint mouse = ImPlot::GetPlotMousePos();
+      if (ImPlot::IsPlotHovered()) {
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+          if (editing_object_ >= 0) {
+            auto &obj = draw_objects_[editing_object_];
+            if (obj.type == DrawTool::Line) {
+              if (!drawing_first_point_) {
+                obj.x1 = mouse.x;
+                obj.y1 = mouse.y;
+                drawing_first_point_ = true;
+              } else {
+                obj.x2 = mouse.x;
+                obj.y2 = mouse.y;
+                drawing_first_point_ = false;
+                editing_object_ = -1;
+              }
+            } else if (obj.type == DrawTool::HLine) {
+              obj.y1 = obj.y2 = mouse.y;
+              obj.x1 = x_min;
+              obj.x2 = x_max;
+              editing_object_ = -1;
+            }
+          } else {
+            if (current_tool_ == DrawTool::Line) {
+              if (!drawing_first_point_) {
+                temp_x_ = mouse.x;
+                temp_y_ = mouse.y;
+                drawing_first_point_ = true;
+              } else {
+                draw_objects_.push_back(
+                    {DrawTool::Line, temp_x_, temp_y_, mouse.x, mouse.y});
+                drawing_first_point_ = false;
+              }
+            } else if (current_tool_ == DrawTool::HLine) {
+              draw_objects_.push_back(
+                  {DrawTool::HLine, x_min, mouse.y, x_max, mouse.y});
+            }
+          }
+        }
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+          int idx = -1;
+          ImVec2 mp = ImPlot::PlotToPixels(mouse);
+          const float threshold = 5.0f;
+          for (std::size_t i = 0; i < draw_objects_.size(); ++i) {
+            const auto &o = draw_objects_[i];
+            ImVec2 p1 = ImPlot::PlotToPixels(o.x1, o.y1);
+            ImVec2 p2 = ImPlot::PlotToPixels(o.x2, o.y2);
+            if (o.type == DrawTool::HLine) {
+              if (std::fabs(mp.y - p1.y) < threshold) {
+                idx = static_cast<int>(i);
+                break;
+              }
+            } else if (o.type == DrawTool::Line) {
+              double dx = p2.x - p1.x;
+              double dy = p2.y - p1.y;
+              double len2 = dx * dx + dy * dy;
+              if (len2 > 0.0) {
+                double t = ((mp.x - p1.x) * dx + (mp.y - p1.y) * dy) / len2;
+                t = std::clamp(t, 0.0, 1.0);
+                double projx = p1.x + t * dx;
+                double projy = p1.y + t * dy;
+                double dist2 = (mp.x - projx) * (mp.x - projx) +
+                               (mp.y - projy) * (mp.y - projy);
+                if (std::sqrt(dist2) < threshold) {
+                  idx = static_cast<int>(i);
+                  break;
+                }
+              }
+            }
+          }
+          if (idx != -1) {
+            context_object_ = idx;
+            ImGui::OpenPopup("DrawObjContext");
+          }
+        }
+      }
+      if (ImGui::BeginPopup("DrawObjContext")) {
+        if (ImGui::MenuItem("Edit")) {
+          editing_object_ = context_object_;
+          drawing_first_point_ = false;
+        }
+        if (ImGui::MenuItem("Delete")) {
+          if (context_object_ >= 0 &&
+              context_object_ < static_cast<int>(draw_objects_.size())) {
+            draw_objects_.erase(draw_objects_.begin() + context_object_);
+          }
+          editing_object_ = -1;
+        }
+        ImGui::EndPopup();
+      }
+      for (std::size_t i = 0; i < draw_objects_.size(); ++i) {
+        auto &o = draw_objects_[i];
+        if (o.type == DrawTool::Line) {
+          double lx[2] = {o.x1, o.x2};
+          double ly[2] = {o.y1, o.y2};
+          ImPlot::PlotLine((std::string("L") + std::to_string(i)).c_str(), lx,
+                           ly, 2);
+        } else if (o.type == DrawTool::HLine) {
+          double lx[2] = {o.x1, o.x2};
+          double ly[2] = {o.y1, o.y1};
+          ImPlot::PlotLine((std::string("H") + std::to_string(i)).c_str(), lx,
+                           ly, 2);
+          char buf[32];
+          std::snprintf(buf, sizeof(buf), "%.2f", o.y1);
+          ImPlot::Annotation((o.x1 + o.x2) / 2.0, o.y1, ImVec4(1, 1, 1, 1),
+                             ImVec2(0, -5.0f), true, buf);
         }
       }
     }
