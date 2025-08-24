@@ -7,7 +7,8 @@
     #container { position:relative; width:100%; height:100%; }
     #tvchart { width:100%; height:100%; }
     #toolbar { position:absolute; left:0; top:0; z-index:10; display:flex; flex-direction:column; }
-    #toolbar button { width:32px; height:32px; margin:2px; background:#222; color:#fff; border:none; cursor:pointer; }
+    #toolbar button, #toolbar select { height:32px; margin:2px; background:#222; color:#fff; border:none; cursor:pointer; }
+    #toolbar button { width:32px; }
     #toolbar button.active { background:#555; }
     #overlay { position:absolute; left:0; top:0; z-index:5; }
   </style>
@@ -15,6 +16,11 @@
 <body>
 <div id="container">
   <div id="toolbar">
+    <select id="series-select">
+      <option value="CandlestickSeries">CandlestickSeries</option>
+      <option value="LineSeries">LineSeries</option>
+      <option value="AreaSeries">AreaSeries</option>
+    </select>
     <button id="tool-cross" data-tool="cross">✖</button>
     <button id="tool-ruler" data-tool="ruler">📏</button>
     <button id="tool-trend" data-tool="trend">／</button>
@@ -36,7 +42,10 @@
     localization: { locale: 'ru-RU' },
     timeScale: { timeVisible: true, secondsVisible: false }
   });
-  const series = chart.addCandlestickSeries();
+  let series = chart.addCandlestickSeries();
+  let markers = [];
+  let priceLine = null;
+  const data = [];
   const ctx = overlay.getContext('2d');
 
   function resize() {
@@ -71,6 +80,37 @@
   document.querySelectorAll('#toolbar button').forEach(b => {
     b.addEventListener('click', () => selectTool(b.dataset.tool));
   });
+
+  const seriesSelect = document.getElementById('series-select');
+
+  function createSeries(t) {
+    if (series) {
+      chart.removeSeries(series);
+    }
+    if (t === 'LineSeries') {
+      series = chart.addLineSeries();
+    } else if (t === 'AreaSeries') {
+      series = chart.addAreaSeries();
+    } else {
+      series = chart.addCandlestickSeries();
+    }
+    series.setData(data);
+    if (markers.length) series.setMarkers(markers);
+    if (priceLine !== null) series.createPriceLine({ price: priceLine });
+  }
+
+  function setActiveSeries(t) {
+    seriesSelect.value = t;
+    createSeries(t);
+  }
+  window.setActiveSeries = setActiveSeries;
+
+  function selectSeries(t) {
+    setActiveSeries(t);
+    if (typeof setSeries === 'function') setSeries(t);
+  }
+
+  seriesSelect.addEventListener('change', () => selectSeries(seriesSelect.value));
 
   function redraw() {
     ctx.clearRect(0, 0, overlay.width, overlay.height);
@@ -156,7 +196,6 @@
     redraw();
   });
 
-  const data = [];
   window.updateCandle = function(c) {
     if (data.length && data[data.length - 1].time === c.time) {
       data[data.length - 1] = c;
@@ -167,8 +206,8 @@
     }
   };
   window.chart = {
-    setMarkers: function(m) { series.setMarkers(m); },
-    setPriceLine: function(p) { series.createPriceLine({ price: p }); }
+    setMarkers: function(m) { markers = m; series.setMarkers(m); },
+    setPriceLine: function(p) { priceLine = p; series.createPriceLine({ price: p }); }
   };
 </script>
 </body>
