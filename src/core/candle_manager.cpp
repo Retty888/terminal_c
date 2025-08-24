@@ -6,6 +6,7 @@
 #include <ctime>
 #include <charconv>
 #include <string_view>
+#include <system_error>
 #include "core/logger.h"
 #include "interval_utils.h"
 #include "core/data_dir.h"

@@ -3,6 +3,7 @@
 #include <array>
 #include <charconv>
 #include <fstream>
+#include <system_error>
 #include <nlohmann/json.hpp>
 #include <sstream>
 #include <string_view>
