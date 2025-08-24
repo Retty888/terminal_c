@@ -9,6 +9,7 @@ This project follows [Semantic Versioning](https://semver.org/). Each entry list
 
 ### Changed
 - Switched to the official `webview` port and removed the custom overlay.
+- Removed compatibility header `third_party/webview_legacy/webview.h`; `<webview.h>` now resolves to `third_party/webview_legacy/webview`.
 
 ### Errors and Fixes
 - ImGui optional docking/viewport flags (`ImGuiConfigFlags_DockingEnable`, `ImGuiConfigFlags_ViewportsEnable`) caused build errors with the vcpkg package. The flags and related calls were removed to restore successful compilation.
