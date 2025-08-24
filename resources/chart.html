@@ -8,7 +8,7 @@
     #tvchart { width:100%; height:100%; }
     #toolbar { position:absolute; left:0; top:0; z-index:10; display:flex; flex-direction:column; }
     #toolbar button, #toolbar select { height:32px; margin:2px; background:#222; color:#fff; border:none; cursor:pointer; }
-    #toolbar button { width:32px; }
+    #toolbar button { width:48px; }
     #toolbar button.active { background:#555; }
     #overlay { position:absolute; left:0; top:0; z-index:5; }
   </style>
@@ -24,8 +24,8 @@
     <button id="tool-cross" data-tool="cross">✖</button>
     <button id="tool-ruler" data-tool="ruler">📏</button>
     <button id="tool-trend" data-tool="trend">／</button>
-    <button id="tool-long" data-tool="long">L</button>
-    <button id="tool-short" data-tool="short">S</button>
+    <button id="tool-long" data-tool="long">Long</button>
+    <button id="tool-short" data-tool="short">Short</button>
   </div>
   <div id="tvchart"></div>
   <canvas id="overlay"></canvas>
@@ -62,6 +62,8 @@
   let currentTool = 'cross';
   let drawing = null;
   const drawings = [];
+  const positions = [];
+  let positionId = 0;
 
   function setActiveTool(t) {
     currentTool = t;
@@ -119,26 +121,45 @@
       const y1 = series.priceToCoordinate(d.price1);
       const x2 = chart.timeScale().timeToCoordinate(d.time2);
       const y2 = series.priceToCoordinate(d.price2);
-      if (d.tool === 'trend' || d.tool === 'ruler') {
-        ctx.strokeStyle = 'yellow';
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-        if (d.tool === 'ruler') {
-          const diff = d.price2 - d.price1;
-          const pct = diff / d.price1 * 100;
-          ctx.fillStyle = 'yellow';
-          ctx.fillText(diff.toFixed(2) + ' (' + pct.toFixed(2) + '%)', x2 + 5, y2 + 5);
-        }
-      } else if (d.tool === 'long' || d.tool === 'short') {
-        ctx.fillStyle = d.tool === 'long' ? 'rgba(0,255,0,0.2)' : 'rgba(255,0,0,0.2)';
-        ctx.strokeStyle = d.tool === 'long' ? 'green' : 'red';
-        ctx.beginPath();
-        ctx.rect(x1, y1, x2 - x1, y2 - y1);
-        ctx.fill();
-        ctx.stroke();
+      ctx.strokeStyle = 'yellow';
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      if (d.tool === 'ruler') {
+        const diff = d.price2 - d.price1;
+        const pct = diff / d.price1 * 100;
+        ctx.fillStyle = 'yellow';
+        ctx.fillText(diff.toFixed(2) + ' (' + pct.toFixed(2) + '%)', x2 + 5, y2 + 5);
       }
+    });
+    positions.forEach(p => {
+      const x1 = chart.timeScale().timeToCoordinate(p.time1);
+      const y1 = series.priceToCoordinate(p.price1);
+      const x2 = chart.timeScale().timeToCoordinate(p.time2);
+      const y2 = series.priceToCoordinate(p.price2);
+      ctx.fillStyle = p.tool === 'long' ? 'rgba(0,255,0,0.2)' : 'rgba(255,0,0,0.2)';
+      ctx.strokeStyle = p.tool === 'long' ? 'green' : 'red';
+      ctx.beginPath();
+      ctx.rect(x1, y1, x2 - x1, y2 - y1);
+      ctx.fill();
+      ctx.stroke();
+      const diff = p.tool === 'long' ? p.price2 - p.price1 : p.price1 - p.price2;
+      const pct = diff / p.price1 * 100;
+      const arrowX = Math.max(x1, x2) + 10;
+      ctx.strokeStyle = diff >= 0 ? 'green' : 'red';
+      ctx.beginPath();
+      ctx.moveTo(arrowX, y1);
+      ctx.lineTo(arrowX, y2);
+      ctx.stroke();
+      ctx.beginPath();
+      const dir = y2 < y1 ? -1 : 1;
+      ctx.moveTo(arrowX - 5, y2 + 5 * dir);
+      ctx.lineTo(arrowX, y2);
+      ctx.lineTo(arrowX + 5, y2 + 5 * dir);
+      ctx.stroke();
+      ctx.fillStyle = diff >= 0 ? 'green' : 'red';
+      ctx.fillText(diff.toFixed(2) + ' (' + pct.toFixed(2) + '%)', arrowX + 5, (y1 + y2) / 2);
     });
   }
 
@@ -191,9 +212,13 @@
     drawing.time2 = chart.timeScale().coordinateToTime(x);
     drawing.price2 = series.coordinateToPrice(y);
     drawing.tool = currentTool;
-    drawings.push(drawing);
+    if (currentTool === 'long' || currentTool === 'short') {
+      addPosition(drawing);
+    } else {
+      drawings.push(drawing);
+      redraw();
+    }
     drawing = null;
-    redraw();
   });
 
   window.updateCandle = function(c) {
@@ -209,6 +234,35 @@
     setMarkers: function(m) { markers = m; series.setMarkers(m); },
     setPriceLine: function(p) { priceLine = p; series.createPriceLine({ price: p }); }
   };
+
+  function addPosition(p) {
+    if (p.id === undefined) {
+      p.id = positionId++;
+    } else {
+      positionId = Math.max(positionId, p.id + 1);
+    }
+    positions.push(p);
+    redraw();
+    return p.id;
+  }
+  function removePosition(id) {
+    const idx = positions.findIndex(p => p.id === id);
+    if (idx !== -1) {
+      positions.splice(idx, 1);
+      redraw();
+    }
+  }
+  function updatePosition(p) {
+    const idx = positions.findIndex(x => x.id === p.id);
+    if (idx !== -1) {
+      positions[idx] = { ...positions[idx], ...p };
+      redraw();
+    }
+  }
+  window.addPosition = addPosition;
+  window.removePosition = removePosition;
+  window.updatePosition = updatePosition;
+  window.getPositions = () => positions;
 </script>
 </body>
 </html>

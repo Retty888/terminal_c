@@ -46,6 +46,18 @@ public:
   void end_frame(GLFWwindow *window);
   void shutdown();
 
+  struct Position {
+    int id;
+    bool is_long;
+    double time1;
+    double price1;
+    double time2;
+    double price2;
+  };
+  void add_position(const Position &p);
+  void update_position(const Position &p);
+  void remove_position(int id);
+
 private:
   std::vector<Core::Candle> candles_;
   enum class DrawTool { None, Line, HLine, Ruler, Long, Short };
@@ -64,6 +76,7 @@ private:
     std::string text;
   };
   std::vector<Marker> markers_;
+  std::vector<Position> positions_;
   DrawTool current_tool_ = DrawTool::None;
   SeriesType current_series_ = SeriesType::Candlestick;
   std::vector<DrawObject> draw_objects_;

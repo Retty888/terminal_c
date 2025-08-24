@@ -605,6 +605,46 @@ void UiManager::set_price_line(double price) {
   price_line_ = price;
 }
 
+void UiManager::add_position(const Position &p) {
+  std::lock_guard<std::mutex> lock(ui_mutex_);
+#ifdef HAVE_WEBVIEW
+  if (webview_) {
+    nlohmann::json j = {{"id", p.id},
+                        {"tool", p.is_long ? "long" : "short"},
+                        {"time1", p.time1},
+                        {"price1", p.price1},
+                        {"time2", p.time2},
+                        {"price2", p.price2}};
+    std::string js = "addPosition(" + j.dump() + ");";
+    webview_eval(static_cast<webview_t>(webview_), js.c_str());
+  }
+#endif
+  auto it = std::find_if(positions_.begin(), positions_.end(),
+                         [&](const Position &x) { return x.id == p.id; });
+  if (it == positions_.end())
+    positions_.push_back(p);
+  else
+    *it = p;
+}
+
+void UiManager::update_position(const Position &p) {
+  add_position(p);
+}
+
+void UiManager::remove_position(int id) {
+  std::lock_guard<std::mutex> lock(ui_mutex_);
+#ifdef HAVE_WEBVIEW
+  if (webview_) {
+    std::ostringstream oss;
+    oss << "removePosition(" << id << ");";
+    webview_eval(static_cast<webview_t>(webview_), oss.str().c_str());
+  }
+#endif
+  positions_.erase(std::remove_if(positions_.begin(), positions_.end(),
+                                  [id](const Position &x) { return x.id == id; }),
+                   positions_.end());
+}
+
 std::function<void(const std::string &)> UiManager::candle_callback() {
   return [this](const std::string &json) {
     try {
