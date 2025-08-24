@@ -1,24 +1,165 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"/></head>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    html, body { margin:0; padding:0; height:100%; }
+    #container { position:relative; width:100%; height:100%; }
+    #tvchart { width:100%; height:100%; }
+    #toolbar { position:absolute; left:0; top:0; z-index:10; display:flex; flex-direction:column; }
+    #toolbar button { width:32px; height:32px; margin:2px; background:#222; color:#fff; border:none; cursor:pointer; }
+    #toolbar button.active { background:#555; }
+    #overlay { position:absolute; left:0; top:0; z-index:5; }
+  </style>
+</head>
 <body>
-<div id="tvchart" style="width:100%;height:100%;"></div>
+<div id="container">
+  <div id="toolbar">
+    <button id="tool-cross" data-tool="cross">✖</button>
+    <button id="tool-ruler" data-tool="ruler">📏</button>
+    <button id="tool-trend" data-tool="trend">／</button>
+    <button id="tool-long" data-tool="long">L</button>
+    <button id="tool-short" data-tool="short">S</button>
+  </div>
+  <div id="tvchart"></div>
+  <canvas id="overlay"></canvas>
+</div>
 <script src="lightweight-charts.standalone.production.js"></script>
 <script>
-    const chart = LightweightCharts.createChart(
-      document.getElementById('tvchart'),
-      {
-        width: 600,
-        height: 300,
-        localization: { locale: 'ru-RU' },
-        timeScale: { timeVisible: true, secondsVisible: false }
-      }
-    );
+  const container = document.getElementById('container');
+  const chartEl = document.getElementById('tvchart');
+  const overlay = document.getElementById('overlay');
+
+  const chart = LightweightCharts.createChart(chartEl, {
+    width: container.clientWidth,
+    height: container.clientHeight,
+    localization: { locale: 'ru-RU' },
+    timeScale: { timeVisible: true, secondsVisible: false }
+  });
   const series = chart.addCandlestickSeries();
+  const ctx = overlay.getContext('2d');
+
+  function resize() {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    chart.applyOptions({ width: w, height: h });
+    overlay.width = w;
+    overlay.height = h;
+    redraw();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  let currentTool = 'cross';
+  let drawing = null;
+  const drawings = [];
+
+  function setActiveTool(t) {
+    currentTool = t;
+    document.querySelectorAll('#toolbar button').forEach(b => {
+      b.classList.toggle('active', b.dataset.tool === t);
+    });
+    overlay.style.pointerEvents = t === 'cross' ? 'none' : 'auto';
+  }
+  window.setActiveTool = setActiveTool;
+
+  function selectTool(t) {
+    setActiveTool(t);
+    if (typeof setTool === 'function') setTool(t);
+  }
+
+  document.querySelectorAll('#toolbar button').forEach(b => {
+    b.addEventListener('click', () => selectTool(b.dataset.tool));
+  });
+
+  function redraw() {
+    ctx.clearRect(0, 0, overlay.width, overlay.height);
+    drawings.forEach(d => {
+      const x1 = chart.timeScale().timeToCoordinate(d.time1);
+      const y1 = series.priceToCoordinate(d.price1);
+      const x2 = chart.timeScale().timeToCoordinate(d.time2);
+      const y2 = series.priceToCoordinate(d.price2);
+      if (d.tool === 'trend' || d.tool === 'ruler') {
+        ctx.strokeStyle = 'yellow';
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        if (d.tool === 'ruler') {
+          const diff = d.price2 - d.price1;
+          const pct = diff / d.price1 * 100;
+          ctx.fillStyle = 'yellow';
+          ctx.fillText(diff.toFixed(2) + ' (' + pct.toFixed(2) + '%)', x2 + 5, y2 + 5);
+        }
+      } else if (d.tool === 'long' || d.tool === 'short') {
+        ctx.fillStyle = d.tool === 'long' ? 'rgba(0,255,0,0.2)' : 'rgba(255,0,0,0.2)';
+        ctx.strokeStyle = d.tool === 'long' ? 'green' : 'red';
+        ctx.beginPath();
+        ctx.rect(x1, y1, x2 - x1, y2 - y1);
+        ctx.fill();
+        ctx.stroke();
+      }
+    });
+  }
+
+  overlay.addEventListener('mousedown', e => {
+    if (currentTool === 'cross') return;
+    const x = e.offsetX;
+    const y = e.offsetY;
+    drawing = {
+      x1: x,
+      y1: y,
+      time1: chart.timeScale().coordinateToTime(x),
+      price1: series.coordinateToPrice(y)
+    };
+  });
+
+  overlay.addEventListener('mousemove', e => {
+    if (!drawing) return;
+    redraw();
+    const x = e.offsetX;
+    const y = e.offsetY;
+    ctx.strokeStyle = 'yellow';
+    ctx.fillStyle = 'yellow';
+    if (currentTool === 'trend' || currentTool === 'ruler') {
+      ctx.beginPath();
+      ctx.moveTo(drawing.x1, drawing.y1);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      if (currentTool === 'ruler') {
+        const price2 = series.coordinateToPrice(y);
+        const diff = price2 - drawing.price1;
+        const pct = diff / drawing.price1 * 100;
+        ctx.fillText(diff.toFixed(2) + ' (' + pct.toFixed(2) + '%)', x + 5, y + 5);
+      }
+    } else if (currentTool === 'long' || currentTool === 'short') {
+      ctx.fillStyle = currentTool === 'long' ? 'rgba(0,255,0,0.2)' : 'rgba(255,0,0,0.2)';
+      ctx.strokeStyle = currentTool === 'long' ? 'green' : 'red';
+      ctx.beginPath();
+      ctx.rect(drawing.x1, drawing.y1, x - drawing.x1, y - drawing.y1);
+      ctx.fill();
+      ctx.stroke();
+    }
+  });
+
+  overlay.addEventListener('mouseup', e => {
+    if (!drawing) return;
+    const x = e.offsetX;
+    const y = e.offsetY;
+    drawing.x2 = x;
+    drawing.y2 = y;
+    drawing.time2 = chart.timeScale().coordinateToTime(x);
+    drawing.price2 = series.coordinateToPrice(y);
+    drawing.tool = currentTool;
+    drawings.push(drawing);
+    drawing = null;
+    redraw();
+  });
+
   const data = [];
   window.updateCandle = function(c) {
-    if (data.length && data[data.length-1].time === c.time) {
-      data[data.length-1] = c;
+    if (data.length && data[data.length - 1].time === c.time) {
+      data[data.length - 1] = c;
       series.update(c);
     } else {
       data.push(c);
@@ -27,7 +168,7 @@
   };
   window.chart = {
     setMarkers: function(m) { series.setMarkers(m); },
-    setPriceLine: function(p) { series.createPriceLine({price:p}); }
+    setPriceLine: function(p) { series.createPriceLine({ price: p }); }
   };
 </script>
 </body>
