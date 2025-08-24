@@ -95,13 +95,16 @@ bool App::init_window() {
 
 void App::setup_imgui() {
   ui_manager_.setup(window_.get());
-  ui_manager_.set_interval_callback(
-      [this](const std::string &iv) { this->ctx_->selected_interval = iv; });
+  ui_manager_.set_interval_callback([this](const std::string &iv) {
+    this->ctx_->selected_interval = iv;
+    this->ctx_->active_interval = iv;
+  });
+  ui_manager_.set_pair_callback(
+      [this](const std::string &p) { this->ctx_->active_pair = p; });
   ui_manager_.set_status_callback(
       [this](const std::string &msg) { this->add_status(msg); });
   Core::Logger::instance().set_sink(
-      [this](Core::LogLevel level,
-             std::chrono::system_clock::time_point time,
+      [this](Core::LogLevel level, std::chrono::system_clock::time_point time,
              const std::string &msg) { this->add_status(msg, level, time); });
 }
 
@@ -180,6 +183,7 @@ void App::load_pairs(std::vector<std::string> &pair_names) {
   this->ctx_->selected_interval =
       this->ctx_->intervals.empty() ? "1m" : this->ctx_->intervals[0];
   ui_manager_.set_initial_interval(this->ctx_->selected_interval);
+  ui_manager_.set_initial_pair(this->ctx_->active_pair);
 }
 
 void App::load_existing_candles() {
@@ -583,7 +587,8 @@ void App::render_main_windows() {
                    this->ctx_->selected_interval, this->ctx_->all_candles,
                    this->ctx_->save_pairs, this->ctx_->exchange_pairs, status_,
                    data_service_, this->ctx_->cancel_pair);
-  ui_manager_.draw_chart_panel(this->ctx_->selected_interval);
+  ui_manager_.draw_chart_panel(this->ctx_->selected_pairs,
+                               this->ctx_->intervals);
 }
 
 void App::handle_active_pair_change() {
