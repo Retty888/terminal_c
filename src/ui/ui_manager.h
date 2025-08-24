@@ -6,10 +6,10 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 #include "core/candle.h"
 
-#if __has_include(<webview/webview.h>)
-#include <thread>
+#ifdef HAVE_WEBVIEW
 namespace webview {
 class webview;
 }
@@ -56,7 +56,7 @@ private:
   std::chrono::milliseconds throttle_interval_{100};
   std::optional<Core::Candle> cached_candle_{};
 
-#if __has_include(<webview/webview.h>)
+#ifdef HAVE_WEBVIEW
   std::unique_ptr<webview::webview> webview_;
   std::thread webview_thread_;
 #endif

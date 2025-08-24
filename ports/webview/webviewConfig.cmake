@@ -1,6 +1,0 @@
-if(NOT TARGET webview::webview)
-  add_library(webview INTERFACE)
-  get_filename_component(_IMPORT_PREFIX "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
-  target_include_directories(webview INTERFACE "${_IMPORT_PREFIX}/include")
-  add_library(webview::webview ALIAS webview)
-endif()

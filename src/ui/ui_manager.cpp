@@ -9,7 +9,7 @@
 #include <optional>
 #include <sstream>
 #include <nlohmann/json.hpp>
-#if __has_include(<webview/webview.h>)
+#ifdef HAVE_WEBVIEW
 #include <webview/webview.h>
 #endif
 
@@ -73,7 +73,7 @@ bool UiManager::setup(GLFWwindow *window) {
         Core::path_from_executable(cfg->chart_html_path).string();
     Core::Logger::instance().info("Initializing WebView with " +
                                   chart_path);
-#if __has_include(<webview/webview.h>)
+#ifdef HAVE_WEBVIEW
     if (std::filesystem::exists(chart_path)) {
       chart_enabled_ = true;
       webview_ = std::make_unique<webview::webview>(false, nullptr);
@@ -94,7 +94,7 @@ bool UiManager::setup(GLFWwindow *window) {
 }
 
 void UiManager::begin_frame() {
-#if __has_include(<webview/webview.h>)
+#ifdef HAVE_WEBVIEW
   {
     std::lock_guard<std::mutex> lock(ui_mutex_);
     if (cached_candle_ && chart_enabled_ && webview_) {
@@ -133,7 +133,7 @@ void UiManager::draw_chart_panel(
 }
 
 void UiManager::set_markers(const std::string &markers_json) {
-#if __has_include(<webview/webview.h>)
+#ifdef HAVE_WEBVIEW
   std::lock_guard<std::mutex> lock(ui_mutex_);
   if (!chart_enabled_ || !webview_)
     return;
@@ -146,7 +146,7 @@ void UiManager::set_markers(const std::string &markers_json) {
 }
 
 void UiManager::set_price_line(double price) {
-#if __has_include(<webview/webview.h>)
+#ifdef HAVE_WEBVIEW
   std::lock_guard<std::mutex> lock(ui_mutex_);
   if (!chart_enabled_ || !webview_)
     return;
@@ -159,7 +159,7 @@ void UiManager::set_price_line(double price) {
 }
 
 std::function<void(const std::string &)> UiManager::candle_callback() {
-#if __has_include(<webview/webview.h>)
+#ifdef HAVE_WEBVIEW
   return [this](const std::string &json) {
     std::lock_guard<std::mutex> lock(ui_mutex_);
     if (!chart_enabled_ || !webview_)
@@ -174,7 +174,7 @@ std::function<void(const std::string &)> UiManager::candle_callback() {
 }
 
 void UiManager::push_candle(const Core::Candle &candle) {
-#if __has_include(<webview/webview.h>)
+#ifdef HAVE_WEBVIEW
   std::lock_guard<std::mutex> lock(ui_mutex_);
   if (!chart_enabled_ || !webview_)
     return;
@@ -229,7 +229,7 @@ void UiManager::shutdown() {
   if (shutdown_called_)
     return;
   shutdown_called_ = true;
-#if __has_include(<webview/webview.h>)
+#ifdef HAVE_WEBVIEW
   if (webview_) {
     webview_->dispatch([wv = webview_.get()]() { wv->terminate(); });
     if (webview_thread_.joinable())

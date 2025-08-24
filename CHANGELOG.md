@@ -7,6 +7,9 @@ This project follows [Semantic Versioning](https://semver.org/). Each entry list
 ### Added
 - Initial changelog to guide future entries.
 
+### Changed
+- Switched to the official `webview` port and removed the custom overlay.
+
 ### Errors and Fixes
 - ImGui optional docking/viewport flags (`ImGuiConfigFlags_DockingEnable`, `ImGuiConfigFlags_ViewportsEnable`) caused build errors with the vcpkg package. The flags and related calls were removed to restore successful compilation.
 - Overlay port `webview` failed to build due to deprecated `vcpkg_copy_sources`; replaced with direct `file(INSTALL ...)` commands.

@@ -31,7 +31,7 @@ endif()
 if(BUILD_TRADING_TERMINAL)
   find_package(glfw3 CONFIG REQUIRED)
   find_package(OpenGL REQUIRED)
-  find_package(webview CONFIG QUIET)
+  find_package(webview CONFIG REQUIRED)
 
   add_executable(TradingTerminal
     main.cpp
@@ -67,11 +67,9 @@ if(BUILD_TRADING_TERMINAL)
       imgui::imgui
     glfw
     OpenGL::GL
+    webview::webview
   )
-  if(webview_FOUND)
-    target_link_libraries(TradingTerminal PRIVATE webview::webview)
-    target_compile_definitions(TradingTerminal PRIVATE HAVE_WEBVIEW)
-  endif()
+  target_compile_definitions(TradingTerminal PRIVATE HAVE_WEBVIEW)
 
   target_include_directories(TradingTerminal PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
