@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/candle.h"
+#include "imgui.h"
 #include <chrono>
 #include <functional>
 #include <memory>
@@ -7,8 +9,6 @@
 #include <optional>
 #include <string>
 #include <vector>
-#include "imgui.h"
-#include "core/candle.h"
 
 struct GLFWwindow;
 
@@ -20,7 +20,8 @@ public:
   bool setup(GLFWwindow *window);
   void begin_frame();
   // Draw docked panels each frame.
-  void draw_chart_panel(const std::string &selected_interval);
+  void draw_chart_panel(const std::vector<std::string> &pairs,
+                        const std::vector<std::string> &intervals);
   // Pushes trade markers to the chart.
   void set_markers(const std::string &markers_json);
   // Draws/updates a price line for the currently open position.
@@ -33,10 +34,14 @@ public:
   std::function<void(const std::string &)> candle_callback();
   // Placeholder for future interval change notifications from embedded charts.
   void set_interval_callback(std::function<void(const std::string &)> cb);
+  // Notify when the active trading pair changes.
+  void set_pair_callback(std::function<void(const std::string &)> cb);
   // Set callback for reporting status messages to the application.
   void set_status_callback(std::function<void(const std::string &)> cb);
   // Inform the UI about the current interval during initialization.
   void set_initial_interval(const std::string &interval);
+  // Inform the UI about the current pair during initialization.
+  void set_initial_pair(const std::string &pair);
   void end_frame(GLFWwindow *window);
   void shutdown();
 
@@ -51,7 +56,9 @@ private:
   std::vector<Marker> markers_;
   std::optional<double> price_line_;
   std::string current_interval_;
+  std::string current_pair_;
   std::function<void(const std::string &)> on_interval_changed_;
+  std::function<void(const std::string &)> on_pair_changed_;
   std::function<void(const std::string &)> status_callback_;
   bool shutdown_called_ = false;
   mutable std::mutex ui_mutex_;

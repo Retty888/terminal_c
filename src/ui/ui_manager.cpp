@@ -26,10 +26,10 @@
 
 namespace {
 
-void PlotCandlestick(const char *label_id, const double *xs, const double *opens,
-                     const double *closes, const double *lows,
-                     const double *highs, int count, bool tooltip = true,
-                     float width_percent = 0.25f,
+void PlotCandlestick(const char *label_id, const double *xs,
+                     const double *opens, const double *closes,
+                     const double *lows, const double *highs, int count,
+                     bool tooltip = true, float width_percent = 0.25f,
                      ImVec4 bullCol = ImVec4(0, 1, 0, 1),
                      ImVec4 bearCol = ImVec4(1, 0, 0, 1)) {
   (void)label_id;
@@ -65,9 +65,8 @@ void PlotCandlestick(const char *label_id, const double *xs, const double *opens
     int idx = BinarySearch(xs, 0, count - 1, rounded_x);
     if (idx != -1) {
       ImGui::BeginTooltip();
-      auto tp =
-          std::chrono::system_clock::time_point(
-              std::chrono::seconds(static_cast<long long>(xs[idx])));
+      auto tp = std::chrono::system_clock::time_point(
+          std::chrono::seconds(static_cast<long long>(xs[idx])));
       std::time_t tt = std::chrono::system_clock::to_time_t(tp);
       std::tm tm = *std::gmtime(&tt);
       std::ostringstream oss;
@@ -86,8 +85,7 @@ void PlotCandlestick(const char *label_id, const double *xs, const double *opens
     ImVec2 close_pos = ImPlot::PlotToPixels(xs[i] + half_width, closes[i]);
     ImVec2 low_pos = ImPlot::PlotToPixels(xs[i], lows[i]);
     ImVec2 high_pos = ImPlot::PlotToPixels(xs[i], highs[i]);
-    ImU32 color =
-        ImGui::GetColorU32(opens[i] > closes[i] ? bearCol : bullCol);
+    ImU32 color = ImGui::GetColorU32(opens[i] > closes[i] ? bearCol : bullCol);
     draw_list->AddLine(low_pos, high_pos, color);
     draw_list->AddRectFilled(open_pos, close_pos, color);
   }
@@ -106,8 +104,7 @@ ImVec4 ColorFromHex(const std::string &hex) {
   return ImVec4(r, g, b, 1.0f);
 }
 
-void AddCandle(std::vector<Core::Candle> &candles,
-               const Core::Candle &candle) {
+void AddCandle(std::vector<Core::Candle> &candles, const Core::Candle &candle) {
   if (!candles.empty() && candles.back().open_time == candle.open_time)
     candles.back() = candle;
   else
@@ -172,15 +169,51 @@ void UiManager::begin_frame() {
   ImGui::NewFrame();
 }
 
-void UiManager::draw_chart_panel(const std::string &selected_interval) {
+void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
+                                 const std::vector<std::string> &intervals) {
   // Display the currently selected interval in the panel title so users can
   // easily confirm the timeframe of the data being shown. If the interval is
   // empty, fall back to the plain "Chart" title.
   std::string title = "Chart";
-  if (!selected_interval.empty()) {
-    title += " - " + selected_interval;
+  if (!current_interval_.empty()) {
+    title += " - " + current_interval_;
   }
   ImGui::Begin(title.c_str());
+
+  int pair_index = 0;
+  std::vector<const char *> pair_items;
+  pair_items.reserve(pairs.size());
+  for (std::size_t i = 0; i < pairs.size(); ++i) {
+    pair_items.push_back(pairs[i].c_str());
+    if (pairs[i] == current_pair_)
+      pair_index = static_cast<int>(i);
+  }
+  if (ImGui::Combo("Pair", &pair_index, pair_items.data(),
+                   static_cast<int>(pair_items.size()))) {
+    if (pair_index >= 0 && pair_index < static_cast<int>(pairs.size())) {
+      current_pair_ = pairs[pair_index];
+      if (on_pair_changed_)
+        on_pair_changed_(current_pair_);
+    }
+  }
+
+  int interval_index = 0;
+  std::vector<const char *> interval_items;
+  interval_items.reserve(intervals.size());
+  for (std::size_t i = 0; i < intervals.size(); ++i) {
+    interval_items.push_back(intervals[i].c_str());
+    if (intervals[i] == current_interval_)
+      interval_index = static_cast<int>(i);
+  }
+  if (ImGui::Combo("Interval", &interval_index, interval_items.data(),
+                   static_cast<int>(interval_items.size()))) {
+    if (interval_index >= 0 &&
+        interval_index < static_cast<int>(intervals.size())) {
+      current_interval_ = intervals[interval_index];
+      if (on_interval_changed_)
+        on_interval_changed_(current_interval_);
+    }
+  }
 #ifdef HAVE_WEBVIEW
   ImGui::TextUnformatted("WebView chart unavailable in this environment.");
 #else
@@ -298,6 +331,10 @@ void UiManager::set_interval_callback(
   on_interval_changed_ = std::move(cb);
 }
 
+void UiManager::set_pair_callback(std::function<void(const std::string &)> cb) {
+  on_pair_changed_ = std::move(cb);
+}
+
 void UiManager::set_status_callback(
     std::function<void(const std::string &)> cb) {
   status_callback_ = std::move(cb);
@@ -305,6 +342,10 @@ void UiManager::set_status_callback(
 
 void UiManager::set_initial_interval(const std::string &interval) {
   current_interval_ = interval;
+}
+
+void UiManager::set_initial_pair(const std::string &pair) {
+  current_pair_ = pair;
 }
 
 void UiManager::end_frame(GLFWwindow *window) {
@@ -328,4 +369,3 @@ void UiManager::shutdown() {
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
 }
-
