@@ -88,6 +88,7 @@ private:
   std::optional<double> price_line_;
   std::string current_interval_;
   std::string current_pair_;
+  bool fit_next_plot_ = false;
   std::function<void(const std::string &)> on_interval_changed_;
   std::function<void(const std::string &)> on_pair_changed_;
   std::function<void(const std::string &)> status_callback_;
