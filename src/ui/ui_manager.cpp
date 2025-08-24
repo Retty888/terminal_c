@@ -10,6 +10,9 @@
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
+#ifdef HAVE_WEBVIEW
+#include "webview.h"
+#endif
 
 #include "core/path_utils.h"
 #ifndef _WIN32
@@ -176,6 +179,11 @@ void UiManager::begin_frame() {
 void UiManager::draw_chart_panel(const std::string &selected_interval) {
   (void)selected_interval;
   ImGui::Begin("Chart");
+#ifdef HAVE_WEBVIEW
+  ImGui::TextUnformatted("WebView chart unavailable in this environment.");
+#else
+  ImGui::TextUnformatted(
+      "WebView support disabled; displaying fallback candlestick chart.");
   std::vector<double> xs, opens, closes, lows, highs;
   {
     std::lock_guard<std::mutex> lock(ui_mutex_);
@@ -216,6 +224,7 @@ void UiManager::draw_chart_panel(const std::string &selected_interval) {
     }
     ImPlot::EndPlot();
   }
+#endif
   ImGui::End();
 }
 
