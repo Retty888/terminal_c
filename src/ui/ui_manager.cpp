@@ -508,7 +508,8 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
           if (editing_object_ >= 0) {
             auto &obj = draw_objects_[editing_object_];
-            if (obj.type == DrawTool::Line) {
+            if (obj.type == DrawTool::Line || obj.type == DrawTool::Ruler ||
+                obj.type == DrawTool::Fibo) {
               if (!drawing_first_point_) {
                 obj.x1 = mouse.x;
                 obj.y1 = mouse.y;
@@ -526,19 +527,38 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
               editing_object_ = -1;
             }
           } else {
-            if (current_tool_ == DrawTool::Line) {
+            if (current_tool_ == DrawTool::Line ||
+                current_tool_ == DrawTool::Ruler ||
+                current_tool_ == DrawTool::Fibo) {
               if (!drawing_first_point_) {
                 temp_x_ = mouse.x;
                 temp_y_ = mouse.y;
                 drawing_first_point_ = true;
               } else {
                 draw_objects_.push_back(
-                    {DrawTool::Line, temp_x_, temp_y_, mouse.x, mouse.y});
+                    {current_tool_, temp_x_, temp_y_, mouse.x, mouse.y});
                 drawing_first_point_ = false;
               }
             } else if (current_tool_ == DrawTool::HLine) {
               draw_objects_.push_back(
                   {DrawTool::HLine, x_min, mouse.y, x_max, mouse.y});
+            } else if (current_tool_ == DrawTool::Long ||
+                       current_tool_ == DrawTool::Short) {
+              if (!drawing_first_point_) {
+                temp_x_ = mouse.x;
+                temp_y_ = mouse.y;
+                drawing_first_point_ = true;
+              } else {
+                Position p{};
+                p.id = next_position_id_++;
+                p.is_long = current_tool_ == DrawTool::Long;
+                p.time1 = temp_x_;
+                p.price1 = temp_y_;
+                p.time2 = mouse.x;
+                p.price2 = mouse.y;
+                positions_.push_back(p);
+                drawing_first_point_ = false;
+              }
             }
           }
         }
@@ -555,7 +575,8 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
                 idx = static_cast<int>(i);
                 break;
               }
-            } else if (o.type == DrawTool::Line) {
+            } else if (o.type == DrawTool::Line || o.type == DrawTool::Ruler ||
+                       o.type == DrawTool::Fibo) {
               double dx = p2.x - p1.x;
               double dy = p2.y - p1.y;
               double len2 = dx * dx + dy * dy;
@@ -609,7 +630,60 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
           std::snprintf(buf, sizeof(buf), "%.2f", o.y1);
           ImPlot::Annotation((o.x1 + o.x2) / 2.0, o.y1, ImVec4(1, 1, 1, 1),
                              ImVec2(0, -5.0f), true, buf);
+        } else if (o.type == DrawTool::Ruler) {
+          double lx[2] = {o.x1, o.x2};
+          double ly[2] = {o.y1, o.y2};
+          ImPlot::PlotLine((std::string("R") + std::to_string(i)).c_str(), lx,
+                           ly, 2);
+          double diff = o.y2 - o.y1;
+          double pct = o.y1 != 0.0 ? diff / o.y1 * 100.0 : 0.0;
+          char buf[64];
+          std::snprintf(buf, sizeof(buf), "%.2f (%.2f%%)", diff, pct);
+          ImPlot::Annotation(o.x2, o.y2, ImVec4(1, 1, 0, 1), ImVec2(5, 5),
+                             true, buf);
+        } else if (o.type == DrawTool::Fibo) {
+          double xmin = std::min(o.x1, o.x2);
+          double xmax = std::max(o.x1, o.x2);
+          double dy = o.y2 - o.y1;
+          const double levels[] = {0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0};
+          for (double lvl : levels) {
+            double y = o.y1 + dy * lvl;
+            double lx[2] = {xmin, xmax};
+            double ly[2] = {y, y};
+            ImPlot::PlotLine(
+                (std::string("F") + std::to_string(i) + "_" +
+                 std::to_string(static_cast<int>(lvl * 1000)))
+                    .c_str(),
+                lx, ly, 2);
+            char buf[32];
+            std::snprintf(buf, sizeof(buf), "%.1f%%", lvl * 100.0);
+            ImPlot::Annotation(xmax, y, ImVec4(1, 1, 1, 1), ImVec2(5, 0), true,
+                               buf);
+          }
         }
+      }
+      for (const auto &p : positions_) {
+        ImDrawList *dl = ImPlot::GetPlotDrawList();
+        ImVec2 p1 = ImPlot::PlotToPixels(p.time1, p.price1);
+        ImVec2 p2 = ImPlot::PlotToPixels(p.time2, p.price2);
+        ImVec2 a(std::min(p1.x, p2.x), std::min(p1.y, p2.y));
+        ImVec2 b(std::max(p1.x, p2.x), std::max(p1.y, p2.y));
+        ImPlot::PushPlotClipRect();
+        ImU32 fill = p.is_long ? IM_COL32(0, 255, 0, 50)
+                               : IM_COL32(255, 0, 0, 50);
+        ImU32 line = p.is_long ? IM_COL32(0, 255, 0, 255)
+                               : IM_COL32(255, 0, 0, 255);
+        dl->AddRectFilled(a, b, fill);
+        dl->AddRect(a, b, line);
+        ImPlot::PopPlotClipRect();
+        double diff = p.is_long ? p.price2 - p.price1 : p.price1 - p.price2;
+        double pct = p.price1 != 0.0 ? diff / p.price1 * 100.0 : 0.0;
+        char buf[64];
+        std::snprintf(buf, sizeof(buf), "%.2f (%.2f%%)", diff, pct);
+        ImVec4 col = diff >= 0 ? ImVec4(0, 1, 0, 1) : ImVec4(1, 0, 0, 1);
+        ImPlot::Annotation(std::max(p.time1, p.time2),
+                           (p.price1 + p.price2) / 2.0, col, ImVec2(10, 0),
+                           true, buf);
       }
     }
     ImPlot::EndPlot();
