@@ -8,6 +8,13 @@
 #include <string>
 #include "core/candle.h"
 
+#if __has_include(<webview/webview.h>)
+#include <thread>
+namespace webview {
+class webview;
+}
+#endif
+
 struct GLFWwindow;
 
 // Manages ImGui initialization and per-frame rendering and hosts auxiliary
@@ -48,4 +55,9 @@ private:
   std::chrono::steady_clock::time_point last_push_time_{};
   std::chrono::milliseconds throttle_interval_{100};
   std::optional<Core::Candle> cached_candle_{};
+
+#if __has_include(<webview/webview.h>)
+  std::unique_ptr<webview::webview> webview_;
+  std::thread webview_thread_;
+#endif
 };

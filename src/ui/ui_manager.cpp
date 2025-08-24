@@ -8,6 +8,10 @@
 #include <mutex>
 #include <optional>
 #include <sstream>
+#include <nlohmann/json.hpp>
+#if __has_include(<webview/webview.h>)
+#include <webview/webview.h>
+#endif
 
 #include "config_manager.h"
 #include "config_path.h"
@@ -65,22 +69,53 @@ bool UiManager::setup(GLFWwindow *window) {
     Core::Logger::instance().info(
         "WebView initialization disabled by configuration");
   } else {
-    std::filesystem::path chart_path = cfg->chart_html_path;
+    auto chart_path =
+        Core::path_from_executable(cfg->chart_html_path).string();
     Core::Logger::instance().info("Initializing WebView with " +
-                                  chart_path.string());
+                                  chart_path);
+#if __has_include(<webview/webview.h>)
     if (std::filesystem::exists(chart_path)) {
-      Core::Logger::instance().info("WebView initialized successfully");
       chart_enabled_ = true;
+      webview_ = std::make_unique<webview::webview>(false, nullptr);
+      webview_->set_title("Chart");
+      webview_->navigate("file://" + chart_path);
+      webview_thread_ = std::thread([this]() { webview_->run(); });
+      Core::Logger::instance().info("WebView initialized successfully");
     } else {
       Core::Logger::instance().error(
-          "WebView initialization failed: file not found - " +
-          chart_path.string());
+          "WebView initialization failed: file not found - " + chart_path);
     }
+#else
+    Core::Logger::instance().warn(
+        "WebView library not available; chart disabled");
+#endif
   }
   return true;
 }
 
 void UiManager::begin_frame() {
+#if __has_include(<webview/webview.h>)
+  {
+    std::lock_guard<std::mutex> lock(ui_mutex_);
+    if (cached_candle_ && chart_enabled_ && webview_) {
+      auto now = std::chrono::steady_clock::now();
+      if (now - last_push_time_ >= throttle_interval_) {
+        last_push_time_ = now;
+        nlohmann::json j{{"time", cached_candle_->open_time / 1000},
+                         {"open", cached_candle_->open},
+                         {"high", cached_candle_->high},
+                         {"low", cached_candle_->low},
+                         {"close", cached_candle_->close},
+                         {"volume", cached_candle_->volume}};
+        auto json = j.dump();
+        cached_candle_.reset();
+        webview_->dispatch([wv = webview_.get(), json]() {
+          wv->eval("updateCandle(" + json + ");");
+        });
+      }
+    }
+  }
+#endif
   ImGui_ImplOpenGL3_NewFrame();
   ImGui_ImplGlfw_NewFrame();
   ImGui::NewFrame();
@@ -98,19 +133,70 @@ void UiManager::draw_chart_panel(
 }
 
 void UiManager::set_markers(const std::string &markers_json) {
+#if __has_include(<webview/webview.h>)
+  std::lock_guard<std::mutex> lock(ui_mutex_);
+  if (!chart_enabled_ || !webview_)
+    return;
+  webview_->dispatch([wv = webview_.get(), markers_json]() {
+    wv->eval("chart.setMarkers(" + markers_json + ");");
+  });
+#else
   (void)markers_json;
+#endif
 }
 
 void UiManager::set_price_line(double price) {
+#if __has_include(<webview/webview.h>)
+  std::lock_guard<std::mutex> lock(ui_mutex_);
+  if (!chart_enabled_ || !webview_)
+    return;
+  webview_->dispatch([wv = webview_.get(), price]() {
+    wv->eval("chart.setPriceLine(" + std::to_string(price) + ");");
+  });
+#else
   (void)price;
+#endif
 }
 
 std::function<void(const std::string &)> UiManager::candle_callback() {
+#if __has_include(<webview/webview.h>)
+  return [this](const std::string &json) {
+    std::lock_guard<std::mutex> lock(ui_mutex_);
+    if (!chart_enabled_ || !webview_)
+      return;
+    webview_->dispatch([wv = webview_.get(), json]() {
+      wv->eval("updateCandle(" + json + ");");
+    });
+  };
+#else
   return [](const std::string &) {};
+#endif
 }
 
 void UiManager::push_candle(const Core::Candle &candle) {
+#if __has_include(<webview/webview.h>)
+  std::lock_guard<std::mutex> lock(ui_mutex_);
+  if (!chart_enabled_ || !webview_)
+    return;
+  auto now = std::chrono::steady_clock::now();
+  if (now - last_push_time_ < throttle_interval_) {
+    cached_candle_ = candle;
+    return;
+  }
+  last_push_time_ = now;
+  nlohmann::json j{{"time", candle.open_time / 1000},
+                   {"open", candle.open},
+                   {"high", candle.high},
+                   {"low", candle.low},
+                   {"close", candle.close},
+                   {"volume", candle.volume}};
+  auto json = j.dump();
+  webview_->dispatch([wv = webview_.get(), json]() {
+    wv->eval("updateCandle(" + json + ");");
+  });
+#else
   (void)candle;
+#endif
 }
 
 void UiManager::set_interval_callback(
@@ -143,6 +229,14 @@ void UiManager::shutdown() {
   if (shutdown_called_)
     return;
   shutdown_called_ = true;
+#if __has_include(<webview/webview.h>)
+  if (webview_) {
+    webview_->dispatch([wv = webview_.get()]() { wv->terminate(); });
+    if (webview_thread_.joinable())
+      webview_thread_.join();
+    webview_.reset();
+  }
+#endif
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
