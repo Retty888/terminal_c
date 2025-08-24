@@ -6,9 +6,9 @@
 #include <filesystem>
 #include <fstream>
 #include <mutex>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <sstream>
-#include <nlohmann/json.hpp>
 
 #include "config_manager.h"
 #include "config_path.h"
@@ -66,10 +66,8 @@ bool UiManager::setup(GLFWwindow *window) {
     Core::Logger::instance().info(
         "WebView initialization disabled by configuration");
   } else {
-    auto chart_path =
-        Core::path_from_executable(cfg->chart_html_path).string();
-    Core::Logger::instance().info("Initializing WebView with " +
-                                  chart_path);
+    auto chart_path = Core::path_from_executable(cfg->chart_html_path).string();
+    Core::Logger::instance().info("Initializing WebView with " + chart_path);
 #ifdef HAVE_WEBVIEW
     if (std::filesystem::exists(chart_path)) {
       chart_enabled_ = true;
@@ -106,9 +104,7 @@ void UiManager::begin_frame() {
                          {"volume", cached_candle_->volume}};
         auto json = j.dump();
         cached_candle_.reset();
-        webview_->dispatch([wv = webview_.get(), json]() {
-          wv->eval("updateCandle(" + json + ");");
-        });
+        webview_->eval("updateCandle(" + json + ");");
       }
     }
   }
@@ -136,9 +132,7 @@ void UiManager::set_markers(const std::string &markers_json) {
   std::lock_guard<std::mutex> lock(ui_mutex_);
   if (!chart_enabled_ || !webview_)
     return;
-  webview_->dispatch([wv = webview_.get(), markers_json]() {
-    wv->eval("chart.setMarkers(" + markers_json + ");");
-  });
+  webview_->eval("chart.setMarkers(" + markers_json + ");");
 #else
   (void)markers_json;
 #endif
@@ -149,9 +143,7 @@ void UiManager::set_price_line(double price) {
   std::lock_guard<std::mutex> lock(ui_mutex_);
   if (!chart_enabled_ || !webview_)
     return;
-  webview_->dispatch([wv = webview_.get(), price]() {
-    wv->eval("chart.setPriceLine(" + std::to_string(price) + ");");
-  });
+  webview_->eval("chart.setPriceLine(" + std::to_string(price) + ");");
 #else
   (void)price;
 #endif
@@ -163,9 +155,7 @@ std::function<void(const std::string &)> UiManager::candle_callback() {
     std::lock_guard<std::mutex> lock(ui_mutex_);
     if (!chart_enabled_ || !webview_)
       return;
-    webview_->dispatch([wv = webview_.get(), json]() {
-      wv->eval("updateCandle(" + json + ");");
-    });
+    webview_->eval("updateCandle(" + json + ");");
   };
 #else
   return [](const std::string &) {};
@@ -190,9 +180,7 @@ void UiManager::push_candle(const Core::Candle &candle) {
                    {"close", candle.close},
                    {"volume", candle.volume}};
   auto json = j.dump();
-  webview_->dispatch([wv = webview_.get(), json]() {
-    wv->eval("updateCandle(" + json + ");");
-  });
+  webview_->eval("updateCandle(" + json + ");");
 #else
   (void)candle;
 #endif
@@ -230,7 +218,7 @@ void UiManager::shutdown() {
   shutdown_called_ = true;
 #ifdef HAVE_WEBVIEW
   if (webview_) {
-    webview_->dispatch([wv = webview_.get()]() { wv->terminate(); });
+    webview_->terminate();
     if (webview_thread_.joinable())
       webview_thread_.join();
     webview_.reset();
