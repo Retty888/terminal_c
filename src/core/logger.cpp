@@ -15,7 +15,9 @@ Logger &Logger::instance() {
   return inst;
 }
 
-Logger::Logger() { worker_ = std::thread([this] { process_queue(); }); }
+Logger::Logger() {
+  worker_ = std::thread([this] { process_queue(); });
+}
 
 Logger::~Logger() {
   {
@@ -42,12 +44,14 @@ void Logger::set_file(const std::string &filename, std::size_t max_size) {
   if (fs::exists(filename)) {
     auto size = fs::file_size(filename);
     auto last = fs::last_write_time(filename);
-    auto last_sys =
-        std::chrono::clock_cast<std::chrono::system_clock>(last);
+#if defined(__cpp_lib_chrono) && __cpp_lib_chrono >= 201907L
+    auto last_sys = std::chrono::clock_cast<std::chrono::system_clock>(last);
+#else
+    auto last_sys = std::chrono::file_clock::to_sys(last);
+#endif
     auto now = std::chrono::system_clock::now();
     auto today = std::chrono::time_point_cast<std::chrono::days>(now);
-    auto file_day =
-        std::chrono::time_point_cast<std::chrono::days>(last_sys);
+    auto file_day = std::chrono::time_point_cast<std::chrono::days>(last_sys);
     if (size >= max_file_size_ || file_day != today)
       rotate = true;
   }
@@ -121,9 +125,13 @@ void Logger::log(LogLevel level, const std::string &message) {
 
 void Logger::info(const std::string &message) { log(LogLevel::Info, message); }
 
-void Logger::warn(const std::string &message) { log(LogLevel::Warning, message); }
+void Logger::warn(const std::string &message) {
+  log(LogLevel::Warning, message);
+}
 
-void Logger::error(const std::string &message) { log(LogLevel::Error, message); }
+void Logger::error(const std::string &message) {
+  log(LogLevel::Error, message);
+}
 
 void Logger::process_queue() {
   std::unique_lock<std::mutex> lock(mutex_);
