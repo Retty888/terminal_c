@@ -13,7 +13,7 @@ Standalone C++ trading terminal using ImGui. The project relies on packages prov
   - ImGui
   - CPR (встроен)
   - JSON (встроен)
-  - webview (встроен)
+  - webview (системный пакет; для платформ без него можно добавить собственную реализацию)
 - `CMakeLists.txt` использует `find_package()` для зависимостей через `vcpkg`
 
 ## Инструкция
@@ -30,6 +30,8 @@ Standalone C++ trading terminal using ImGui. The project relies on packages prov
 1. Установите [vcpkg](https://github.com/microsoft/vcpkg) и настройте переменную `CMAKE_TOOLCHAIN_FILE` на `scripts/buildsystems/vcpkg.cmake`.
    Опциональные зависимости:
    - `imgui` — используется из пакета, если он установлен; иначе проект собирает встроенные исходники из `third_party/imgui`.
+   - `webview` — используется из системного пакета; при его отсутствии можно реализовать `src/ui/webview_impl.cpp` и подключить
+     его в CMake только когда пакет недоступен.
 2. Выполните конфигурацию проекта:
    ```
    cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=path/to/vcpkg/scripts/buildsystems/vcpkg.cmake
@@ -48,6 +50,9 @@ The HTML file under `resources/` embeds [TradingView Lightweight Charts](https:/
 
 - **Windows:** requires the [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
 - **Linux:** depends on WebKitGTK packages (`libwebkit2gtk-4.1-0` and related).
+
+If the `webview` package is not available, add a platform-specific implementation in `src/ui/webview_impl.cpp` and include it in
+CMake only when the system package cannot be found.
 
 ### TradingView script
 
