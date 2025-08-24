@@ -4,11 +4,11 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
+#include <cmath>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
-#include <cmath>
-#include <cstdio>
 #include <mutex>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -58,6 +58,26 @@ UiManager::DrawTool ToolFromString(const std::string &s) {
   if (s == "short")
     return UiManager::DrawTool::Short;
   return UiManager::DrawTool::None;
+}
+
+const char *SeriesTypeToString(UiManager::SeriesType t) {
+  switch (t) {
+  case UiManager::SeriesType::Line:
+    return "LineSeries";
+  case UiManager::SeriesType::Area:
+    return "AreaSeries";
+  case UiManager::SeriesType::Candlestick:
+  default:
+    return "CandlestickSeries";
+  }
+}
+
+UiManager::SeriesType SeriesTypeFromString(const std::string &s) {
+  if (s == "LineSeries")
+    return UiManager::SeriesType::Line;
+  if (s == "AreaSeries")
+    return UiManager::SeriesType::Area;
+  return UiManager::SeriesType::Candlestick;
 }
 
 void PlotCandlestick(const char *label_id, const double *xs,
@@ -248,9 +268,23 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
         on_interval_changed_(current_interval_);
     }
   }
+  int series_index = static_cast<int>(current_series_);
+  const char *series_items[] = {"CandlestickSeries", "LineSeries",
+                                "AreaSeries"};
+  if (ImGui::Combo("Series", &series_index, series_items,
+                   static_cast<int>(IM_ARRAYSIZE(series_items)))) {
+    current_series_ = static_cast<SeriesType>(series_index);
+#ifdef HAVE_WEBVIEW
+    if (webview_) {
+      std::string js = "setActiveSeries('" +
+                       std::string(SeriesTypeToString(current_series_)) + "');";
+      webview_eval(static_cast<webview_t>(webview_), js.c_str());
+    }
+#endif
+  }
   int tool_index = static_cast<int>(current_tool_);
-  const char *tool_items[] = {"Cross", "Trend", "HLine", "Ruler", "Long",
-                              "Short"};
+  const char *tool_items[] = {"Cross", "Trend", "HLine",
+                              "Ruler", "Long",  "Short"};
   if (ImGui::Combo("Tool", &tool_index, tool_items,
                    static_cast<int>(IM_ARRAYSIZE(tool_items)))) {
     current_tool_ = static_cast<DrawTool>(tool_index);
@@ -258,8 +292,8 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
     editing_object_ = -1;
 #ifdef HAVE_WEBVIEW
     if (webview_) {
-      std::string js = "setActiveTool('" +
-                       std::string(ToolToString(current_tool_)) + "');";
+      std::string js =
+          "setActiveTool('" + std::string(ToolToString(current_tool_)) + "');";
       webview_eval(static_cast<webview_t>(webview_), js.c_str());
     }
 #endif
@@ -328,9 +362,23 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
           webview_return(w, seq, 0, nullptr);
         },
         this);
-    webview_thread_ = std::jthread([
-      this
-    ](std::stop_token) { webview_run(static_cast<webview_t>(webview_)); });
+    webview_bind(
+        static_cast<webview_t>(webview_), "setSeries",
+        [](webview_t w, const char *seq, const char *req, void *arg) {
+          auto self = static_cast<UiManager *>(arg);
+          try {
+            auto j = nlohmann::json::parse(req);
+            if (j.is_array() && !j.empty())
+              self->current_series_ =
+                  SeriesTypeFromString(j[0].get<std::string>());
+          } catch (...) {
+          }
+          webview_return(w, seq, 0, nullptr);
+        },
+        this);
+    webview_thread_ = std::jthread([this](std::stop_token) {
+      webview_run(static_cast<webview_t>(webview_));
+    });
     webview_ready_ = true;
     {
       std::lock_guard<std::mutex> lock(ui_mutex_);
@@ -351,6 +399,10 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
         oss << "chart.setPriceLine(" << *price_line_ << ");";
         webview_eval(static_cast<webview_t>(webview_), oss.str().c_str());
       }
+      std::string js_series = "setActiveSeries('" +
+                              std::string(SeriesTypeToString(current_series_)) +
+                              "');";
+      webview_eval(static_cast<webview_t>(webview_), js_series.c_str());
       std::string js_tool =
           "setActiveTool('" + std::string(ToolToString(current_tool_)) + "');";
       webview_eval(static_cast<webview_t>(webview_), js_tool.c_str());
@@ -655,9 +707,9 @@ void UiManager::shutdown() {
   shutdown_called_ = true;
 #ifdef HAVE_WEBVIEW
   if (webview_) {
-    webview_dispatch(static_cast<webview_t>(webview_),
-                     [](webview_t w, void *) { webview_terminate(w); },
-                     nullptr);
+    webview_dispatch(
+        static_cast<webview_t>(webview_),
+        [](webview_t w, void *) { webview_terminate(w); }, nullptr);
     if (webview_thread_.joinable())
       webview_thread_.join();
     webview_destroy(static_cast<webview_t>(webview_));

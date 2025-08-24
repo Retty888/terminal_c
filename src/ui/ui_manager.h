@@ -7,8 +7,8 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <thread>
 #include <string>
+#include <thread>
 #include <vector>
 
 struct GLFWwindow;
@@ -49,6 +49,7 @@ public:
 private:
   std::vector<Core::Candle> candles_;
   enum class DrawTool { None, Line, HLine, Ruler, Long, Short };
+  enum class SeriesType { Candlestick, Line, Area };
   struct DrawObject {
     DrawTool type;
     double x1;
@@ -64,6 +65,7 @@ private:
   };
   std::vector<Marker> markers_;
   DrawTool current_tool_ = DrawTool::None;
+  SeriesType current_series_ = SeriesType::Candlestick;
   std::vector<DrawObject> draw_objects_;
   bool drawing_first_point_ = false;
   int editing_object_ = -1;
