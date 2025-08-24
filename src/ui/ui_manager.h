@@ -11,10 +11,6 @@
 
 #ifdef HAVE_WEBVIEW
 #include <webview.h>
-#else
-namespace webview {
-class webview {};
-}
 #endif
 
 struct GLFWwindow;
