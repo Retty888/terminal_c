@@ -24,18 +24,6 @@
 #include "implot.h"
 
 namespace {
-template <typename T>
-int BinarySearch(const T *arr, int l, int r, T x) {
-  if (r >= l) {
-    int mid = l + (r - l) / 2;
-    if (arr[mid] == x)
-      return mid;
-    if (arr[mid] > x)
-      return BinarySearch(arr, l, mid - 1, x);
-    return BinarySearch(arr, mid + 1, r, x);
-  }
-  return -1;
-}
 
 void PlotCandlestick(const char *label_id, const double *xs, const double *opens,
                      const double *closes, const double *lows,
@@ -60,7 +48,18 @@ void PlotCandlestick(const char *label_id, const double *xs, const double *opens
     draw_list->AddRectFilled(ImVec2(tool_l, tool_t), ImVec2(tool_r, tool_b),
                              IM_COL32(128, 128, 128, 64));
     ImPlot::PopPlotClipRect();
-    int idx = BinarySearch(xs, 0, count - 1, mouse.x);
+    const double *it = std::lower_bound(xs, xs + count, mouse.x);
+    int idx = -1;
+    if (it == xs + count) {
+      idx = count - 1;
+    } else if (it == xs) {
+      if (*it == mouse.x)
+        idx = 0;
+    } else {
+      if (*it > mouse.x)
+        --it;
+      idx = static_cast<int>(it - xs);
+    }
     if (idx != -1) {
       ImGui::BeginTooltip();
       char buff[32];
