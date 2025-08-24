@@ -31,7 +31,7 @@ endif()
 if(BUILD_TRADING_TERMINAL)
   find_package(glfw3 CONFIG REQUIRED)
   find_package(OpenGL REQUIRED)
-  find_package(webview CONFIG REQUIRED)
+  find_package(webview CONFIG QUIET)
 
   add_executable(TradingTerminal
     main.cpp
@@ -67,9 +67,16 @@ if(BUILD_TRADING_TERMINAL)
       imgui::imgui
     glfw
     OpenGL::GL
-    webview::webview
   )
-  target_compile_definitions(TradingTerminal PRIVATE HAVE_WEBVIEW)
+
+  if(webview_FOUND)
+    target_link_libraries(TradingTerminal PRIVATE webview::webview)
+    target_compile_definitions(TradingTerminal PRIVATE HAVE_WEBVIEW)
+  else()
+    message(WARNING "webview package not found; chart window will be disabled."
+                    " Provide src/ui/webview_impl.cpp for platform-specific implementations.")
+    # target_sources(TradingTerminal PRIVATE src/ui/webview_impl.cpp)
+  endif()
 
   target_include_directories(TradingTerminal PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
