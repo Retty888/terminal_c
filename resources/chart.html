@@ -11,6 +11,7 @@
     #toolbar button { width:48px; }
     #toolbar button.active { background:#555; }
     #overlay { position:absolute; left:0; top:0; z-index:5; }
+    #coords { position:absolute; right:0; bottom:0; z-index:10; background:#222; color:#fff; padding:2px 4px; font-family:monospace; }
   </style>
 </head>
 <body>
@@ -30,12 +31,14 @@
   </div>
   <div id="tvchart"></div>
   <canvas id="overlay"></canvas>
+  <div id="coords"></div>
 </div>
 <script src="lightweight-charts.standalone.production.js"></script>
 <script>
   const container = document.getElementById('container');
   const chartEl = document.getElementById('tvchart');
   const overlay = document.getElementById('overlay');
+  const coordsEl = document.getElementById('coords');
 
   const chart = LightweightCharts.createChart(chartEl, {
     width: container.clientWidth,
@@ -48,6 +51,21 @@
   let priceLine = null;
   const data = [];
   const ctx = overlay.getContext('2d');
+  chart.subscribeCrosshairMove(param => {
+    if (!param.time || !param.point) {
+      coordsEl.textContent = '';
+      return;
+    }
+    const price = param.seriesPrices.get(series);
+    let timeStr = '';
+    if (typeof param.time === 'object') {
+      timeStr = `${param.time.year}-${param.time.month}-${param.time.day}`;
+    } else {
+      const d = new Date(param.time * 1000);
+      timeStr = d.toLocaleString();
+    }
+    coordsEl.textContent = `${timeStr} ${price !== undefined ? price.toFixed(2) : ''}`;
+  });
 
   function resize() {
     const w = container.clientWidth;
