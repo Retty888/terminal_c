@@ -71,6 +71,7 @@ if(BUILD_TRADING_TERMINAL)
   if(webview_FOUND)
     target_link_libraries(TradingTerminal PRIVATE webview::webview)
     target_compile_definitions(TradingTerminal PRIVATE HAVE_WEBVIEW)
+    target_sources(TradingTerminal PRIVATE src/ui/webview_impl.cpp)
   endif()
 
   target_include_directories(TradingTerminal PRIVATE

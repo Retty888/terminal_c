@@ -1,18 +1,20 @@
 #pragma once
 
+#include "core/candle.h"
 #include <chrono>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
-#include "core/candle.h"
 
-#if __has_include(<webview/webview.h>)
+#ifdef HAVE_WEBVIEW
 #include <thread>
 namespace webview {
 class webview;
 }
+#else
+// WebView library not available
 #endif
 
 struct GLFWwindow;
@@ -56,8 +58,10 @@ private:
   std::chrono::milliseconds throttle_interval_{100};
   std::optional<Core::Candle> cached_candle_{};
 
-#if __has_include(<webview/webview.h>)
+#ifdef HAVE_WEBVIEW
   std::unique_ptr<webview::webview> webview_;
   std::thread webview_thread_;
+#else
+  // No WebView support
 #endif
 };
