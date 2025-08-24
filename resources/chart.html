@@ -5,7 +5,15 @@
 <div id="tvchart" style="width:100%;height:100%;"></div>
 <script src="lightweight-charts.standalone.production.js"></script>
 <script>
-  const chart = LightweightCharts.createChart(document.getElementById('tvchart'), {width:600, height:300});
+    const chart = LightweightCharts.createChart(
+      document.getElementById('tvchart'),
+      {
+        width: 600,
+        height: 300,
+        localization: { locale: 'ru-RU' },
+        timeScale: { timeVisible: true, secondsVisible: false }
+      }
+    );
   const series = chart.addCandlestickSeries();
   const data = [];
   window.updateCandle = function(c) {

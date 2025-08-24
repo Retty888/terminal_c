@@ -322,7 +322,7 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
   }
   if (ImPlot::BeginPlot("Candles", ImVec2(-1, -1))) {
     ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
-    ImPlot::SetupAxisFormat(ImAxis_X1, "%Y-%m-%d");
+    ImPlot::SetupAxisFormat(ImAxis_X1, "%Y-%m-%d %H:%M");
     if (!xs.empty()) {
       PlotCandlestick("price", xs.data(), opens.data(), closes.data(),
                       lows.data(), highs.data(), (int)xs.size());
