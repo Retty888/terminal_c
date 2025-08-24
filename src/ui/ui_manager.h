@@ -77,6 +77,7 @@ private:
   };
   std::vector<Marker> markers_;
   std::vector<Position> positions_;
+  int next_position_id_ = 1;
   DrawTool current_tool_ = DrawTool::None;
   SeriesType current_series_ = SeriesType::Candlestick;
   std::vector<DrawObject> draw_objects_;
