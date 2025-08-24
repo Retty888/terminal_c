@@ -42,6 +42,8 @@ const char *ToolToString(UiManager::DrawTool t) {
     return "long";
   case UiManager::DrawTool::Short:
     return "short";
+  case UiManager::DrawTool::Fibo:
+    return "fibo";
   }
   return "cross";
 }
@@ -57,6 +59,8 @@ UiManager::DrawTool ToolFromString(const std::string &s) {
     return UiManager::DrawTool::Long;
   if (s == "short")
     return UiManager::DrawTool::Short;
+  if (s == "fibo")
+    return UiManager::DrawTool::Fibo;
   return UiManager::DrawTool::None;
 }
 
@@ -286,12 +290,8 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
     }
 #endif
   }
-  int tool_index = static_cast<int>(current_tool_);
-  const char *tool_items[] = {"Cross", "Trend", "HLine",
-                              "Ruler", "Long",  "Short"};
-  if (ImGui::Combo("Tool", &tool_index, tool_items,
-                   static_cast<int>(IM_ARRAYSIZE(tool_items)))) {
-    current_tool_ = static_cast<DrawTool>(tool_index);
+  auto set_tool = [&](DrawTool t) {
+    current_tool_ = t;
     drawing_first_point_ = false;
     editing_object_ = -1;
 #ifdef HAVE_WEBVIEW
@@ -301,7 +301,25 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
       webview_eval(static_cast<webview_t>(webview_), js.c_str());
     }
 #endif
-  }
+  };
+  ImGui::BeginChild("ToolPanel", ImVec2(80, 0), true);
+  if (ImGui::Button("Cross"))
+    set_tool(DrawTool::None);
+  if (ImGui::Button("Trend"))
+    set_tool(DrawTool::Line);
+  if (ImGui::Button("HLine"))
+    set_tool(DrawTool::HLine);
+  if (ImGui::Button("Ruler"))
+    set_tool(DrawTool::Ruler);
+  if (ImGui::Button("Long"))
+    set_tool(DrawTool::Long);
+  if (ImGui::Button("Short"))
+    set_tool(DrawTool::Short);
+  if (ImGui::Button("Fibo"))
+    set_tool(DrawTool::Fibo);
+  ImGui::EndChild();
+  ImGui::SameLine();
+  ImGui::BeginChild("ChartChild", ImVec2(0, 0), false);
 #ifdef HAVE_WEBVIEW
   if (!webview_) {
     webview_ = webview_create(0, nullptr);
@@ -573,6 +591,7 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
     ImPlot::EndPlot();
   }
 #endif
+  ImGui::EndChild();
   ImGui::End();
 }
 
