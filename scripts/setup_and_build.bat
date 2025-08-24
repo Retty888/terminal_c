@@ -56,15 +56,14 @@ if exist "%VCPKG_PATH%" (
 )
 
 set TOOLCHAIN_FILE=%VCPKG_PATH%\scripts\buildsystems\vcpkg.cmake
-set OVERLAY_PORTS=%SCRIPT_DIR%..\ports
 
 REM Install dependencies using manifest if available
 if exist "%SCRIPT_DIR%..\vcpkg.json" (
     echo Installing packages from manifest...
-    "%VCPKG_PATH%\vcpkg.exe" install --recurse --overlay-ports="%OVERLAY_PORTS%"
+    "%VCPKG_PATH%\vcpkg.exe" install --recurse
 ) else (
     echo Installing required packages...
-    "%VCPKG_PATH%\vcpkg.exe" install imgui[core,docking-experimental,glfw-binding,opengl3-binding] cpr nlohmann-json arrow glfw3 opengl gtest --recurse --overlay-ports="%OVERLAY_PORTS%"
+    "%VCPKG_PATH%\vcpkg.exe" install imgui[core,docking-experimental,glfw-binding,opengl3-binding] cpr nlohmann-json arrow glfw3 opengl gtest webview webview2 --recurse
 )
 if %errorlevel% neq 0 (
     echo Dependency installation failed!
@@ -82,7 +81,7 @@ mkdir "%BUILD_DIR%"
 cd /d "%BUILD_DIR%"
 
 echo Running CMake configuration...
-cmake .. -DBUILD_TRADING_TERMINAL=ON -DCMAKE_TOOLCHAIN_FILE="%TOOLCHAIN_FILE%" -DVCPKG_OVERLAY_PORTS="%OVERLAY_PORTS%"
+cmake .. -DBUILD_TRADING_TERMINAL=ON -DCMAKE_TOOLCHAIN_FILE="%TOOLCHAIN_FILE%"
 if %errorlevel% neq 0 (
     echo CMake configuration failed!
     pause
