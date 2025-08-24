@@ -10,7 +10,9 @@ add_compile_definitions(GTEST_HAS_STD_WSTRING=0)
 
 option(BUILD_TRADING_TERMINAL "Build the TradingTerminal application" ON)
 
-# Copy chart resources to the build directory
+# Copy chart resources to the build directory for non-Windows builds
+# On Windows, resources are prepared by a post-build step that calls
+# `scripts/prepare_chart_resources.bat`.
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/resources/chart.html
           ${CMAKE_CURRENT_SOURCE_DIR}/resources/lightweight-charts.standalone.production.js
      DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/resources)
@@ -91,6 +93,16 @@ if(BUILD_TRADING_TERMINAL)
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends
   )
+
+  if (WIN32)
+    add_custom_command(
+      TARGET TradingTerminal
+      POST_BUILD
+      COMMAND "${CMAKE_SOURCE_DIR}/scripts/prepare_chart_resources.bat" "$<TARGET_FILE_DIR:TradingTerminal>"
+      COMMENT "Preparing chart resources"
+      VERBATIM
+    )
+  endif()
 
 endif()
 
