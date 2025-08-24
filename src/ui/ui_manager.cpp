@@ -28,6 +28,38 @@
 
 namespace {
 
+const char *ToolToString(UiManager::DrawTool t) {
+  switch (t) {
+  case UiManager::DrawTool::None:
+    return "cross";
+  case UiManager::DrawTool::Line:
+    return "trend";
+  case UiManager::DrawTool::HLine:
+    return "hline";
+  case UiManager::DrawTool::Ruler:
+    return "ruler";
+  case UiManager::DrawTool::Long:
+    return "long";
+  case UiManager::DrawTool::Short:
+    return "short";
+  }
+  return "cross";
+}
+
+UiManager::DrawTool ToolFromString(const std::string &s) {
+  if (s == "trend")
+    return UiManager::DrawTool::Line;
+  if (s == "hline")
+    return UiManager::DrawTool::HLine;
+  if (s == "ruler")
+    return UiManager::DrawTool::Ruler;
+  if (s == "long")
+    return UiManager::DrawTool::Long;
+  if (s == "short")
+    return UiManager::DrawTool::Short;
+  return UiManager::DrawTool::None;
+}
+
 void PlotCandlestick(const char *label_id, const double *xs,
                      const double *opens, const double *closes,
                      const double *lows, const double *highs, int count,
@@ -217,12 +249,20 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
     }
   }
   int tool_index = static_cast<int>(current_tool_);
-  const char *tool_items[] = {"None", "Line", "HLine"};
+  const char *tool_items[] = {"Cross", "Trend", "HLine", "Ruler", "Long",
+                              "Short"};
   if (ImGui::Combo("Tool", &tool_index, tool_items,
                    static_cast<int>(IM_ARRAYSIZE(tool_items)))) {
     current_tool_ = static_cast<DrawTool>(tool_index);
     drawing_first_point_ = false;
     editing_object_ = -1;
+#ifdef HAVE_WEBVIEW
+    if (webview_) {
+      std::string js = "setActiveTool('" +
+                       std::string(ToolToString(current_tool_)) + "');";
+      webview_eval(static_cast<webview_t>(webview_), js.c_str());
+    }
+#endif
   }
 #ifdef HAVE_WEBVIEW
   if (!webview_) {
@@ -275,6 +315,19 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
           webview_return(w, seq, 0, nullptr);
         },
         this);
+    webview_bind(
+        static_cast<webview_t>(webview_), "setTool",
+        [](webview_t w, const char *seq, const char *req, void *arg) {
+          auto self = static_cast<UiManager *>(arg);
+          try {
+            auto j = nlohmann::json::parse(req);
+            if (j.is_array() && !j.empty())
+              self->current_tool_ = ToolFromString(j[0].get<std::string>());
+          } catch (...) {
+          }
+          webview_return(w, seq, 0, nullptr);
+        },
+        this);
     webview_thread_ = std::jthread([
       this
     ](std::stop_token) { webview_run(static_cast<webview_t>(webview_)); });
@@ -298,6 +351,9 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
         oss << "chart.setPriceLine(" << *price_line_ << ");";
         webview_eval(static_cast<webview_t>(webview_), oss.str().c_str());
       }
+      std::string js_tool =
+          "setActiveTool('" + std::string(ToolToString(current_tool_)) + "');";
+      webview_eval(static_cast<webview_t>(webview_), js_tool.c_str());
     }
   }
   ImGui::TextUnformatted("WebView chart running in external window.");

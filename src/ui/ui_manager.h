@@ -48,7 +48,7 @@ public:
 
 private:
   std::vector<Core::Candle> candles_;
-  enum class DrawTool { None, Line, HLine };
+  enum class DrawTool { None, Line, HLine, Ruler, Long, Short };
   struct DrawObject {
     DrawTool type;
     double x1;
