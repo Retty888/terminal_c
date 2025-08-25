@@ -69,6 +69,8 @@ if(BUILD_TRADING_TERMINAL)
     src/services/data_service.cpp
     src/ui/control_panel.cpp
     src/ui/analytics_window.cpp
+    src/ui/journal_window.cpp
+    src/ui/backtest_window.cpp
     src/ui/ui_manager.cpp
   )
 
