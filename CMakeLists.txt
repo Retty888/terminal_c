@@ -52,8 +52,9 @@ if(BUILD_TRADING_TERMINAL)
     src/config_manager.cpp
     src/config_schema.cpp
     src/config_path.cpp
-      src/candle.cpp
-      src/core/candle_manager.cpp
+    src/candle.cpp
+    src/journal.cpp
+    src/core/candle_manager.cpp
     src/core/data_fetcher.cpp
     src/core/interval_utils.cpp
     src/core/candle_utils.cpp
@@ -66,7 +67,10 @@ if(BUILD_TRADING_TERMINAL)
     src/core/logger.cpp
     src/core/path_utils.cpp
     src/core/glfw_context.cpp
+    src/core/backtester.cpp
     src/services/data_service.cpp
+    src/services/journal_service.cpp
+    src/services/signal_bot.cpp
     src/ui/control_panel.cpp
     src/ui/analytics_window.cpp
     src/ui/journal_window.cpp
