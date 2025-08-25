@@ -4,6 +4,7 @@
 #include "config_path.h"
 #include "core/candle.h"
 #include "core/candle_manager.h"
+#include "core/candle_utils.h"
 #include "core/interval_utils.h"
 #include "core/kline_stream.h"
 #include "core/logger.h"
@@ -215,28 +216,7 @@ void App::load_existing_candles() {
           }
         }
         if (fixed) {
-          auto fill_missing = [](std::vector<Core::Candle> &vec,
-                                 long long period_ms) {
-            if (vec.size() < 2 || period_ms <= 0)
-              return;
-            std::vector<Core::Candle> filled;
-            filled.reserve(vec.size());
-            for (std::size_t j = 0; j + 1 < vec.size(); ++j) {
-              const auto &c = vec[j];
-              const auto &n = vec[j + 1];
-              filled.push_back(c);
-              long long exp = c.open_time + period_ms;
-              while (exp < n.open_time) {
-                filled.emplace_back(exp, c.close, c.close, c.close, c.close,
-                                    0.0, exp + period_ms - 1, 0.0, 0, 0.0, 0.0,
-                                    0.0);
-                exp += period_ms;
-              }
-            }
-            filled.push_back(vec.back());
-            vec = std::move(filled);
-          };
-          fill_missing(candles, interval_ms);
+          Core::fill_missing(candles, interval_ms);
         }
       }
     }
