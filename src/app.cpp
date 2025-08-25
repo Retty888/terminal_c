@@ -31,6 +31,7 @@
 #include "ui/control_panel.h"
 #include "ui/analytics_window.h"
 #include "ui/journal_window.h"
+#include "ui/backtest_window.h"
 
 static void OnFramebufferResize(GLFWwindow * /*w*/, int width, int height) {
   glViewport(0, 0, width, height);
@@ -590,7 +591,8 @@ void App::render_main_windows() {
                    this->ctx_->save_pairs, this->ctx_->exchange_pairs, status_,
                    data_service_, this->ctx_->cancel_pair,
                    this->ctx_->show_analytics_window,
-                   this->ctx_->show_journal_window);
+                   this->ctx_->show_journal_window,
+                   this->ctx_->show_backtest_window);
   ui_manager_.draw_chart_panel(this->ctx_->selected_pairs,
                                this->ctx_->intervals);
   if (this->ctx_->show_analytics_window) {
@@ -599,6 +601,10 @@ void App::render_main_windows() {
   }
   if (this->ctx_->show_journal_window) {
     DrawJournalWindow(journal_service_);
+  }
+  if (this->ctx_->show_backtest_window) {
+    DrawBacktestWindow(this->ctx_->all_candles, this->ctx_->active_pair,
+                       this->ctx_->selected_interval);
   }
 }
 

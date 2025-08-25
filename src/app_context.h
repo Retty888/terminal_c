@@ -58,6 +58,7 @@ struct AppContext {
   std::string last_active_interval;
   bool show_analytics_window = false;
   bool show_journal_window = false;
+  bool show_backtest_window = false;
   std::chrono::milliseconds retry_delay{5000};
   int max_retries = 3;
   bool exponential_backoff = true;

@@ -415,7 +415,8 @@ void DrawControlPanel(
     DataService &data_service,
     const std::function<void(const std::string &)> &cancel_pair,
     bool &show_analytics_window,
-    bool &show_journal_window) {
+    bool &show_journal_window,
+    bool &show_backtest_window) {
   ImGui::Begin("Control Panel");
 
   RenderLoadControls(pairs, selected_pairs, intervals, all_candles, save_pairs,
@@ -428,6 +429,7 @@ void DrawControlPanel(
   ImGui::Separator();
   ImGui::Checkbox("Analytics", &show_analytics_window);
   ImGui::Checkbox("Journal", &show_journal_window);
+  ImGui::Checkbox("Backtest", &show_backtest_window);
 
   ImGui::End();
 }
