@@ -68,7 +68,7 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb,
     bool closed = false;
 
     ws_->setUrl(url);
-    ws_->setOnMessage([this, cb, ui_cb](const std::string &msg) {
+    ws_->setOnMessage([this, cb, err_cb, ui_cb](const std::string &msg) {
       try {
         auto j = nlohmann::json::parse(msg);
         if (j.contains("k")) {
@@ -100,6 +100,8 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb,
         }
       } catch (const std::exception &e) {
         Logger::instance().error(std::string("Kline parse error: ") + e.what());
+        if (err_cb)
+          err_cb();
       }
     });
     ws_->setOnError([&]() {
