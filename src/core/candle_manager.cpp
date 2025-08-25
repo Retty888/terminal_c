@@ -10,31 +10,10 @@
 #include "core/logger.h"
 #include "interval_utils.h"
 #include "core/data_dir.h"
+#include "candle_utils.h"
 
 namespace Core {
 
-namespace {
-
-void fill_missing(std::vector<Candle> &candles, long long interval_ms) {
-    if (candles.size() < 2 || interval_ms <= 0) return;
-    std::vector<Candle> filled;
-    filled.reserve(candles.size());
-    for (std::size_t i = 0; i + 1 < candles.size(); ++i) {
-        const auto &cur = candles[i];
-        const auto &next = candles[i + 1];
-        filled.push_back(cur);
-        long long expected = cur.open_time + interval_ms;
-        while (expected < next.open_time) {
-            filled.emplace_back(expected, cur.close, cur.close, cur.close, cur.close,
-                               0.0, expected + interval_ms - 1, 0.0, 0, 0.0, 0.0, 0.0);
-            expected += interval_ms;
-        }
-    }
-    filled.push_back(candles.back());
-    candles = std::move(filled);
-}
-
-} // unnamed namespace
 
 CandleManager::CandleManager() : data_dir_(resolve_data_dir()) {}
 
@@ -392,7 +371,7 @@ std::vector<Candle> CandleManager::load_candles_from_json(const std::string& sym
 
     auto interval_ms = parse_interval(interval).count();
     if (interval_ms > 0) {
-        fill_missing(candles, interval_ms);
+        Core::fill_missing(candles, interval_ms);
     } else {
         Logger::instance().warn("Could not determine interval '" + interval + "' for " + symbol);
     }
@@ -475,7 +454,7 @@ std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const
 
     auto interval_ms = parse_interval(interval).count();
     if (interval_ms > 0) {
-        fill_missing(candles, interval_ms);
+        Core::fill_missing(candles, interval_ms);
     } else {
         Logger::instance().warn("Could not determine interval '" + interval + "' for " + symbol);
     }
