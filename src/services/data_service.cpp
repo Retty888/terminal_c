@@ -11,6 +11,13 @@
 #include <algorithm>
 #include <nlohmann/json.hpp>
 #include <thread>
+#include <chrono>
+#include <map>
+
+namespace {
+constexpr std::chrono::milliseconds kHttpTimeout{10000};
+const std::map<std::string, std::string> kDefaultHeaders{};
+} // namespace
 
 DataService::DataService()
     : http_client_(std::make_shared<Core::CprHttpClient>()),
@@ -94,7 +101,8 @@ Core::KlinesResult DataService::fetch_range(
       auto current_delay = retry_delay;
       for (int attempt = 0; attempt < max_retries; ++attempt) {
         rate_limiter_->acquire();
-        Core::HttpResponse r = http_client_->get(url);
+        Core::HttpResponse r =
+            http_client_->get(url, kHttpTimeout, kDefaultHeaders);
         if (r.network_error) {
           Core::Logger::instance().error("Alt range request error: " +
                                          r.error_message);
@@ -166,7 +174,8 @@ Core::KlinesResult DataService::fetch_range(
       auto current_delay = retry_delay;
       for (int attempt = 0; attempt < max_retries; ++attempt) {
         rate_limiter_->acquire();
-        Core::HttpResponse r = http_client_->get(url);
+        Core::HttpResponse r =
+            http_client_->get(url, kHttpTimeout, kDefaultHeaders);
         if (r.network_error) {
           Core::Logger::instance().error("Range request error: " +
                                          r.error_message);
