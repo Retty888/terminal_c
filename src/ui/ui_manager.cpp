@@ -17,6 +17,7 @@
 #include "webview.h"
 #endif
 
+#include "core/binary_search.h"
 #include "core/path_utils.h"
 #ifndef _WIN32
 #include <sys/resource.h>
@@ -82,6 +83,19 @@ UiManager::SeriesType SeriesTypeFromString(const std::string &s) {
   if (s == "AreaSeries")
     return UiManager::SeriesType::Area;
   return UiManager::SeriesType::Candlestick;
+}
+
+int BinarySearch(const double *array, int left, int right, double value) {
+  while (left <= right) {
+    int mid = left + (right - left) / 2;
+    if (array[mid] == value)
+      return mid;
+    if (array[mid] < value)
+      left = mid + 1;
+    else
+      right = mid - 1;
+  }
+  return -1;
 }
 
 void PlotCandlestick(const char *label_id, const double *xs,
@@ -639,8 +653,8 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
           double pct = o.y1 != 0.0 ? diff / o.y1 * 100.0 : 0.0;
           char buf[64];
           std::snprintf(buf, sizeof(buf), "%.2f (%.2f%%)", diff, pct);
-          ImPlot::Annotation(o.x2, o.y2, ImVec4(1, 1, 0, 1), ImVec2(5, 5),
-                             true, buf);
+          ImPlot::Annotation(o.x2, o.y2, ImVec4(1, 1, 0, 1), ImVec2(5, 5), true,
+                             buf);
         } else if (o.type == DrawTool::Fibo) {
           double xmin = std::min(o.x1, o.x2);
           double xmax = std::max(o.x1, o.x2);
@@ -650,11 +664,10 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
             double y = o.y1 + dy * lvl;
             double lx[2] = {xmin, xmax};
             double ly[2] = {y, y};
-            ImPlot::PlotLine(
-                (std::string("F") + std::to_string(i) + "_" +
-                 std::to_string(static_cast<int>(lvl * 1000)))
-                    .c_str(),
-                lx, ly, 2);
+            ImPlot::PlotLine((std::string("F") + std::to_string(i) + "_" +
+                              std::to_string(static_cast<int>(lvl * 1000)))
+                                 .c_str(),
+                             lx, ly, 2);
             char buf[32];
             std::snprintf(buf, sizeof(buf), "%.1f%%", lvl * 100.0);
             ImPlot::Annotation(xmax, y, ImVec4(1, 1, 1, 1), ImVec2(5, 0), true,
@@ -669,10 +682,10 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
         ImVec2 a(std::min(p1.x, p2.x), std::min(p1.y, p2.y));
         ImVec2 b(std::max(p1.x, p2.x), std::max(p1.y, p2.y));
         ImPlot::PushPlotClipRect();
-        ImU32 fill = p.is_long ? IM_COL32(0, 255, 0, 50)
-                               : IM_COL32(255, 0, 0, 50);
-        ImU32 line = p.is_long ? IM_COL32(0, 255, 0, 255)
-                               : IM_COL32(255, 0, 0, 255);
+        ImU32 fill =
+            p.is_long ? IM_COL32(0, 255, 0, 50) : IM_COL32(255, 0, 0, 50);
+        ImU32 line =
+            p.is_long ? IM_COL32(0, 255, 0, 255) : IM_COL32(255, 0, 0, 255);
         dl->AddRectFilled(a, b, fill);
         dl->AddRect(a, b, line);
         ImPlot::PopPlotClipRect();
