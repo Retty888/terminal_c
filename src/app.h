@@ -2,6 +2,7 @@
 
 #include "app_context.h"
 #include "services/data_service.h"
+#include "services/journal_service.h"
 #include "ui/ui_manager.h"
 #include "core/glfw_context.h"
 
@@ -70,6 +71,7 @@ private:
 
   std::unique_ptr<AppContext> ctx_;
   DataService data_service_;
+  JournalService journal_service_;
   AppStatus status_;
   mutable std::mutex status_mutex_;
   struct WindowDeleter {

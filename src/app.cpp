@@ -30,6 +30,7 @@
 
 #include "ui/control_panel.h"
 #include "ui/analytics_window.h"
+#include "ui/journal_window.h"
 
 static void OnFramebufferResize(GLFWwindow * /*w*/, int width, int height) {
   glViewport(0, 0, width, height);
@@ -588,12 +589,16 @@ void App::render_main_windows() {
                    this->ctx_->selected_interval, this->ctx_->all_candles,
                    this->ctx_->save_pairs, this->ctx_->exchange_pairs, status_,
                    data_service_, this->ctx_->cancel_pair,
-                   this->ctx_->show_analytics_window);
+                   this->ctx_->show_analytics_window,
+                   this->ctx_->show_journal_window);
   ui_manager_.draw_chart_panel(this->ctx_->selected_pairs,
                                this->ctx_->intervals);
   if (this->ctx_->show_analytics_window) {
     DrawAnalyticsWindow(this->ctx_->all_candles, this->ctx_->active_pair,
                         this->ctx_->selected_interval);
+  }
+  if (this->ctx_->show_journal_window) {
+    DrawJournalWindow(journal_service_);
   }
 }
 
@@ -647,6 +652,8 @@ void App::cleanup() {
   stop_fetch_thread();
   if (this->ctx_->save_pairs)
     this->ctx_->save_pairs();
+  journal_service_.save("journal.json");
+  journal_service_.journal().save_csv((journal_service_.base_dir() / "journal.csv").string());
   ui_manager_.shutdown();
   window_.reset();
   glfw_context_.reset();
@@ -658,6 +665,7 @@ int App::run() {
     return -1;
   setup_imgui();
   load_config();
+  journal_service_.load("journal.json");
   start_fetch_thread();
   while (!glfwWindowShouldClose(window_.get())) {
     process_events();
