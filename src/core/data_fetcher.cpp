@@ -12,8 +12,12 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <thread>
+#include <map>
 
 namespace {
+
+constexpr std::chrono::milliseconds kHttpTimeout{10000};
+const std::map<std::string, std::string> kDefaultHeaders{};
 
 std::string map_gate_interval(const std::string &interval) {
   static const std::unordered_map<std::string, std::string> mapping{{"5s", "10s"}};
@@ -63,7 +67,7 @@ KlinesResult DataFetcher::fetch_klines_from_api(
     bool success = false;
     for (int attempt = 0; attempt < max_retries; ++attempt) {
       rate_limiter_->acquire();
-      HttpResponse r = http_client_->get(url);
+      HttpResponse r = http_client_->get(url, kHttpTimeout, kDefaultHeaders);
       if (r.network_error) {
         Logger::instance().error("Request error: " + r.error_message);
         if (attempt < max_retries - 1) {
@@ -164,7 +168,7 @@ KlinesResult DataFetcher::fetch_klines_alt(
     bool success = false;
     for (int attempt = 0; attempt < max_retries; ++attempt) {
       rate_limiter_->acquire();
-      HttpResponse r = http_client_->get(url);
+      HttpResponse r = http_client_->get(url, kHttpTimeout, kDefaultHeaders);
       if (r.network_error) {
         Logger::instance().error("Alt request error: " + r.error_message);
         if (attempt < max_retries - 1) {
@@ -238,7 +242,7 @@ SymbolsResult DataFetcher::fetch_all_symbols(
   const std::string url = "https://api.binance.com/api/v3/exchangeInfo";
   for (int attempt = 0; attempt < max_retries; ++attempt) {
     rate_limiter_->acquire();
-    HttpResponse r = http_client_->get(url);
+    HttpResponse r = http_client_->get(url, kHttpTimeout, kDefaultHeaders);
     if (r.network_error) {
       Logger::instance().error("Request error: " + r.error_message);
       if (attempt < max_retries - 1) {
@@ -258,7 +262,7 @@ SymbolsResult DataFetcher::fetch_all_symbols(
         const std::string ticker_url =
             "https://api.binance.com/api/v3/ticker/24hr";
         rate_limiter_->acquire();
-        HttpResponse t = http_client_->get(ticker_url);
+        HttpResponse t = http_client_->get(ticker_url, kHttpTimeout, kDefaultHeaders);
         if (t.network_error) {
           Logger::instance().error("Ticker request failed: " +
                                    t.error_message);
@@ -323,7 +327,7 @@ IntervalsResult DataFetcher::fetch_all_intervals(
   const std::string url = "https://api.binance.com/api/v3/exchangeInfo";
   for (int attempt = 0; attempt < max_retries; ++attempt) {
     rate_limiter_->acquire();
-    HttpResponse r = http_client_->get(url);
+    HttpResponse r = http_client_->get(url, kHttpTimeout, kDefaultHeaders);
     if (r.network_error) {
       Logger::instance().error("Request error: " + r.error_message);
       if (attempt < max_retries - 1) {

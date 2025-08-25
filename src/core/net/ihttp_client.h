@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#include <chrono>
+#include <map>
 
 namespace Core {
 
@@ -14,7 +16,9 @@ struct HttpResponse {
 class IHttpClient {
 public:
   virtual ~IHttpClient() = default;
-  virtual HttpResponse get(const std::string &url) = 0;
+  virtual HttpResponse get(const std::string &url,
+                           std::chrono::milliseconds timeout,
+                           const std::map<std::string, std::string> &headers) = 0;
 };
 
 } // namespace Core

@@ -2,6 +2,8 @@
 #include <gtest/gtest.h>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <chrono>
+#include <map>
 
 
 class DummyLimiter : public Core::IRateLimiter {
@@ -14,7 +16,9 @@ public:
   std::vector<Core::HttpResponse> responses;
   std::vector<std::string> urls;
   size_t index{0};
-  Core::HttpResponse get(const std::string &url) override {
+  Core::HttpResponse get(const std::string &url,
+                         std::chrono::milliseconds /*timeout*/,
+                         const std::map<std::string, std::string> & /*headers*/) override {
     urls.push_back(url);
     if (index < responses.size())
       return responses[index++];
