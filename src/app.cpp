@@ -507,15 +507,24 @@ void App::handle_http_updates() {
       if (latest.error == Core::FetchError::None && !latest.candles.empty()) {
         std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
         auto &vec = this->ctx_->all_candles[it->first][it->second.interval];
-        if (vec.empty() ||
-            latest.candles.back().open_time > vec.back().open_time) {
-          vec.push_back(latest.candles.back());
-          if (it->first == this->ctx_->active_pair &&
-              it->second.interval == this->ctx_->active_interval) {
-            ui_manager_.push_candle(latest.candles.back());
+        bool was_empty = vec.empty();
+        bool appended = false;
+        for (const auto &c : latest.candles) {
+          if (vec.empty() || c.open_time > vec.back().open_time) {
+            vec.push_back(c);
+            data_service_.append_candles(it->first, it->second.interval, {c});
+            if (it->first == this->ctx_->active_pair &&
+                it->second.interval == this->ctx_->active_interval) {
+              ui_manager_.push_candle(c);
+            }
+            appended = true;
           }
-          data_service_.append_candles(it->first, it->second.interval,
-                                       {latest.candles.back()});
+        }
+        if (was_empty && appended && it->first == this->ctx_->active_pair &&
+            it->second.interval == this->ctx_->active_interval) {
+          ui_manager_.set_candles(vec);
+        }
+        if (appended) {
           auto p = Core::parse_interval(it->second.interval);
           long long boundary = vec.back().open_time + p.count();
           update_next_fetch_time(boundary);
