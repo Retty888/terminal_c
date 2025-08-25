@@ -26,5 +26,6 @@ void DrawControlPanel(
     const std::vector<std::string>& exchange_pairs,
     AppStatus& status,
     DataService& data_service,
-    const std::function<void(const std::string&)>& cancel_pair);
+    const std::function<void(const std::string&)>& cancel_pair,
+    bool& show_analytics_window);
 

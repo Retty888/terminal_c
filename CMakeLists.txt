@@ -68,6 +68,7 @@ if(BUILD_TRADING_TERMINAL)
     src/core/glfw_context.cpp
     src/services/data_service.cpp
     src/ui/control_panel.cpp
+    src/ui/analytics_window.cpp
     src/ui/ui_manager.cpp
   )
 

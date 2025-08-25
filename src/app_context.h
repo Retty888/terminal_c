@@ -56,6 +56,7 @@ struct AppContext {
   std::function<void(const std::string &)> cancel_pair;
   std::string last_active_pair;
   std::string last_active_interval;
+  bool show_analytics_window = false;
   std::chrono::milliseconds retry_delay{5000};
   int max_retries = 3;
   bool exponential_backoff = true;
