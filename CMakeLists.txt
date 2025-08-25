@@ -205,8 +205,23 @@ add_test(NAME test_kline_stream COMMAND test_kline_stream)
   target_link_libraries(test_logger PRIVATE GTest::gtest_main)
   add_test(NAME test_logger COMMAND test_logger)
 
+  add_executable(test_signal
+    tests/test_signal.cpp
+    src/signal.cpp
+    src/services/signal_bot.cpp
+    src/config_manager.cpp
+    src/config_schema.cpp
+    src/config_path.cpp
+    src/candle.cpp
+    src/core/path_utils.cpp
+    src/core/logger.cpp
+  )
+  target_include_directories(test_signal PRIVATE src include third_party/imgui)
+  target_link_libraries(test_signal PRIVATE GTest::gtest_main)
+  add_test(NAME test_signal COMMAND test_signal)
+
 
   add_custom_target(ctest COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-      DEPENDS test_candle_manager test_scheduler test_kline_stream test_data_fetcher test_interval_utils test_logger
+      DEPENDS test_candle_manager test_scheduler test_kline_stream test_data_fetcher test_interval_utils test_logger test_signal
     )
 
