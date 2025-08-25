@@ -218,6 +218,88 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
     return true;
 }
 
+bool CandleManager::validate_candles(const std::string& symbol, const std::string& interval) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::filesystem::path path = get_candle_path(symbol, interval);
+    if (!std::filesystem::exists(path)) {
+        return true;
+    }
+
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        Logger::instance().error("Could not open file for validation: " + path.string());
+        return false;
+    }
+
+    std::string line;
+    std::getline(file, line); // skip header
+
+    auto parse_ll = [](std::string_view s, long long &out) {
+        auto res = std::from_chars(s.data(), s.data() + s.size(), out);
+        return res.ec == std::errc() && res.ptr == s.data() + s.size();
+    };
+    auto parse_int = [](std::string_view s, int &out) {
+        auto res = std::from_chars(s.data(), s.data() + s.size(), out);
+        return res.ec == std::errc() && res.ptr == s.data() + s.size();
+    };
+    auto parse_double = [](std::string_view s, double &out) {
+        auto res = std::from_chars(s.data(), s.data() + s.size(), out);
+        return res.ec == std::errc() && res.ptr == s.data() + s.size();
+    };
+
+    long long prev_open = -1;
+    long long interval_ms = parse_interval(interval).count();
+    if (interval_ms <= 0) {
+        Logger::instance().warn("Could not determine interval '" + interval + "' for " + symbol);
+        return false;
+    }
+
+    while (std::getline(file, line)) {
+        if (line.empty()) continue;
+        std::string_view sv(line);
+        std::array<std::string_view, 12> fields{};
+        size_t start = 0;
+        size_t idx = 0;
+        while (idx < fields.size()) {
+            size_t comma = sv.find(',', start);
+            if (comma == std::string_view::npos) {
+                fields[idx++] = sv.substr(start);
+                break;
+            }
+            fields[idx++] = sv.substr(start, comma - start);
+            start = comma + 1;
+        }
+        if (idx != fields.size()) {
+            Logger::instance().warn("Malformed candle line: " + line);
+            return false;
+        }
+
+        Candle c{};
+        if (!(parse_ll(fields[0], c.open_time) &&
+              parse_double(fields[1], c.open) &&
+              parse_double(fields[2], c.high) &&
+              parse_double(fields[3], c.low) &&
+              parse_double(fields[4], c.close) &&
+              parse_double(fields[5], c.volume) &&
+              parse_ll(fields[6], c.close_time) &&
+              parse_double(fields[7], c.quote_asset_volume) &&
+              parse_int(fields[8], c.number_of_trades) &&
+              parse_double(fields[9], c.taker_buy_base_asset_volume) &&
+              parse_double(fields[10], c.taker_buy_quote_asset_volume) &&
+              parse_double(fields[11], c.ignore))) {
+            return false;
+        }
+
+        if (prev_open != -1 && c.open_time != prev_open + interval_ms) {
+            Logger::instance().warn("Non-monotonic candle sequence in " + path.string());
+            return false;
+        }
+        prev_open = c.open_time;
+    }
+
+    return true;
+}
+
 bool CandleManager::save_candles_json(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) const {
     {
         std::lock_guard<std::mutex> lock(mutex_);

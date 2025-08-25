@@ -21,6 +21,9 @@ public:
     // Appends new candles to an existing CSV file, skipping duplicates.
     bool append_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) const;
 
+    // Validates existing candle data for a symbol/interval.
+    bool validate_candles(const std::string& symbol, const std::string& interval) const;
+
     // Loads candles from a CSV file into a vector.
     std::vector<Candle> load_candles(const std::string& symbol, const std::string& interval) const;
 

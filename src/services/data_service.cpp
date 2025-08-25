@@ -240,6 +240,17 @@ std::future<Core::KlinesResult> DataService::fetch_klines_async(
 
 std::vector<Core::Candle> DataService::load_candles(
     const std::string &pair, const std::string &interval) const {
+  if (!candle_manager_.validate_candles(pair, interval)) {
+    Core::Logger::instance().warn("Invalid candles detected for " + pair +
+                                  " " + interval + ", reloading");
+    candle_manager_.clear_interval(pair, interval);
+    Core::Logger::instance().info("Cleared stored candles for " + pair +
+                                  " " + interval);
+    if (!reload_candles(pair, interval)) {
+      Core::Logger::instance().warn("Reload failed for " + pair + " " +
+                                    interval);
+    }
+  }
   return candle_manager_.load_candles(pair, interval);
 }
 
@@ -247,6 +258,11 @@ void DataService::save_candles(const std::string &pair,
                                const std::string &interval,
                                const std::vector<Core::Candle> &candles) const {
   candle_manager_.save_candles(pair, interval, candles);
+  if (!candles.empty() &&
+      !candle_manager_.validate_candles(pair, interval)) {
+    Core::Logger::instance().warn("Data mismatch after save for " + pair +
+                                  " " + interval);
+  }
 }
 
 std::vector<Core::Candle> DataService::load_candles_json(
@@ -279,6 +295,11 @@ void DataService::append_candles(
     const std::string &pair, const std::string &interval,
     const std::vector<Core::Candle> &candles) const {
   candle_manager_.append_candles(pair, interval, candles);
+  if (!candles.empty() &&
+      !candle_manager_.validate_candles(pair, interval)) {
+    Core::Logger::instance().warn("Data mismatch after append for " + pair +
+                                  " " + interval);
+  }
 }
 
 bool DataService::remove_candles(const std::string &pair) const {
