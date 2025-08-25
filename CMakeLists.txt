@@ -75,7 +75,7 @@ if(BUILD_TRADING_TERMINAL)
     src/ui/analytics_window.cpp
     src/ui/journal_window.cpp
     src/ui/backtest_window.cpp
-    src/ui/ui_manager.cpp,
+    src/ui/ui_manager.cpp
     src/signal.cpp
   )
 
