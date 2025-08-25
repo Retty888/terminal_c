@@ -29,6 +29,7 @@
 #include <GLFW/glfw3.h>
 
 #include "ui/control_panel.h"
+#include "ui/analytics_window.h"
 
 static void OnFramebufferResize(GLFWwindow * /*w*/, int width, int height) {
   glViewport(0, 0, width, height);
@@ -586,9 +587,14 @@ void App::render_main_windows() {
                    this->ctx_->active_pair, this->ctx_->intervals,
                    this->ctx_->selected_interval, this->ctx_->all_candles,
                    this->ctx_->save_pairs, this->ctx_->exchange_pairs, status_,
-                   data_service_, this->ctx_->cancel_pair);
+                   data_service_, this->ctx_->cancel_pair,
+                   this->ctx_->show_analytics_window);
   ui_manager_.draw_chart_panel(this->ctx_->selected_pairs,
                                this->ctx_->intervals);
+  if (this->ctx_->show_analytics_window) {
+    DrawAnalyticsWindow(this->ctx_->all_candles, this->ctx_->active_pair,
+                        this->ctx_->selected_interval);
+  }
 }
 
 void App::handle_active_pair_change() {

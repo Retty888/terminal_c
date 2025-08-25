@@ -413,7 +413,8 @@ void DrawControlPanel(
     const std::function<void()> &save_pairs,
     const std::vector<std::string> &exchange_pairs, AppStatus &status,
     DataService &data_service,
-    const std::function<void(const std::string &)> &cancel_pair) {
+    const std::function<void(const std::string &)> &cancel_pair,
+    bool &show_analytics_window) {
   ImGui::Begin("Control Panel");
 
   RenderLoadControls(pairs, selected_pairs, intervals, all_candles, save_pairs,
@@ -422,6 +423,9 @@ void DrawControlPanel(
                      selected_interval, all_candles, save_pairs, data_service,
                      status, cancel_pair);
   RenderStatusPane(status);
+
+  ImGui::Separator();
+  ImGui::Checkbox("Analytics", &show_analytics_window);
 
   ImGui::End();
 }
