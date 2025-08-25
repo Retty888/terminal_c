@@ -120,7 +120,7 @@ void PlotCandlestick(const char *label_id, const double *xs,
         --it;
       idx = static_cast<int>(it - xs);
     }
-    int idx = BinarySearch(xs, 0, count - 1, rounded_x);
+    idx = BinarySearch(xs, 0, count - 1, rounded_x);
     if (idx != -1) {
       ImGui::BeginTooltip();
       auto tp = std::chrono::system_clock::time_point(
