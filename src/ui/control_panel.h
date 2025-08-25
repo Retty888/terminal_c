@@ -27,5 +27,6 @@ void DrawControlPanel(
     AppStatus& status,
     DataService& data_service,
     const std::function<void(const std::string&)>& cancel_pair,
-    bool& show_analytics_window);
+    bool& show_analytics_window,
+    bool& show_journal_window);
 
