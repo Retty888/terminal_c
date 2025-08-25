@@ -94,3 +94,41 @@ TEST(KlineStreamTest, StopsPromptly) {
   EXPECT_LE(sleeps.load(), 1);
 }
 
+class InvalidJsonWebSocket : public Core::IWebSocket {
+public:
+  void setUrl(const std::string &) override {}
+  void setOnMessage(MessageCallback cb) override { msg_cb_ = std::move(cb); }
+  void setOnError(ErrorCallback) override {}
+  void setOnClose(CloseCallback cb) override { close_cb_ = std::move(cb); }
+  void start() override {
+    std::thread([mc = msg_cb_, cc = close_cb_]() {
+      if (mc)
+        mc("{invalid json}");
+      if (cc)
+        cc();
+    }).detach();
+  }
+  void stop() override {
+    if (close_cb_)
+      close_cb_();
+  }
+
+private:
+  MessageCallback msg_cb_;
+  CloseCallback close_cb_;
+};
+
+TEST(KlineStreamTest, CallsErrorCallbackOnBadJson) {
+  std::filesystem::path tmp =
+      std::filesystem::temp_directory_path() / "kline_stream_test3";
+  Core::CandleManager mgr(tmp);
+  auto factory = []() { return std::make_unique<InvalidJsonWebSocket>(); };
+  Core::KlineStream ks("btcusdt", "1m", mgr, factory, nullptr,
+                       std::chrono::milliseconds(1));
+  std::atomic<int> errors{0};
+  ks.start(nullptr, [&]() { errors++; });
+  std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  ks.stop();
+  EXPECT_GE(errors.load(), 1);
+}
+
