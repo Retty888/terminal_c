@@ -658,8 +658,11 @@ void App::cleanup() {
   stop_fetch_thread();
   if (this->ctx_->save_pairs)
     this->ctx_->save_pairs();
-  journal_service_.save("journal.json");
-  journal_service_.journal().save_csv((journal_service_.base_dir() / "journal.csv").string());
+  if (!journal_service_.save("journal.json")) {
+    add_status("Failed to save journal.json", Core::LogLevel::Error);
+  }
+  journal_service_.journal().save_csv(
+      (journal_service_.base_dir() / "journal.csv").string());
   ui_manager_.shutdown();
   window_.reset();
   glfw_context_.reset();
@@ -671,7 +674,9 @@ int App::run() {
     return -1;
   setup_imgui();
   load_config();
-  journal_service_.load("journal.json");
+  if (!journal_service_.load("journal.json")) {
+    add_status("Failed to load journal.json", Core::LogLevel::Error);
+  }
   start_fetch_thread();
   while (!glfwWindowShouldClose(window_.get())) {
     process_events();
