@@ -46,6 +46,9 @@ public:
   void end_frame(GLFWwindow *window);
   void shutdown();
 
+  enum class DrawTool { None, Line, HLine, Ruler, Long, Short, Fibo };
+  enum class SeriesType { Candlestick, Line, Area };
+
   struct Position {
     int id;
     bool is_long;
@@ -60,8 +63,6 @@ public:
 
 private:
   std::vector<Core::Candle> candles_;
-  enum class DrawTool { None, Line, HLine, Ruler, Long, Short, Fibo };
-  enum class SeriesType { Candlestick, Line, Area };
   struct DrawObject {
     DrawTool type;
     double x1;
