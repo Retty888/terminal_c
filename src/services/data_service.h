@@ -9,6 +9,7 @@
 #include <memory>
 #include <cstdint>
 #include <optional>
+#include <functional>
 
 #include "core/candle.h"
 #include "core/candle_manager.h"
@@ -79,6 +80,11 @@ public:
   const Core::CandleManager &candle_manager() const { return candle_manager_; }
 
 private:
+  Core::KlinesResult FetchRangeImpl(
+      const std::string &url,
+      const std::function<std::vector<Core::Candle>(const std::string &)> &parser,
+      int max_retries,
+      std::chrono::milliseconds retry_delay) const;
   const Config::ConfigData &config() const;
   std::shared_ptr<Core::IHttpClient> http_client_;
   std::shared_ptr<Core::IRateLimiter> rate_limiter_;
