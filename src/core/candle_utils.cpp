@@ -1,6 +1,7 @@
 #include "candle_utils.h"
 
 #include <utility>
+#include <charconv>
 
 namespace Core {
 
@@ -23,6 +24,21 @@ void fill_missing(std::vector<Candle> &candles, long long interval_ms) {
   }
   filled.push_back(candles.back());
   candles = std::move(filled);
+}
+
+bool ParseLong(std::string_view s, long long &out) {
+  auto res = std::from_chars(s.data(), s.data() + s.size(), out);
+  return res.ec == std::errc() && res.ptr == s.data() + s.size();
+}
+
+bool ParseInt(std::string_view s, int &out) {
+  auto res = std::from_chars(s.data(), s.data() + s.size(), out);
+  return res.ec == std::errc() && res.ptr == s.data() + s.size();
+}
+
+bool ParseDouble(std::string_view s, double &out) {
+  auto res = std::from_chars(s.data(), s.data() + s.size(), out);
+  return res.ec == std::errc() && res.ptr == s.data() + s.size();
 }
 
 } // namespace Core

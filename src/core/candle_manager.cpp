@@ -242,19 +242,6 @@ bool CandleManager::validate_candles(const std::string& symbol, const std::strin
     std::string line;
     std::getline(file, line); // skip header
 
-    auto parse_ll = [](std::string_view s, long long &out) {
-        auto res = std::from_chars(s.data(), s.data() + s.size(), out);
-        return res.ec == std::errc() && res.ptr == s.data() + s.size();
-    };
-    auto parse_int = [](std::string_view s, int &out) {
-        auto res = std::from_chars(s.data(), s.data() + s.size(), out);
-        return res.ec == std::errc() && res.ptr == s.data() + s.size();
-    };
-    auto parse_double = [](std::string_view s, double &out) {
-        auto res = std::from_chars(s.data(), s.data() + s.size(), out);
-        return res.ec == std::errc() && res.ptr == s.data() + s.size();
-    };
-
     long long prev_open = -1;
     long long interval_ms = parse_interval(interval).count();
     if (interval_ms <= 0) {
@@ -283,18 +270,18 @@ bool CandleManager::validate_candles(const std::string& symbol, const std::strin
         }
 
         Candle c{};
-        if (!(parse_ll(fields[0], c.open_time) &&
-              parse_double(fields[1], c.open) &&
-              parse_double(fields[2], c.high) &&
-              parse_double(fields[3], c.low) &&
-              parse_double(fields[4], c.close) &&
-              parse_double(fields[5], c.volume) &&
-              parse_ll(fields[6], c.close_time) &&
-              parse_double(fields[7], c.quote_asset_volume) &&
-              parse_int(fields[8], c.number_of_trades) &&
-              parse_double(fields[9], c.taker_buy_base_asset_volume) &&
-              parse_double(fields[10], c.taker_buy_quote_asset_volume) &&
-              parse_double(fields[11], c.ignore))) {
+        if (!(ParseLong(fields[0], c.open_time) &&
+              ParseDouble(fields[1], c.open) &&
+              ParseDouble(fields[2], c.high) &&
+              ParseDouble(fields[3], c.low) &&
+              ParseDouble(fields[4], c.close) &&
+              ParseDouble(fields[5], c.volume) &&
+              ParseLong(fields[6], c.close_time) &&
+              ParseDouble(fields[7], c.quote_asset_volume) &&
+              ParseInt(fields[8], c.number_of_trades) &&
+              ParseDouble(fields[9], c.taker_buy_base_asset_volume) &&
+              ParseDouble(fields[10], c.taker_buy_quote_asset_volume) &&
+              ParseDouble(fields[11], c.ignore))) {
             return false;
         }
 
@@ -426,19 +413,6 @@ std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const
     std::string line;
     std::getline(file, line); // Skip header
 
-    auto parse_ll = [](std::string_view s, long long& out) {
-        auto res = std::from_chars(s.data(), s.data() + s.size(), out);
-        return res.ec == std::errc() && res.ptr == s.data() + s.size();
-    };
-    auto parse_int = [](std::string_view s, int& out) {
-        auto res = std::from_chars(s.data(), s.data() + s.size(), out);
-        return res.ec == std::errc() && res.ptr == s.data() + s.size();
-    };
-    auto parse_double = [](std::string_view s, double& out) {
-        auto res = std::from_chars(s.data(), s.data() + s.size(), out);
-        return res.ec == std::errc() && res.ptr == s.data() + s.size();
-    };
-
     while (std::getline(file, line)) {
         if (line.empty()) continue;
         std::string_view sv(line);
@@ -461,18 +435,18 @@ std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const
         }
 
         Candle candle;
-        if (parse_ll(fields[0], candle.open_time) &&
-            parse_double(fields[1], candle.open) &&
-            parse_double(fields[2], candle.high) &&
-            parse_double(fields[3], candle.low) &&
-            parse_double(fields[4], candle.close) &&
-            parse_double(fields[5], candle.volume) &&
-            parse_ll(fields[6], candle.close_time) &&
-            parse_double(fields[7], candle.quote_asset_volume) &&
-            parse_int(fields[8], candle.number_of_trades) &&
-            parse_double(fields[9], candle.taker_buy_base_asset_volume) &&
-            parse_double(fields[10], candle.taker_buy_quote_asset_volume) &&
-            parse_double(fields[11], candle.ignore)) {
+        if (ParseLong(fields[0], candle.open_time) &&
+            ParseDouble(fields[1], candle.open) &&
+            ParseDouble(fields[2], candle.high) &&
+            ParseDouble(fields[3], candle.low) &&
+            ParseDouble(fields[4], candle.close) &&
+            ParseDouble(fields[5], candle.volume) &&
+            ParseLong(fields[6], candle.close_time) &&
+            ParseDouble(fields[7], candle.quote_asset_volume) &&
+            ParseInt(fields[8], candle.number_of_trades) &&
+            ParseDouble(fields[9], candle.taker_buy_base_asset_volume) &&
+            ParseDouble(fields[10], candle.taker_buy_quote_asset_volume) &&
+            ParseDouble(fields[11], candle.ignore)) {
             candles.push_back(candle);
         } else {
             Logger::instance().error("Failed to parse candle line: " + line);
