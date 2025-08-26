@@ -53,7 +53,12 @@ void DrawJournalWindow(JournalService &service, bool save_csv) {
 
   auto format_timestamp = [](std::int64_t ms) {
     std::time_t t = ms / 1000;
-    std::tm tm = *std::localtime(&t);
+    std::tm tm;
+#if defined(_WIN32)
+    localtime_s(&tm, &t);
+#else
+    localtime_r(&t, &tm);
+#endif
     std::ostringstream oss;
     oss << std::put_time(&tm, "%Y-%m-%d %H:%M");
     return oss.str();
