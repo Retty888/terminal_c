@@ -143,10 +143,6 @@ void Logger::process_queue() {
       auto level = msg.level;
       auto time = msg.time;
       auto text = std::move(msg.message);
-      auto console = console_output_;
-      auto out_open = out_.is_open();
-      auto sink = sink_;
-      lock.unlock();
       std::tm tm;
       auto t = std::chrono::system_clock::to_time_t(time);
 #if defined(_WIN32)
@@ -158,15 +154,14 @@ void Logger::process_queue() {
       oss << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << " ["
           << level_to_string(level) << "] " << text << std::endl;
       auto formatted = oss.str();
-      if (out_open) {
+      if (out_.is_open()) {
         out_ << formatted;
         out_.flush();
       }
-      if (console)
+      if (console_output_)
         std::cout << formatted;
-      if (sink)
-        sink(level, time, text);
-      lock.lock();
+      if (sink_)
+        sink_(level, time, text);
     }
   }
 }
