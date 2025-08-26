@@ -118,7 +118,8 @@ bool CandleManager::save_candles(const std::string& symbol, const std::string& i
         }
 
         // Write header
-        file << "open_time,open,high,low,close,volume,close_time,quote_asset_volume,number_of_trades,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore\n";
+        file << "open_time,open,high,low,close,volume,close_time,quote_asset_volume,number_of_trades,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore
+";
         file.setf(std::ios::fixed);
         file << std::setprecision(8);
 
@@ -135,7 +136,8 @@ bool CandleManager::save_candles(const std::string& symbol, const std::string& i
                  << candle.number_of_trades << ","
                  << candle.taker_buy_base_asset_volume << ","
                  << candle.taker_buy_quote_asset_volume << ","
-                 << candle.ignore << "\n";
+                 << candle.ignore << "
+";
         }
 
         file.close();
