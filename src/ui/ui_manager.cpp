@@ -17,7 +17,6 @@
 #include "webview.h"
 #endif
 
-#include "core/binary_search.h"
 #include "core/path_utils.h"
 #ifndef _WIN32
 #include <sys/resource.h>
@@ -85,19 +84,6 @@ UiManager::SeriesType SeriesTypeFromString(const std::string &s) {
   return UiManager::SeriesType::Candlestick;
 }
 
-int BinarySearch(const double *array, int left, int right, double value) {
-  while (left <= right) {
-    int mid = left + (right - left) / 2;
-    if (array[mid] == value)
-      return mid;
-    if (array[mid] < value)
-      left = mid + 1;
-    else
-      right = mid - 1;
-  }
-  return -1;
-}
-
 void PlotCandlestick(const char *label_id, const double *xs,
                      const double *opens, const double *closes,
                      const double *lows, const double *highs, int count,
@@ -122,19 +108,10 @@ void PlotCandlestick(const char *label_id, const double *xs,
     draw_list->AddRectFilled(ImVec2(tool_l, tool_t), ImVec2(tool_r, tool_b),
                              IM_COL32(128, 128, 128, 64));
     ImPlot::PopPlotClipRect();
-    const double *it = std::lower_bound(xs, xs + count, mouse.x);
+    const double *it = std::lower_bound(xs, xs + count, rounded_x);
     int idx = -1;
-    if (it == xs + count) {
-      idx = count - 1;
-    } else if (it == xs) {
-      if (*it == mouse.x)
-        idx = 0;
-    } else {
-      if (*it > mouse.x)
-        --it;
+    if (it != xs + count && *it == rounded_x)
       idx = static_cast<int>(it - xs);
-    }
-    idx = BinarySearch(xs, 0, count - 1, rounded_x);
     if (idx != -1) {
       ImGui::BeginTooltip();
       auto tp = std::chrono::system_clock::time_point(
