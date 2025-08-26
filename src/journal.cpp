@@ -14,7 +14,11 @@ bool Journal::load_json(const std::string &filename) {
   std::ifstream f(filename);
   if (!f.is_open()) {
     m_entries.clear();
-    save_json(filename);
+    if (!save_json(filename)) {
+      Core::Logger::instance().error("Failed to save journal file: " +
+                                     filename);
+      return false;
+    }
     return true;
   }
 
@@ -24,7 +28,11 @@ bool Journal::load_json(const std::string &filename) {
   auto first_non_ws = content.find_first_not_of(" \t\n\r");
   if (first_non_ws == std::string::npos) {
     m_entries.clear();
-    save_json(filename);
+    if (!save_json(filename)) {
+      Core::Logger::instance().error("Failed to save journal file: " +
+                                     filename);
+      return false;
+    }
     return true;
   }
   if (!nlohmann::json::accept(content)) {
