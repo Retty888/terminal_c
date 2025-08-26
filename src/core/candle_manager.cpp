@@ -444,13 +444,6 @@ std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const
 
     file.close();
 
-    auto interval_ms = parse_interval(interval).count();
-    if (interval_ms > 0) {
-        Core::fill_missing(candles, interval_ms);
-    } else {
-        Logger::instance().warn("Could not determine interval '" + interval + "' for " + symbol);
-    }
-
     return candles;
 }
 
