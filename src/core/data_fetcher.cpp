@@ -44,6 +44,11 @@ KlinesResult DataFetcher::fetch_klines_from_api(
     const std::string &prefix, const std::string &symbol,
     const std::string &interval, int limit, int max_retries,
     std::chrono::milliseconds retry_delay) const {
+  if (!http_client_ || !rate_limiter_) {
+    Logger::instance().error(
+        "DataFetcher not initialized with http_client or rate_limiter");
+    return {FetchError::NetworkError, 0, "DataFetcher not initialized", {}};
+  }
   const std::string base_url = prefix + symbol + "&interval=" + interval;
   std::vector<Candle> all_candles;
   all_candles.reserve(limit);
@@ -152,6 +157,11 @@ KlinesResult DataFetcher::fetch_klines(
 KlinesResult DataFetcher::fetch_klines_alt(
     const std::string &symbol, const std::string &interval, int limit,
     int max_retries, std::chrono::milliseconds retry_delay) const {
+  if (!http_client_ || !rate_limiter_) {
+    Logger::instance().error(
+        "DataFetcher not initialized with http_client or rate_limiter");
+    return {FetchError::NetworkError, 0, "DataFetcher not initialized", {}};
+  }
   std::string mapped = map_gate_interval(interval);
   if (mapped.empty())
     return {FetchError::HttpError, 0, "Unsupported interval", {}};
@@ -246,6 +256,11 @@ std::future<KlinesResult> DataFetcher::fetch_klines_async(
 SymbolsResult DataFetcher::fetch_all_symbols(
     int max_retries, std::chrono::milliseconds retry_delay,
     std::size_t top_n) const {
+  if (!http_client_ || !rate_limiter_) {
+    Logger::instance().error(
+        "DataFetcher not initialized with http_client or rate_limiter");
+    return {FetchError::NetworkError, 0, "DataFetcher not initialized", {}};
+  }
   const std::string info_url = "https://api.binance.com/api/v3/exchangeInfo";
   const std::string ticker_url = "https://api.binance.com/api/v3/ticker/24hr";
 
@@ -340,6 +355,11 @@ SymbolsResult DataFetcher::fetch_all_symbols(
 
 IntervalsResult DataFetcher::fetch_all_intervals(
     int max_retries, std::chrono::milliseconds retry_delay) const {
+  if (!http_client_ || !rate_limiter_) {
+    Logger::instance().error(
+        "DataFetcher not initialized with http_client or rate_limiter");
+    return {FetchError::NetworkError, 0, "DataFetcher not initialized", {}};
+  }
   const std::string url = "https://api.binance.com/api/v3/exchangeInfo";
   for (int attempt = 0; attempt < max_retries; ++attempt) {
     rate_limiter_->acquire();
