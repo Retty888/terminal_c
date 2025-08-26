@@ -312,11 +312,12 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
   ImGui::SameLine();
   ImGui::BeginChild("ChartChild", ImVec2(0, 0), false);
 #ifdef HAVE_WEBVIEW
-  if (!webview_) {
-    webview_ = webview_create(0, nullptr);
+  if (!webview_ && !webview_missing_chart_) {
     auto html_path = Core::path_from_executable("chart.html");
-    std::string url = std::string("file://") + html_path.generic_string();
-    webview_navigate(static_cast<webview_t>(webview_), url.c_str());
+    if (std::filesystem::exists(html_path)) {
+      webview_ = webview_create(0, nullptr);
+      std::string url = std::string("file://") + html_path.generic_string();
+      webview_navigate(static_cast<webview_t>(webview_), url.c_str());
     webview_bind(
         static_cast<webview_t>(webview_), "setInterval",
         [](webview_t w, const char *seq, const char *req, void *arg) {
@@ -389,39 +390,47 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
           webview_return(w, seq, 0, nullptr);
         },
         this);
-    webview_thread_ = std::jthread([this](std::stop_token) {
-      webview_run(static_cast<webview_t>(webview_));
-    });
-    webview_ready_ = true;
-    {
-      std::lock_guard<std::mutex> lock(ui_mutex_);
-      if (!candles_.empty()) {
-        nlohmann::json arr = nlohmann::json::array();
-        for (const auto &c : candles_) {
-          arr.push_back({{"time", c.open_time / 1000},
-                         {"open", c.open},
-                         {"high", c.high},
-                         {"low", c.low},
-                         {"close", c.close}});
+      webview_thread_ = std::jthread([this](std::stop_token) {
+        webview_run(static_cast<webview_t>(webview_));
+      });
+      webview_ready_ = true;
+      {
+        std::lock_guard<std::mutex> lock(ui_mutex_);
+        if (!candles_.empty()) {
+          nlohmann::json arr = nlohmann::json::array();
+          for (const auto &c : candles_) {
+            arr.push_back({{"time", c.open_time / 1000},
+                           {"open", c.open},
+                           {"high", c.high},
+                           {"low", c.low},
+                           {"close", c.close}});
+          }
+          std::string js = "series.setData(" + arr.dump() + ");";
+          webview_eval(static_cast<webview_t>(webview_), js.c_str());
         }
-        std::string js = "series.setData(" + arr.dump() + ");";
-        webview_eval(static_cast<webview_t>(webview_), js.c_str());
+        if (price_line_) {
+          std::ostringstream oss;
+          oss << "chart.setPriceLine(" << *price_line_ << ");";
+          webview_eval(static_cast<webview_t>(webview_), oss.str().c_str());
+        }
+        std::string js_series = "setActiveSeries('" +
+                                std::string(SeriesTypeToString(current_series_)) +
+                                "');";
+        webview_eval(static_cast<webview_t>(webview_), js_series.c_str());
+        std::string js_tool =
+            "setActiveTool('" + std::string(ToolToString(current_tool_)) + "');";
+        webview_eval(static_cast<webview_t>(webview_), js_tool.c_str());
       }
-      if (price_line_) {
-        std::ostringstream oss;
-        oss << "chart.setPriceLine(" << *price_line_ << ");";
-        webview_eval(static_cast<webview_t>(webview_), oss.str().c_str());
-      }
-      std::string js_series = "setActiveSeries('" +
-                              std::string(SeriesTypeToString(current_series_)) +
-                              "');";
-      webview_eval(static_cast<webview_t>(webview_), js_series.c_str());
-      std::string js_tool =
-          "setActiveTool('" + std::string(ToolToString(current_tool_)) + "');";
-      webview_eval(static_cast<webview_t>(webview_), js_tool.c_str());
+    } else {
+      webview_missing_chart_ = true;
+      if (status_callback_)
+        status_callback_("chart.html not found");
     }
   }
-  ImGui::TextUnformatted("WebView chart running in external window.");
+  if (webview_missing_chart_)
+    ImGui::TextUnformatted("chart.html not found");
+  else
+    ImGui::TextUnformatted("WebView chart running in external window.");
 #else
   ImGui::TextUnformatted(
       "WebView support disabled; displaying fallback candlestick chart.");
