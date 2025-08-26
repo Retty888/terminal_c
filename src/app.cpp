@@ -60,6 +60,16 @@ void App::clear_failed_fetches() {
   add_status("Cleared failed fetches");
 }
 
+void App::set_error_message(const std::string &msg) {
+  std::lock_guard<std::mutex> lock(status_mutex_);
+  status_.error_message = msg;
+}
+
+AppStatus App::get_status_snapshot() const {
+  std::lock_guard<std::mutex> lock(status_mutex_);
+  return status_;
+}
+
 bool App::init_window() {
   auto cfg = Config::ConfigManager::load(resolve_config_path().string());
   auto level = cfg ? cfg->log_level : Core::LogLevel::Info;
@@ -72,7 +82,10 @@ bool App::init_window() {
   else
     Core::Logger::instance().set_file("");
   Core::Logger::instance().info("Application started");
-  status_ = AppStatus{};
+  {
+    std::lock_guard<std::mutex> lock(status_mutex_);
+    status_ = AppStatus{};
+  }
 
   glfw_context_ = std::make_unique<Core::GlfwContext>();
   if (!glfw_context_->initialized()) {
@@ -288,7 +301,10 @@ void App::start_initial_fetch_and_streams() {
     add_status("Fetching " + this->ctx_->active_pair + " " +
                this->ctx_->active_interval);
   } else {
-    status_.candle_progress = 1.0f;
+    {
+      std::lock_guard<std::mutex> lock(status_mutex_);
+      status_.candle_progress = 1.0f;
+    }
   }
   this->ctx_->next_fetch_time.store(0);
   if (this->ctx_->streaming_enabled && this->ctx_->active_interval != "5s" &&
@@ -392,11 +408,11 @@ void App::start_fetch_thread() {
             ++it->retries;
             if (it->retries > this->ctx_->max_retries) {
               this->ctx_->failed_fetches.insert({it->pair, it->interval});
-              status_.error_message = "Failed to fetch " + it->pair + " " +
-                                      it->interval + " after " +
-                                      std::to_string(this->ctx_->max_retries) +
-                                      " retries";
-              Core::Logger::instance().error(status_.error_message);
+              auto msg = "Failed to fetch " + it->pair + " " + it->interval +
+                         " after " + std::to_string(this->ctx_->max_retries) +
+                         " retries";
+              set_error_message(msg);
+              Core::Logger::instance().error(msg);
               add_status("Failed to fetch " + it->pair + " " + it->interval);
               ++this->ctx_->completed_fetches;
               it = this->ctx_->fetch_queue.erase(it);
@@ -404,10 +420,11 @@ void App::start_fetch_thread() {
               auto delay = this->ctx_->retry_delay;
               if (this->ctx_->exponential_backoff)
                 delay *= (1 << (it->retries - 1));
-              status_.error_message = "Failed to fetch " + it->pair + " " +
-                                      it->interval + ", retrying";
-              Core::Logger::instance().error(status_.error_message);
-              add_status(status_.error_message);
+              auto msg = "Failed to fetch " + it->pair + " " + it->interval +
+                         ", retrying";
+              set_error_message(msg);
+              Core::Logger::instance().error(msg);
+              add_status(msg);
               it->future = data_service_.fetch_klines_async(
                   it->pair, it->interval, miss, this->ctx_->max_retries, delay);
               it->start = std::chrono::steady_clock::now();
@@ -426,11 +443,11 @@ void App::start_fetch_thread() {
             ++it->retries;
             if (it->retries > this->ctx_->max_retries) {
               this->ctx_->failed_fetches.insert({it->pair, it->interval});
-              status_.error_message = "Timeout fetching " + it->pair + " " +
-                                      it->interval + " after " +
-                                      std::to_string(this->ctx_->max_retries) +
-                                      " retries";
-              Core::Logger::instance().error(status_.error_message);
+              auto msg = "Timeout fetching " + it->pair + " " + it->interval +
+                         " after " + std::to_string(this->ctx_->max_retries) +
+                         " retries";
+              set_error_message(msg);
+              Core::Logger::instance().error(msg);
               add_status("Failed to fetch " + it->pair + " " + it->interval);
               ++this->ctx_->completed_fetches;
               it = this->ctx_->fetch_queue.erase(it);
@@ -438,10 +455,11 @@ void App::start_fetch_thread() {
               auto delay = this->ctx_->retry_delay;
               if (this->ctx_->exponential_backoff)
                 delay *= (1 << (it->retries - 1));
-              status_.error_message = "Timeout fetching " + it->pair + " " +
-                                      it->interval + ", retrying";
-              Core::Logger::instance().error(status_.error_message);
-              add_status(status_.error_message);
+              auto msg = "Timeout fetching " + it->pair + " " + it->interval +
+                         ", retrying";
+              set_error_message(msg);
+              Core::Logger::instance().error(msg);
+              add_status(msg);
               it->future = data_service_.fetch_klines_async(
                   it->pair, it->interval, miss, this->ctx_->max_retries, delay);
               it->start = std::chrono::steady_clock::now();
@@ -570,19 +588,22 @@ void App::handle_http_updates() {
 
 void App::update_candle_progress() {
   std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
-  status_.candle_progress =
-      this->ctx_->total_fetches > 0
-          ? static_cast<float>(this->ctx_->completed_fetches) /
-                static_cast<float>(this->ctx_->total_fetches)
-          : 1.0f;
+  {
+    std::lock_guard<std::mutex> status_lock(status_mutex_);
+    status_.candle_progress =
+        this->ctx_->total_fetches > 0
+            ? static_cast<float>(this->ctx_->completed_fetches) /
+                  static_cast<float>(this->ctx_->total_fetches)
+            : 1.0f;
+  }
 }
 
 void App::schedule_retry(long long now_ms, std::chrono::milliseconds delay,
                          const std::string &msg) {
   if (!msg.empty()) {
-    status_.error_message = msg;
-    Core::Logger::instance().error(status_.error_message);
-    add_status(status_.error_message);
+    set_error_message(msg);
+    Core::Logger::instance().error(msg);
+    add_status(msg);
   }
   long long retry = now_ms + delay.count();
   update_next_fetch_time(retry);
@@ -626,7 +647,7 @@ void App::render_main_windows() {
       this->ctx_->pairs, this->ctx_->selected_pairs, this->ctx_->active_pair,
       this->ctx_->intervals, this->ctx_->selected_interval,
       this->ctx_->all_candles, this->ctx_->save_pairs,
-      this->ctx_->exchange_pairs, status_, data_service_,
+      this->ctx_->exchange_pairs, status_, status_mutex_, data_service_,
       this->ctx_->cancel_pair, this->ctx_->show_analytics_window,
       this->ctx_->show_journal_window, this->ctx_->show_backtest_window);
   ui_manager_.draw_chart_panel(this->ctx_->selected_pairs,
