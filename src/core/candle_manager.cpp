@@ -57,7 +57,10 @@ long long CandleManager::read_last_open_time(const std::string& symbol, const st
         std::ifstream idx(idx_path);
         if (idx.is_open()) {
             idx >> last;
-            return last;
+            if (!idx.fail()) {
+                return last;
+            }
+            Logger::instance().warn("Failed to read last open time from index: " + idx_path.string());
         }
     }
 
@@ -68,6 +71,9 @@ long long CandleManager::read_last_open_time(const std::string& symbol, const st
             std::string line, last_line;
             while (std::getline(csv, line)) {
                 if (!line.empty()) last_line = line;
+            }
+            if (csv.fail() && !csv.eof()) {
+                Logger::instance().warn("Error reading CSV file: " + csv_path.string());
             }
             csv.close();
             if (!last_line.empty()) {
