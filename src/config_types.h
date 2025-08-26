@@ -25,6 +25,7 @@ struct ConfigData {
   bool enable_chart{true};
   std::string chart_html_path{"resources/chart.html"};
   bool enable_streaming{false};
+  bool save_journal_csv{true};
   SignalConfig signal{};
   std::string primary_provider{"binance"};
   std::string fallback_provider{"gateio"};

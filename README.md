@@ -74,6 +74,12 @@ ui.set_markers(R"([
 ])");
 ```
 
+### Journal export
+
+Application trades are recorded in `journal.json`. A CSV copy (`journal.csv`) is
+written alongside it for analysis in spreadsheets. To disable exporting the
+CSV file, set `"save_journal_csv": false` in `config.json`.
+
 
 ## Streaming
 

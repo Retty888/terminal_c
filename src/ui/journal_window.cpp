@@ -8,7 +8,7 @@
 #include <ctime>
 #include <cstring>
 
-void DrawJournalWindow(JournalService &service) {
+void DrawJournalWindow(JournalService &service, bool save_csv) {
     auto &journal = service.journal();
     ImGui::Begin("Journal");
     static char j_symbol[32] = "";
@@ -35,7 +35,9 @@ void DrawJournalWindow(JournalService &service) {
     ImGui::SameLine();
     if (ImGui::Button("Save")) {
         service.save("journal.json");
-        journal.save_csv((service.base_dir() / "journal.csv").string());
+        if (save_csv) {
+            journal.save_csv((service.base_dir() / "journal.csv").string());
+        }
     }
 
     static int edit_index = -1;

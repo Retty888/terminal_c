@@ -52,6 +52,7 @@ struct AppContext {
   std::atomic<long long> next_fetch_time{0};
   int candles_limit = 0;
   bool streaming_enabled = false;
+  bool save_journal_csv = true;
   std::function<void()> save_pairs;
   std::function<void(const std::string &)> cancel_pair;
   std::string last_active_pair;
