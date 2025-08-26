@@ -119,10 +119,12 @@ void App::load_config() {
     pair_names = cfg->pairs;
     this->ctx_->candles_limit = static_cast<int>(cfg->candles_limit);
     this->ctx_->streaming_enabled = cfg->enable_streaming;
+    this->ctx_->save_journal_csv = cfg->save_journal_csv;
   } else {
     Core::Logger::instance().warn("Using default configuration");
     this->ctx_->candles_limit = 5000;
     this->ctx_->streaming_enabled = false;
+    this->ctx_->save_journal_csv = true;
   }
   this->ctx_->intervals = {"1m", "3m", "5m",  "15m", "1h",
                            "4h", "1d", "15s", "5s"};
@@ -589,7 +591,7 @@ void App::render_main_windows() {
                         this->ctx_->selected_interval);
   }
   if (this->ctx_->show_journal_window) {
-    DrawJournalWindow(journal_service_);
+    DrawJournalWindow(journal_service_, this->ctx_->save_journal_csv);
   }
   if (this->ctx_->show_backtest_window) {
     DrawBacktestWindow(this->ctx_->all_candles, this->ctx_->active_pair,
@@ -650,8 +652,16 @@ void App::cleanup() {
   if (!journal_service_.save("journal.json")) {
     add_status("Failed to save journal.json", Core::LogLevel::Error);
   }
-  journal_service_.journal().save_csv(
-      (journal_service_.base_dir() / "journal.csv").string());
+  if (this->ctx_->save_journal_csv) {
+    auto csv_path = (journal_service_.base_dir() / "journal.csv").string();
+    if (!journal_service_.journal().save_csv(csv_path)) {
+      add_status("Failed to save journal.csv", Core::LogLevel::Error);
+      Core::Logger::instance().error("Failed to save journal.csv");
+    } else {
+      Core::Logger::instance().info("Saved journal.csv");
+      add_status("Saved journal.csv");
+    }
+  }
   ui_manager_.shutdown();
   window_.reset();
   glfw_context_.reset();

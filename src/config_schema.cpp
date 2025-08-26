@@ -90,6 +90,14 @@ std::optional<ConfigData> ConfigSchema::parse(const nlohmann::json &j,
     cfg.enable_streaming = j["enable_streaming"].get<bool>();
   }
 
+  if (j.contains("save_journal_csv")) {
+    if (!j["save_journal_csv"].is_boolean()) {
+      error = "'save_journal_csv' must be a boolean";
+      return std::nullopt;
+    }
+    cfg.save_journal_csv = j["save_journal_csv"].get<bool>();
+  }
+
   if (j.contains("enable_chart")) {
     if (!j["enable_chart"].is_boolean()) {
       error = "'enable_chart' must be a boolean";
