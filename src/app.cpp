@@ -257,10 +257,8 @@ void App::update_available_intervals() {
       this->ctx_->active_interval = this->ctx_->available_intervals.front();
       this->ctx_->selected_interval = this->ctx_->active_interval;
     }
-    ui_manager_.set_initial_interval(this->ctx_->active_interval);
-  } else {
-    ui_manager_.set_initial_interval(this->ctx_->active_interval);
   }
+  ui_manager_.set_initial_interval(this->ctx_->active_interval);
 }
 
 void App::load_existing_candles() {
