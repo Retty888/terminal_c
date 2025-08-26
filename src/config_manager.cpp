@@ -6,6 +6,7 @@
 
 #include "config_path.h"
 #include "config_schema.h"
+#include "core/logger.h"
 #include "core/path_utils.h"
 
 namespace Config {
