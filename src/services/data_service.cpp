@@ -1,18 +1,18 @@
 #include "services/data_service.h"
 
-#include "core/candle_manager.h"
-#include "core/interval_utils.h"
-#include "core/logger.h"
-#include "core/candle_utils.h"
 #include "config_manager.h"
 #include "config_path.h"
+#include "core/candle_manager.h"
+#include "core/candle_utils.h"
 #include "core/exchange_utils.h"
+#include "core/interval_utils.h"
+#include "core/logger.h"
 
 #include <algorithm>
-#include <nlohmann/json.hpp>
-#include <thread>
 #include <chrono>
 #include <map>
+#include <nlohmann/json.hpp>
+#include <thread>
 
 namespace {
 constexpr std::chrono::milliseconds kHttpTimeout{10000};
@@ -29,17 +29,18 @@ DataService::DataService(const std::filesystem::path &data_dir)
     : http_client_(std::make_shared<Core::CprHttpClient>()),
       rate_limiter_(std::make_shared<Core::TokenBucketRateLimiter>(
           1, std::chrono::milliseconds(1100))),
-      fetcher_(http_client_, rate_limiter_),
-      candle_manager_(data_dir) {}
+      fetcher_(http_client_, rate_limiter_), candle_manager_(data_dir) {}
 
-Core::SymbolsResult DataService::fetch_all_symbols(
-    int max_retries, std::chrono::milliseconds retry_delay,
-    std::size_t top_n) const {
+Core::SymbolsResult
+DataService::fetch_all_symbols(int max_retries,
+                               std::chrono::milliseconds retry_delay,
+                               std::size_t top_n) const {
   return fetcher_.fetch_all_symbols(max_retries, retry_delay, top_n);
 }
 
-Core::IntervalsResult DataService::fetch_intervals(
-    int max_retries, std::chrono::milliseconds retry_delay) const {
+Core::IntervalsResult
+DataService::fetch_intervals(int max_retries,
+                             std::chrono::milliseconds retry_delay) const {
   return fetcher_.fetch_all_intervals(max_retries, retry_delay);
 }
 
@@ -53,8 +54,11 @@ Core::KlinesResult DataService::fetch_klines(
 Core::KlinesResult DataService::fetch_klines_alt(
     const std::string &symbol, const std::string &interval, int limit,
     int max_retries, std::chrono::milliseconds retry_delay) const {
-  auto cfg = Config::ConfigManager::load(resolve_config_path().string());
-  std::string fallback = cfg ? cfg->fallback_provider : "";
+  static const Config::ConfigData cfg =
+      Config::ConfigManager::load(resolve_config_path().string())
+          .value_or(Config::ConfigData{});
+
+  std::string fallback = cfg.fallback_provider;
   std::chrono::milliseconds current_delay = retry_delay;
   Core::KlinesResult res;
   for (int attempt = 0; attempt < max_retries; ++attempt) {
@@ -63,7 +67,8 @@ Core::KlinesResult DataService::fetch_klines_alt(
       return res;
 
     if (!fallback.empty()) {
-      auto fb = fetcher_.fetch_klines(symbol, interval, limit, 1, current_delay);
+      auto fb =
+          fetcher_.fetch_klines(symbol, interval, limit, 1, current_delay);
       if (fb.error == Core::FetchError::None)
         return fb;
       res = fb;
@@ -77,10 +82,11 @@ Core::KlinesResult DataService::fetch_klines_alt(
   return res;
 }
 
-Core::KlinesResult DataService::fetch_range(
-    const std::string &symbol, const std::string &interval,
-    long long start_time, long long end_time, int max_retries,
-    std::chrono::milliseconds retry_delay) const {
+Core::KlinesResult
+DataService::fetch_range(const std::string &symbol, const std::string &interval,
+                         long long start_time, long long end_time,
+                         int max_retries,
+                         std::chrono::milliseconds retry_delay) const {
   std::vector<Core::Candle> result;
   long long interval_ms = Core::parse_interval(interval).count();
   if (interval_ms <= 0 || start_time > end_time)
@@ -90,13 +96,12 @@ Core::KlinesResult DataService::fetch_range(
   if (interval == "5s" || interval == "15s") {
     std::string pair = to_gate_symbol(symbol);
     while (start_time <= end_time) {
-      long long batch_end =
-          std::min(end_time, start_time + interval_ms * 999);
+      long long batch_end = std::min(end_time, start_time + interval_ms * 999);
       std::string url =
           "https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=" +
-          pair + "&interval=" + interval + "&from=" +
-          std::to_string(start_time / 1000) + "&to=" +
-          std::to_string((batch_end + interval_ms) / 1000);
+          pair + "&interval=" + interval +
+          "&from=" + std::to_string(start_time / 1000) +
+          "&to=" + std::to_string((batch_end + interval_ms) / 1000);
       bool success = false;
       auto current_delay = retry_delay;
       for (int attempt = 0; attempt < max_retries; ++attempt) {
@@ -119,10 +124,9 @@ Core::KlinesResult DataService::fetch_range(
             std::vector<Core::Candle> candles;
             auto json_data = nlohmann::json::parse(r.text);
             for (const auto &kline : json_data) {
-              long long ts =
-                  static_cast<long long>(
-                      std::stoll(kline[0].get<std::string>())) *
-                  1000LL;
+              long long ts = static_cast<long long>(
+                                 std::stoll(kline[0].get<std::string>())) *
+                             1000LL;
               double volume = std::stod(kline[1].get<std::string>());
               double close = std::stod(kline[2].get<std::string>());
               double high = std::stod(kline[3].get<std::string>());
@@ -151,13 +155,15 @@ Core::KlinesResult DataService::fetch_range(
           std::this_thread::sleep_for(current_delay);
           current_delay *= 2;
         } else {
-          return {Core::FetchError::HttpError, r.status_code, r.error_message,
-                  {}};
+          return {
+              Core::FetchError::HttpError, r.status_code, r.error_message, {}};
         }
       }
       if (!success) {
-        return {Core::FetchError::HttpError, http_status,
-                "Max retries exceeded", {}};
+        return {Core::FetchError::HttpError,
+                http_status,
+                "Max retries exceeded",
+                {}};
       }
     }
   } else {
@@ -165,11 +171,9 @@ Core::KlinesResult DataService::fetch_range(
         "https://api.binance.com/api/v3/klines?symbol=" + symbol +
         "&interval=" + interval;
     while (start_time <= end_time) {
-      long long batch_end =
-          std::min(end_time, start_time + interval_ms * 999);
+      long long batch_end = std::min(end_time, start_time + interval_ms * 999);
       std::string url = base_url + "&startTime=" + std::to_string(start_time) +
-                        "&endTime=" + std::to_string(batch_end) +
-                        "&limit=1000";
+                        "&endTime=" + std::to_string(batch_end) + "&limit=1000";
       bool success = false;
       auto current_delay = retry_delay;
       for (int attempt = 0; attempt < max_retries; ++attempt) {
@@ -193,19 +197,18 @@ Core::KlinesResult DataService::fetch_range(
             if (json_data.empty())
               return {Core::FetchError::None, http_status, "", result};
             for (const auto &kline : json_data) {
-              result.emplace_back(
-                  kline[0].get<long long>(),
-                  std::stod(kline[1].get<std::string>()),
-                  std::stod(kline[2].get<std::string>()),
-                  std::stod(kline[3].get<std::string>()),
-                  std::stod(kline[4].get<std::string>()),
-                  std::stod(kline[5].get<std::string>()),
-                  kline[6].get<long long>(),
-                  std::stod(kline[7].get<std::string>()),
-                  kline[8].get<int>(),
-                  std::stod(kline[9].get<std::string>()),
-                  std::stod(kline[10].get<std::string>()),
-                  std::stod(kline[11].get<std::string>()));
+              result.emplace_back(kline[0].get<long long>(),
+                                  std::stod(kline[1].get<std::string>()),
+                                  std::stod(kline[2].get<std::string>()),
+                                  std::stod(kline[3].get<std::string>()),
+                                  std::stod(kline[4].get<std::string>()),
+                                  std::stod(kline[5].get<std::string>()),
+                                  kline[6].get<long long>(),
+                                  std::stod(kline[7].get<std::string>()),
+                                  kline[8].get<int>(),
+                                  std::stod(kline[9].get<std::string>()),
+                                  std::stod(kline[10].get<std::string>()),
+                                  std::stod(kline[11].get<std::string>()));
             }
             if (result.empty())
               return {Core::FetchError::None, http_status, "", result};
@@ -213,8 +216,8 @@ Core::KlinesResult DataService::fetch_range(
             success = true;
             break;
           } catch (const std::exception &e) {
-            Core::Logger::instance().error(
-                std::string("Range parse error: ") + e.what());
+            Core::Logger::instance().error(std::string("Range parse error: ") +
+                                           e.what());
             return {Core::FetchError::ParseError, http_status, e.what(), {}};
           }
         }
@@ -225,13 +228,15 @@ Core::KlinesResult DataService::fetch_range(
           std::this_thread::sleep_for(current_delay);
           current_delay *= 2;
         } else {
-          return {Core::FetchError::HttpError, r.status_code, r.error_message,
-                  {}};
+          return {
+              Core::FetchError::HttpError, r.status_code, r.error_message, {}};
         }
       }
       if (!success) {
-        return {Core::FetchError::HttpError, http_status,
-                "Max retries exceeded", {}};
+        return {Core::FetchError::HttpError,
+                http_status,
+                "Max retries exceeded",
+                {}};
       }
     }
   }
@@ -247,14 +252,15 @@ std::future<Core::KlinesResult> DataService::fetch_klines_async(
                                      retry_delay);
 }
 
-std::vector<Core::Candle> DataService::load_candles(
-    const std::string &pair, const std::string &interval) const {
+std::vector<Core::Candle>
+DataService::load_candles(const std::string &pair,
+                          const std::string &interval) const {
   if (!candle_manager_.validate_candles(pair, interval)) {
-    Core::Logger::instance().warn("Invalid candles detected for " + pair +
-                                  " " + interval + ", reloading");
+    Core::Logger::instance().warn("Invalid candles detected for " + pair + " " +
+                                  interval + ", reloading");
     candle_manager_.clear_interval(pair, interval);
-    Core::Logger::instance().info("Cleared stored candles for " + pair +
-                                  " " + interval);
+    Core::Logger::instance().info("Cleared stored candles for " + pair + " " +
+                                  interval);
     if (!reload_candles(pair, interval)) {
       Core::Logger::instance().warn("Reload failed for " + pair + " " +
                                     interval);
@@ -267,15 +273,15 @@ void DataService::save_candles(const std::string &pair,
                                const std::string &interval,
                                const std::vector<Core::Candle> &candles) const {
   candle_manager_.save_candles(pair, interval, candles);
-  if (!candles.empty() &&
-      !candle_manager_.validate_candles(pair, interval)) {
-    Core::Logger::instance().warn("Data mismatch after save for " + pair +
-                                  " " + interval);
+  if (!candles.empty() && !candle_manager_.validate_candles(pair, interval)) {
+    Core::Logger::instance().warn("Data mismatch after save for " + pair + " " +
+                                  interval);
   }
 }
 
-std::vector<Core::Candle> DataService::load_candles_json(
-    const std::string &pair, const std::string &interval) const {
+std::vector<Core::Candle>
+DataService::load_candles_json(const std::string &pair,
+                               const std::string &interval) const {
   return candle_manager_.load_candles_from_json(pair, interval);
 }
 
@@ -295,7 +301,8 @@ void DataService::save_candles_json(
       }
     } else {
       Core::Logger::instance().warn(
-          "Loaded fewer candles than saved (JSON) for " + pair + " " + interval);
+          "Loaded fewer candles than saved (JSON) for " + pair + " " +
+          interval);
     }
   }
 }
@@ -304,8 +311,7 @@ void DataService::append_candles(
     const std::string &pair, const std::string &interval,
     const std::vector<Core::Candle> &candles) const {
   candle_manager_.append_candles(pair, interval, candles);
-  if (!candles.empty() &&
-      !candle_manager_.validate_candles(pair, interval)) {
+  if (!candles.empty() && !candle_manager_.validate_candles(pair, interval)) {
     Core::Logger::instance().warn("Data mismatch after append for " + pair +
                                   " " + interval);
   }
@@ -320,7 +326,8 @@ bool DataService::clear_interval(const std::string &pair,
   return candle_manager_.clear_interval(pair, interval);
 }
 
-bool DataService::reload_candles(const std::string &pair, const std::string &interval) const {
+bool DataService::reload_candles(const std::string &pair,
+                                 const std::string &interval) const {
   candle_manager_.clear_interval(pair, interval);
   auto cfg = Config::ConfigManager::load(resolve_config_path().string());
   int limit = cfg ? static_cast<int>(cfg->candles_limit) : 1000;
@@ -330,8 +337,9 @@ bool DataService::reload_candles(const std::string &pair, const std::string &int
     Core::Logger::instance().info("Reloaded " + pair + " " + interval);
     return true;
   }
-  Core::Logger::instance().error("Reload failed for " + pair + " " + interval +
-                                (res.message.empty() ? "" : ": " + res.message));
+  Core::Logger::instance().error(
+      "Reload failed for " + pair + " " + interval +
+      (res.message.empty() ? "" : ": " + res.message));
   return false;
 }
 
@@ -343,4 +351,3 @@ std::uintmax_t DataService::get_file_size(const std::string &pair,
                                           const std::string &interval) const {
   return candle_manager_.file_size(pair, interval);
 }
-
