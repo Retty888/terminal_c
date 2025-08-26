@@ -7,7 +7,6 @@
 #include <charconv>
 #include <string_view>
 #include <system_error>
-#include <map>
 #include "core/logger.h"
 #include "interval_utils.h"
 #include "core/data_dir.h"
@@ -169,32 +168,62 @@ bool CandleManager::save_candles(const std::string& symbol, const std::string& i
 }
 
 bool CandleManager::append_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) const {
-    // Load existing candles from disk first.
-    auto existing = load_candles(symbol, interval);
-
-    // Merge existing and new candles using a map keyed by open_time.
-    std::map<long long, Candle> merged;
-    for (const auto& c : existing) {
-        merged[c.open_time] = c;
-    }
-    for (const auto& c : candles) {
-        merged[c.open_time] = c; // replaces any candle with same open_time
+    if (candles.empty()) {
+        return true;
     }
 
-    // Build a sorted vector from the map values.
-    std::vector<Candle> result;
-    result.reserve(merged.size());
-    for (const auto& [_, c] : merged) {
-        result.push_back(c);
+    // Determine target file and last stored open_time before locking to avoid deadlock.
+    std::filesystem::path path_to_save = get_candle_path(symbol, interval);
+    long long last_open_time = read_last_open_time(symbol, interval);
+
+    std::size_t written = 0;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        bool file_exists = std::filesystem::exists(path_to_save);
+        std::ofstream file(path_to_save, std::ios::app);
+        if (!file.is_open()) {
+            Logger::instance().error("Could not open file for appending: " + path_to_save.string());
+            return false;
+        }
+
+        if (!file_exists) {
+            file << "open_time,open,high,low,close,volume,close_time,quote_asset_volume,number_of_trades,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore\n";
+        }
+
+        file.setf(std::ios::fixed);
+        file << std::setprecision(8);
+
+        for (const auto& c : candles) {
+            if (last_open_time >= 0 && c.open_time <= last_open_time) {
+                if (c.open_time < last_open_time) {
+                    Logger::instance().warn("Overlap detected at open_time " + std::to_string(c.open_time));
+                }
+                continue; // skip duplicates or overlaps
+            }
+
+            file << c.open_time << ","
+                 << c.open << ","
+                 << c.high << ","
+                 << c.low << ","
+                 << c.close << ","
+                 << c.volume << ","
+                 << c.close_time << ","
+                 << c.quote_asset_volume << ","
+                 << c.number_of_trades << ","
+                 << c.taker_buy_base_asset_volume << ","
+                 << c.taker_buy_quote_asset_volume << ","
+                 << c.ignore << "\n";
+
+            last_open_time = c.open_time;
+            ++written;
+        }
     }
 
-    auto interval_ms = parse_interval(interval).count();
-    if (interval_ms > 0) {
-        Core::fill_missing(result, interval_ms);
+    if (written > 0) {
+        write_last_open_time(symbol, interval, last_open_time);
     }
 
-    // Save the merged candle set back to disk.
-    return save_candles(symbol, interval, result);
+    return true;
 }
 
 bool CandleManager::validate_candles(const std::string& symbol, const std::string& interval) const {
