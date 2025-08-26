@@ -9,8 +9,9 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <string>
 #include <set>
+#include <shared_mutex>
+#include <string>
 #include <vector>
 
 #include "core/candle.h"
@@ -29,7 +30,7 @@ struct AppContext {
   std::string selected_interval;
   std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>
       all_candles;
-  std::mutex candles_mutex;
+  std::shared_mutex candles_mutex;
   std::map<std::string, std::unique_ptr<Core::KlineStream>> streams;
   std::atomic<bool> stream_failed{false};
   struct PendingFetch {

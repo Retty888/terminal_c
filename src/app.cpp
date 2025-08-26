@@ -22,6 +22,7 @@
 #include <mutex>
 #include <optional>
 #include <set>
+#include <shared_mutex>
 #include <stop_token>
 #include <string>
 #include <thread>
@@ -315,7 +316,7 @@ void App::start_initial_fetch_and_streams() {
           pair, this->ctx_->active_interval, data_service_.candle_manager());
       stream->start(
           [this, pair](const Core::Candle &c) {
-            std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
+            std::lock_guard<std::shared_mutex> lock(this->ctx_->candles_mutex);
             auto &vec =
                 this->ctx_->all_candles[pair][this->ctx_->active_interval];
             if (vec.empty() || c.open_time > vec.back().open_time)
@@ -376,7 +377,7 @@ void App::start_fetch_thread() {
           if (fetched.error == Core::FetchError::None &&
               !fetched.candles.empty()) {
             {
-              std::lock_guard<std::mutex> lock_candles(
+              std::lock_guard<std::shared_mutex> lock_candles(
                   this->ctx_->candles_mutex);
               auto &vec = this->ctx_->all_candles[it->pair][it->interval];
               long long last_time = vec.empty() ? 0 : vec.back().open_time;
@@ -504,7 +505,7 @@ void App::process_events() {
 void App::schedule_http_updates(std::chrono::milliseconds period,
                                 long long now_ms) {
   if (this->ctx_->next_fetch_time.load() == 0) {
-    std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
+    std::shared_lock<std::shared_mutex> lock(this->ctx_->candles_mutex);
     auto pair_it = this->ctx_->all_candles.find(this->ctx_->active_pair);
     if (pair_it != this->ctx_->all_candles.end()) {
       auto interval_it = pair_it->second.find(this->ctx_->active_interval);
@@ -550,7 +551,7 @@ void App::handle_http_updates() {
                             std::chrono::system_clock::now().time_since_epoch())
                             .count();
       if (latest.error == Core::FetchError::None && !latest.candles.empty()) {
-        std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
+        std::lock_guard<std::shared_mutex> lock(this->ctx_->candles_mutex);
         auto &vec = this->ctx_->all_candles[it->first][it->second.interval];
         bool was_empty = vec.empty();
         bool appended = false;
@@ -644,26 +645,31 @@ void App::render_status_window() {
 }
 
 void App::render_main_windows() {
-  std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
-  DrawControlPanel(
-      this->ctx_->pairs, this->ctx_->selected_pairs, this->ctx_->active_pair,
-      this->ctx_->intervals, this->ctx_->selected_interval,
-      this->ctx_->all_candles, this->ctx_->save_pairs,
-      this->ctx_->exchange_pairs, status_, status_mutex_, data_service_,
-      this->ctx_->cancel_pair, this->ctx_->show_analytics_window,
-      this->ctx_->show_journal_window, this->ctx_->show_backtest_window);
-  ui_manager_.draw_chart_panel(this->ctx_->selected_pairs,
-                               this->ctx_->available_intervals);
-  if (this->ctx_->show_analytics_window) {
-    DrawAnalyticsWindow(this->ctx_->all_candles, this->ctx_->active_pair,
-                        this->ctx_->selected_interval);
+  {
+    std::unique_lock<std::shared_mutex> lock(this->ctx_->candles_mutex);
+    DrawControlPanel(
+        this->ctx_->pairs, this->ctx_->selected_pairs, this->ctx_->active_pair,
+        this->ctx_->intervals, this->ctx_->selected_interval,
+        this->ctx_->all_candles, this->ctx_->save_pairs,
+        this->ctx_->exchange_pairs, status_, status_mutex_, data_service_,
+        this->ctx_->cancel_pair, this->ctx_->show_analytics_window,
+        this->ctx_->show_journal_window, this->ctx_->show_backtest_window);
   }
-  if (this->ctx_->show_journal_window) {
-    DrawJournalWindow(journal_service_, this->ctx_->save_journal_csv);
-  }
-  if (this->ctx_->show_backtest_window) {
-    DrawBacktestWindow(this->ctx_->all_candles, this->ctx_->active_pair,
-                       this->ctx_->selected_interval);
+  {
+    std::shared_lock<std::shared_mutex> lock(this->ctx_->candles_mutex);
+    ui_manager_.draw_chart_panel(this->ctx_->selected_pairs,
+                                 this->ctx_->available_intervals);
+    if (this->ctx_->show_analytics_window) {
+      DrawAnalyticsWindow(this->ctx_->all_candles, this->ctx_->active_pair,
+                          this->ctx_->selected_interval);
+    }
+    if (this->ctx_->show_journal_window) {
+      DrawJournalWindow(journal_service_, this->ctx_->save_journal_csv);
+    }
+    if (this->ctx_->show_backtest_window) {
+      DrawBacktestWindow(this->ctx_->all_candles, this->ctx_->active_pair,
+                         this->ctx_->selected_interval);
+    }
   }
 }
 
@@ -674,7 +680,7 @@ void App::handle_active_pair_change() {
     this->ctx_->last_active_interval = this->ctx_->active_interval;
     int miss;
     {
-      std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
+      std::lock_guard<std::shared_mutex> lock(this->ctx_->candles_mutex);
       auto &candles = this->ctx_->all_candles[this->ctx_->active_pair]
                                              [this->ctx_->active_interval];
       if (candles.empty())
