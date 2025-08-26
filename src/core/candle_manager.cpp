@@ -34,21 +34,24 @@ std::filesystem::path CandleManager::get_data_dir() const {
 }
 
 std::filesystem::path CandleManager::get_candle_path(const std::string& symbol, const std::string& interval) const {
-    std::filesystem::create_directories(data_dir_); // Ensure directory exists
+    auto dir = get_data_dir();
+    std::filesystem::create_directories(dir); // Ensure directory exists
     std::string filename = symbol + "_" + interval + ".csv";
-    return data_dir_ / filename;
+    return dir / filename;
 }
 
 std::filesystem::path CandleManager::get_candle_json_path(const std::string& symbol, const std::string& interval) const {
-    std::filesystem::create_directories(data_dir_);
+    auto dir = get_data_dir();
+    std::filesystem::create_directories(dir);
     std::string filename = symbol + "_" + interval + ".json";
-    return data_dir_ / filename;
+    return dir / filename;
 }
 
 std::filesystem::path CandleManager::get_index_path(const std::string& symbol, const std::string& interval) const {
-    std::filesystem::create_directories(data_dir_);
+    auto dir = get_data_dir();
+    std::filesystem::create_directories(dir);
     std::string filename = symbol + "_" + interval + ".idx";
-    return data_dir_ / filename;
+    return dir / filename;
 }
 
 long long CandleManager::read_last_open_time(const std::string& symbol, const std::string& interval) const {
@@ -118,8 +121,7 @@ bool CandleManager::save_candles(const std::string& symbol, const std::string& i
         }
 
         // Write header
-        file << "open_time,open,high,low,close,volume,close_time,quote_asset_volume,number_of_trades,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore
-";
+        file << "open_time,open,high,low,close,volume,close_time,quote_asset_volume,number_of_trades,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore";
         file.setf(std::ios::fixed);
         file << std::setprecision(8);
 
@@ -136,8 +138,7 @@ bool CandleManager::save_candles(const std::string& symbol, const std::string& i
                  << candle.number_of_trades << ","
                  << candle.taker_buy_base_asset_volume << ","
                  << candle.taker_buy_quote_asset_volume << ","
-                 << candle.ignore << "
-";
+                 << candle.ignore << "\n";
         }
 
         file.close();
