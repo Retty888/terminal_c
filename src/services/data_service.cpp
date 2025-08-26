@@ -31,6 +31,15 @@ DataService::DataService(const std::filesystem::path &data_dir)
           1, std::chrono::milliseconds(1100))),
       fetcher_(http_client_, rate_limiter_), candle_manager_(data_dir) {}
 
+const Config::ConfigData &DataService::config() const {
+  if (!config_cache_) {
+    config_cache_ =
+        Config::ConfigManager::load(resolve_config_path().string())
+            .value_or(Config::ConfigData{});
+  }
+  return *config_cache_;
+}
+
 Core::SymbolsResult
 DataService::fetch_all_symbols(int max_retries,
                                std::chrono::milliseconds retry_delay,
@@ -54,10 +63,7 @@ Core::KlinesResult DataService::fetch_klines(
 Core::KlinesResult DataService::fetch_klines_alt(
     const std::string &symbol, const std::string &interval, int limit,
     int max_retries, std::chrono::milliseconds retry_delay) const {
-  Config::ConfigData cfg =
-      Config::ConfigManager::load(resolve_config_path().string())
-          .value_or(Config::ConfigData{});
-
+  const Config::ConfigData &cfg = config();
   std::string fallback = cfg.fallback_provider;
   std::chrono::milliseconds current_delay = retry_delay;
   Core::KlinesResult res;
@@ -337,9 +343,8 @@ bool DataService::clear_interval(const std::string &pair,
 bool DataService::reload_candles(const std::string &pair,
                                  const std::string &interval) const {
   candle_manager_.clear_interval(pair, interval);
-  auto cfg = Config::ConfigManager::load(resolve_config_path().string());
-  int limit = cfg ? static_cast<int>(cfg->candles_limit) : 1000;
-  auto res = fetch_klines(pair, interval, limit);
+  const Config::ConfigData &cfg = config();
+  auto res = fetch_klines(pair, interval, static_cast<int>(cfg.candles_limit));
   if (res.error == Core::FetchError::None && !res.candles.empty()) {
     candle_manager_.save_candles(pair, interval, res.candles);
     Core::Logger::instance().info("Reloaded " + pair + " " + interval);
