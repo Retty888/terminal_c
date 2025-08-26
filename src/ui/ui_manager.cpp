@@ -167,7 +167,6 @@ bool UiManager::setup(GLFWwindow *window) {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   ImPlot::CreateContext();
-  ImGui::LoadIniSettingsFromMemory("");
   const auto ini_path = Core::path_from_executable("imgui.ini");
   std::filesystem::create_directories(ini_path.parent_path());
   static std::string ini_path_str = ini_path.string();
@@ -227,6 +226,9 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
   if (!current_interval_.empty()) {
     title += " - " + current_interval_;
   }
+  auto vp = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(vp->WorkSize, ImGuiCond_FirstUseEver);
   ImGui::Begin(title.c_str());
 
   int pair_index = 0;
@@ -262,6 +264,9 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
         current_interval_ = intervals[interval_index];
         if (on_interval_changed_)
           on_interval_changed_(current_interval_);
+        ImGuiIO &io = ImGui::GetIO();
+        if (io.IniFilename)
+          ImGui::SaveIniSettingsToDisk(io.IniFilename);
       }
     }
   } else {
@@ -345,10 +350,59 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
         [](const char *seq, const char *req, void *arg) {
           auto self = static_cast<UiManager *>(arg);
           if (self->on_pair_changed_) {
+      webview_bind(
+          static_cast<webview_t>(webview_), "setInterval",
+          [](webview_t w, const char *seq, const char *req, void *arg) {
+            auto self = static_cast<UiManager *>(arg);
+            if (self->on_interval_changed_) {
+              try {
+                auto j = nlohmann::json::parse(req);
+                if (j.is_array() && !j.empty())
+                  self->on_interval_changed_(j[0].get<std::string>());
+              } catch (...) {
+              }
+            }
+            webview_return(w, seq, 0, nullptr);
+          },
+          this);
+      webview_bind(
+          static_cast<webview_t>(webview_), "setPair",
+          [](webview_t w, const char *seq, const char *req, void *arg) {
+            auto self = static_cast<UiManager *>(arg);
+            if (self->on_pair_changed_) {
+              try {
+                auto j = nlohmann::json::parse(req);
+                if (j.is_array() && !j.empty())
+                  self->on_pair_changed_(j[0].get<std::string>());
+              } catch (...) {
+              }
+            }
+            webview_return(w, seq, 0, nullptr);
+          },
+          this);
+      webview_bind(
+          static_cast<webview_t>(webview_), "status",
+          [](webview_t w, const char *seq, const char *req, void *arg) {
+            auto self = static_cast<UiManager *>(arg);
+            if (self->status_callback_) {
+              try {
+                auto j = nlohmann::json::parse(req);
+                if (j.is_array() && !j.empty())
+                  self->status_callback_(j[0].get<std::string>());
+              } catch (...) {
+              }
+            }
+            webview_return(w, seq, 0, nullptr);
+          },
+          this);
+      webview_bind(
+          static_cast<webview_t>(webview_), "setTool",
+          [](webview_t w, const char *seq, const char *req, void *arg) {
+            auto self = static_cast<UiManager *>(arg);
             try {
               auto j = nlohmann::json::parse(req);
               if (j.is_array() && !j.empty())
-                self->on_pair_changed_(j[0].get<std::string>());
+                self->current_tool_ = ToolFromString(j[0].get<std::string>());
             } catch (...) {
             }
           }
@@ -361,10 +415,18 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
         [](const char *seq, const char *req, void *arg) {
           auto self = static_cast<UiManager *>(arg);
           if (self->status_callback_) {
+            webview_return(w, seq, 0, nullptr);
+          },
+          this);
+      webview_bind(
+          static_cast<webview_t>(webview_), "setSeries",
+          [](webview_t w, const char *seq, const char *req, void *arg) {
+            auto self = static_cast<UiManager *>(arg);
             try {
               auto j = nlohmann::json::parse(req);
               if (j.is_array() && !j.empty())
-                self->status_callback_(j[0].get<std::string>());
+                self->current_series_ =
+                    SeriesTypeFromString(j[0].get<std::string>());
             } catch (...) {
             }
           }
@@ -402,6 +464,9 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
                          "null");
         },
         this);
+            webview_return(w, seq, 0, nullptr);
+          },
+          this);
       webview_thread_ = std::jthread([this](std::stop_token) {
         webview_run(static_cast<webview_t>(webview_));
       });
@@ -425,12 +490,12 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
           oss << "chart.setPriceLine(" << *price_line_ << ");";
           webview_eval(static_cast<webview_t>(webview_), oss.str().c_str());
         }
-        std::string js_series = "setActiveSeries('" +
-                                std::string(SeriesTypeToString(current_series_)) +
-                                "');";
+        std::string js_series =
+            "setActiveSeries('" +
+            std::string(SeriesTypeToString(current_series_)) + "');";
         webview_eval(static_cast<webview_t>(webview_), js_series.c_str());
-        std::string js_tool =
-            "setActiveTool('" + std::string(ToolToString(current_tool_)) + "');";
+        std::string js_tool = "setActiveTool('" +
+                              std::string(ToolToString(current_tool_)) + "');";
         webview_eval(static_cast<webview_t>(webview_), js_tool.c_str());
       }
     } else {

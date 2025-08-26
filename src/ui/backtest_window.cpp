@@ -1,15 +1,19 @@
 #include "ui/backtest_window.h"
 
+#include "config_manager.h"
+#include "config_path.h"
 #include "imgui.h"
 #include "implot.h"
 #include "services/signal_bot.h"
-#include "config_manager.h"
-#include "config_path.h"
 
 void DrawBacktestWindow(
-    const std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>& all_candles,
-    const std::string& active_pair,
-    const std::string& selected_interval) {
+    const std::map<std::string,
+                   std::map<std::string, std::vector<Core::Candle>>>
+        &all_candles,
+    const std::string &active_pair, const std::string &selected_interval) {
+  auto vp = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(vp->WorkSize, ImGuiCond_FirstUseEver);
   ImGui::Begin("Backtest");
 
   static Core::BacktestResult result;
@@ -19,7 +23,8 @@ void DrawBacktestWindow(
   ImGui::SameLine();
   ImGui::Text("Interval: %s", selected_interval.c_str());
 
-  if (ImGui::Button("Run Backtest") && !active_pair.empty() && !selected_interval.empty()) {
+  if (ImGui::Button("Run Backtest") && !active_pair.empty() &&
+      !selected_interval.empty()) {
     auto pair_it = all_candles.find(active_pair);
     if (pair_it != all_candles.end()) {
       auto interval_it = pair_it->second.find(selected_interval);
@@ -53,4 +58,3 @@ void DrawBacktestWindow(
 
   ImGui::End();
 }
-

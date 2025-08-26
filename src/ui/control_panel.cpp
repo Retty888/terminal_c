@@ -5,18 +5,17 @@
 #include "config_path.h"
 #include "core/data_fetcher.h"
 #include "core/interval_utils.h"
-#include "imgui.h"
 #include "core/logger.h"
+#include "imgui.h"
 
 #include <algorithm>
 #include <cctype>
 #include <cfloat>
+#include <chrono>
+#include <cstdint>
 #include <ctime>
 #include <numeric>
-#include <cstdint>
-#include <chrono>
 #include <string>
-
 
 namespace {
 const size_t EXPECTED_CANDLES = [] {
@@ -33,7 +32,6 @@ const char *EMOJI_HIGH = "\xF0\x9F\x98\x83"; // 😃
 const ImVec4 COLOR_LOW = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
 const ImVec4 COLOR_MED = ImVec4(1.0f, 1.0f, 0.0f, 1.0f);
 const ImVec4 COLOR_HIGH = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
-
 
 // Format milliseconds since epoch into a dd.mm string or "-".
 std::string format_date(long long ms) {
@@ -60,7 +58,8 @@ struct TooltipStat {
 bool LoadInitialCandles(
     DataService &data_service, const std::string &symbol,
     const std::vector<std::string> &intervals,
-    std::map<std::string, std::map<std::string, std::vector<Core::Candle>>> &all_candles,
+    std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>
+        &all_candles,
     std::string &load_error) {
   bool failed = false;
   for (const auto &interval : intervals) {
@@ -76,8 +75,8 @@ bool LoadInitialCandles(
         for (const auto &c : fetched.candles) {
           if (c.open_time > expected) {
             long long gap_end = c.open_time - interval_ms;
-            auto gap_res = data_service.fetch_range(symbol, interval, expected,
-                                                    gap_end);
+            auto gap_res =
+                data_service.fetch_range(symbol, interval, expected, gap_end);
             if (gap_res.error == Core::FetchError::None &&
                 !gap_res.candles.empty()) {
               to_append.insert(to_append.end(), gap_res.candles.begin(),
@@ -106,8 +105,8 @@ bool LoadInitialCandles(
         }
       } else if (fetched.error != Core::FetchError::None) {
         failed = true;
-        load_error =
-            "Load failed for " + symbol + " " + interval + ": " + fetched.message;
+        load_error = "Load failed for " + symbol + " " + interval + ": " +
+                     fetched.message;
       }
     }
     if (candles.empty()) {
@@ -127,7 +126,8 @@ bool RenderPairRow(
     std::vector<PairItem> &pairs, PairItem &item,
     std::vector<std::string> &selected_pairs, std::string &active_pair,
     const std::vector<std::string> &intervals, std::string &selected_interval,
-    std::map<std::string, std::map<std::string, std::vector<Core::Candle>>> &all_candles,
+    std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>
+        &all_candles,
     const std::function<void()> &save_pairs, DataService &data_service,
     AppStatus &status,
     const std::function<void(const std::string &)> &cancel_pair) {
@@ -139,15 +139,17 @@ bool RenderPairRow(
   for (const auto &interval : intervals) {
     const auto &candles = all_candles[item.name][interval];
     size_t count = candles.size();
-    double volume =
-        std::accumulate(candles.begin(), candles.end(), 0.0,
-                        [](double sum, const Core::Candle &c) { return sum + c.volume; });
+    double volume = std::accumulate(
+        candles.begin(), candles.end(), 0.0,
+        [](double sum, const Core::Candle &c) { return sum + c.volume; });
     long long min_t = 0;
     long long max_t = 0;
     if (!candles.empty()) {
-      auto [min_it, max_it] = std::minmax_element(
-          candles.begin(), candles.end(),
-          [](const Core::Candle &a, const Core::Candle &b) { return a.open_time < b.open_time; });
+      auto [min_it, max_it] =
+          std::minmax_element(candles.begin(), candles.end(),
+                              [](const Core::Candle &a, const Core::Candle &b) {
+                                return a.open_time < b.open_time;
+                              });
       min_t = min_it->open_time;
       max_t = max_it->open_time;
     } else {
@@ -184,7 +186,8 @@ bool RenderPairRow(
       auto new_active =
           std::find_if(pairs.begin(), pairs.end(),
                        [](const PairItem &p) { return p.visible; });
-      active_pair = new_active != pairs.end() ? new_active->name : std::string();
+      active_pair =
+          new_active != pairs.end() ? new_active->name : std::string();
     } else if (item.visible && active_pair.empty()) {
       active_pair = item.name;
     }
@@ -232,12 +235,14 @@ bool RenderPairRow(
       auto new_active =
           std::find_if(pairs.begin(), pairs.end(),
                        [](const PairItem &p) { return p.visible; });
-      active_pair = new_active != pairs.end() ? new_active->name : std::string();
+      active_pair =
+          new_active != pairs.end() ? new_active->name : std::string();
     }
-    selected_pairs.erase(std::remove(selected_pairs.begin(), selected_pairs.end(),
-                                     item.name),
-                         selected_pairs.end());
-    Config::ConfigManager::save_selected_pairs(resolve_config_path().string(), selected_pairs);
+    selected_pairs.erase(
+        std::remove(selected_pairs.begin(), selected_pairs.end(), item.name),
+        selected_pairs.end());
+    Config::ConfigManager::save_selected_pairs(resolve_config_path().string(),
+                                               selected_pairs);
     data_service.remove_candles(item.name);
     if (cancel_pair)
       cancel_pair(item.name);
@@ -284,7 +289,8 @@ bool RenderPairRow(
 static void RenderLoadControls(
     std::vector<PairItem> &pairs, std::vector<std::string> &selected_pairs,
     const std::vector<std::string> &intervals,
-    std::map<std::string, std::map<std::string, std::vector<Core::Candle>>> &all_candles,
+    std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>
+        &all_candles,
     const std::function<void()> &save_pairs,
     const std::vector<std::string> &exchange_pairs, DataService &data_service) {
   ImGui::Text("Select pairs to load:");
@@ -329,7 +335,8 @@ static void RenderLoadControls(
       if (std::find(selected_pairs.begin(), selected_pairs.end(), symbol) ==
           selected_pairs.end()) {
         selected_pairs.push_back(symbol);
-        Config::ConfigManager::save_selected_pairs(resolve_config_path().string(), selected_pairs);
+        Config::ConfigManager::save_selected_pairs(
+            resolve_config_path().string(), selected_pairs);
       }
       if (!LoadInitialCandles(data_service, symbol, intervals, all_candles,
                               load_error)) {
@@ -348,7 +355,8 @@ static void RenderPairSelector(
     std::vector<PairItem> &pairs, std::vector<std::string> &selected_pairs,
     std::string &active_pair, const std::vector<std::string> &intervals,
     std::string &selected_interval,
-    std::map<std::string, std::map<std::string, std::vector<Core::Candle>>> &all_candles,
+    std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>
+        &all_candles,
     const std::function<void()> &save_pairs, DataService &data_service,
     AppStatus &status,
     const std::function<void(const std::string &)> &cancel_pair) {
@@ -356,8 +364,8 @@ static void RenderPairSelector(
     for (auto it = pairs.begin(); it != pairs.end();) {
       ImGui::TableNextRow();
       if (RenderPairRow(pairs, *it, selected_pairs, active_pair, intervals,
-                        selected_interval, all_candles, save_pairs, data_service,
-                        status, cancel_pair)) {
+                        selected_interval, all_candles, save_pairs,
+                        data_service, status, cancel_pair)) {
         it = pairs.erase(it);
       } else {
         ++it;
@@ -413,14 +421,17 @@ void DrawControlPanel(
     std::vector<PairItem> &pairs, std::vector<std::string> &selected_pairs,
     std::string &active_pair, const std::vector<std::string> &intervals,
     std::string &selected_interval,
-    std::map<std::string, std::map<std::string, std::vector<Core::Candle>>> &all_candles,
+    std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>
+        &all_candles,
     const std::function<void()> &save_pairs,
     const std::vector<std::string> &exchange_pairs, AppStatus &status,
     DataService &data_service,
     const std::function<void(const std::string &)> &cancel_pair,
-    bool &show_analytics_window,
-    bool &show_journal_window,
+    bool &show_analytics_window, bool &show_journal_window,
     bool &show_backtest_window) {
+  auto vp = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(vp->WorkSize, ImGuiCond_FirstUseEver);
   ImGui::Begin("Control Panel");
 
   RenderLoadControls(pairs, selected_pairs, intervals, all_candles, save_pairs,
