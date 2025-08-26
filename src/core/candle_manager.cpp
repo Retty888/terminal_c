@@ -470,7 +470,12 @@ nlohmann::json CandleManager::load_candles_json(const std::string& symbol,
         long long ms = c.open_time;
         std::time_t sec = ms / 1000;
         int millis = static_cast<int>(ms % 1000);
-        std::tm tm = *std::gmtime(&sec);
+        std::tm tm;
+#if defined(_WIN32)
+        gmtime_s(&tm, &sec);
+#else
+        gmtime_r(&sec, &tm);
+#endif
         std::ostringstream oss;
         oss << std::put_time(&tm, "%FT%T") << '.'
             << std::setw(3) << std::setfill('0') << millis << 'Z';

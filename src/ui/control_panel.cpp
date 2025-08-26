@@ -39,9 +39,14 @@ std::string format_date(long long ms) {
   if (ms == 0)
     return "-";
   std::time_t t = ms / 1000;
-  std::tm *tm = std::gmtime(&t);
+  std::tm tm;
+#if defined(_WIN32)
+  gmtime_s(&tm, &t);
+#else
+  gmtime_r(&t, &tm);
+#endif
   char buf[6];
-  if (std::strftime(buf, sizeof(buf), "%d.%m", tm))
+  if (std::strftime(buf, sizeof(buf), "%d.%m", &tm))
     return std::string(buf);
   return "-";
 }

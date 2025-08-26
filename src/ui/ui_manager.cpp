@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -117,7 +118,12 @@ void PlotCandlestick(const char *label_id, const double *xs,
       auto tp = std::chrono::system_clock::time_point(
           std::chrono::seconds(static_cast<long long>(xs[idx])));
       std::time_t tt = std::chrono::system_clock::to_time_t(tp);
-      std::tm tm = *std::gmtime(&tt);
+      std::tm tm;
+#if defined(_WIN32)
+      gmtime_s(&tm, &tt);
+#else
+      gmtime_r(&tt, &tm);
+#endif
       std::ostringstream oss;
       oss << std::put_time(&tm, "%Y-%m-%d");
       ImGui::Text("Day:   %s", oss.str().c_str());
@@ -519,7 +525,12 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
           auto tp = std::chrono::system_clock::time_point(
               std::chrono::seconds(static_cast<long long>(mouse.x)));
           std::time_t tt = std::chrono::system_clock::to_time_t(tp);
-          std::tm tm = *std::gmtime(&tt);
+          std::tm tm;
+#if defined(_WIN32)
+          gmtime_s(&tm, &tt);
+#else
+          gmtime_r(&tt, &tm);
+#endif
           char time_buf[32];
           std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M", &tm);
           ImPlot::Annotation(mouse.x, lims.Y.Min, ImVec4(1, 1, 1, 1),
