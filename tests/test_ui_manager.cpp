@@ -32,7 +32,9 @@ TEST(UiManager, MissingChartHtmlNotifies) {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-        ui.draw_chart_panel(pairs, intervals);
+        ui.set_pairs(pairs);
+        ui.set_intervals(intervals);
+        ui.draw_chart_panel();
 
         EXPECT_FALSE(msg.empty());
         EXPECT_NE(msg.find("chart"), std::string::npos);

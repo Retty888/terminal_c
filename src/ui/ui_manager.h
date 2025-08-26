@@ -20,9 +20,14 @@ public:
   ~UiManager();
   bool setup(GLFWwindow *window);
   void begin_frame();
+  // Update available trading pairs. Only rebuilds internal arrays if the
+  // provided list differs from the currently cached one.
+  void set_pairs(const std::vector<std::string> &pairs);
+  // Update available intervals. Only rebuilds internal arrays if the provided
+  // list differs from the currently cached one.
+  void set_intervals(const std::vector<std::string> &intervals);
   // Draw docked panels each frame.
-  void draw_chart_panel(const std::vector<std::string> &pairs,
-                        const std::vector<std::string> &intervals);
+  void draw_chart_panel();
   // Pushes trade markers to the chart.
   void set_markers(const std::string &markers_json);
   // Draws/updates a price line for the currently open position.
@@ -96,6 +101,12 @@ private:
   std::function<void(const std::string &)> status_callback_;
   bool shutdown_called_ = false;
   mutable std::mutex ui_mutex_;
+
+  // Cached data for pair and interval selection combos
+  std::vector<std::string> pair_strings_;
+  std::vector<const char *> pair_items_;
+  std::vector<std::string> interval_strings_;
+  std::vector<const char *> interval_items_;
 
   // Throttling for real-time candle pushes
   std::chrono::steady_clock::time_point last_push_time_{};
