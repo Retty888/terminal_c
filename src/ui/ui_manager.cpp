@@ -445,6 +445,9 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
 #else
   ImGui::TextUnformatted(
       "WebView support disabled; displaying fallback candlestick chart.");
+  if (status_callback_)
+    status_callback_(
+        "WebView support disabled; displaying fallback candlestick chart.");
   std::vector<double> xs, opens, closes, lows, highs;
   {
     std::lock_guard<std::mutex> lock(ui_mutex_);
@@ -485,7 +488,7 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
           double price = m.above ? it->high : it->low;
           ImPlot::Annotation(m.time, price, m.color,
                              ImVec2(0, m.above ? -10.0f : 10.0f), true,
-                             m.text.c_str());
+                             "%s", m.text.c_str());
         }
       }
       double x_min = xs.front();
@@ -506,7 +509,7 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
           char price_buf[32];
           std::snprintf(price_buf, sizeof(price_buf), "%.2f", mouse.y);
           ImPlot::Annotation(lims.X.Max, mouse.y, ImVec4(1, 1, 1, 1),
-                             ImVec2(5, 0), true, price_buf);
+                             ImVec2(5, 0), true, "%s", price_buf);
           auto tp = std::chrono::system_clock::time_point(
               std::chrono::seconds(static_cast<long long>(mouse.x)));
           std::time_t tt = std::chrono::system_clock::to_time_t(tp);
@@ -514,7 +517,7 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
           char time_buf[32];
           std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M", &tm);
           ImPlot::Annotation(mouse.x, lims.Y.Min, ImVec4(1, 1, 1, 1),
-                             ImVec2(0, 5), true, time_buf);
+                             ImVec2(0, 5), true, "%s", time_buf);
         }
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
           if (editing_object_ >= 0) {
@@ -640,7 +643,7 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
           char buf[32];
           std::snprintf(buf, sizeof(buf), "%.2f", o.y1);
           ImPlot::Annotation((o.x1 + o.x2) / 2.0, o.y1, ImVec4(1, 1, 1, 1),
-                             ImVec2(0, -5.0f), true, buf);
+                             ImVec2(0, -5.0f), true, "%s", buf);
         } else if (o.type == DrawTool::Ruler) {
           double lx[2] = {o.x1, o.x2};
           double ly[2] = {o.y1, o.y2};
@@ -651,7 +654,7 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
           char buf[64];
           std::snprintf(buf, sizeof(buf), "%.2f (%.2f%%)", diff, pct);
           ImPlot::Annotation(o.x2, o.y2, ImVec4(1, 1, 0, 1), ImVec2(5, 5), true,
-                             buf);
+                             "%s", buf);
         } else if (o.type == DrawTool::Fibo) {
           double xmin = std::min(o.x1, o.x2);
           double xmax = std::max(o.x1, o.x2);
@@ -668,7 +671,7 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
             char buf[32];
             std::snprintf(buf, sizeof(buf), "%.1f%%", lvl * 100.0);
             ImPlot::Annotation(xmax, y, ImVec4(1, 1, 1, 1), ImVec2(5, 0), true,
-                               buf);
+                               "%s", buf);
           }
         }
       }
@@ -693,7 +696,7 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
         ImVec4 col = diff >= 0 ? ImVec4(0, 1, 0, 1) : ImVec4(1, 0, 0, 1);
         ImPlot::Annotation(std::max(p.time1, p.time2),
                            (p.price1 + p.price2) / 2.0, col, ImVec2(10, 0),
-                           true, buf);
+                           true, "%s", buf);
       }
     }
     ImPlot::EndPlot();
