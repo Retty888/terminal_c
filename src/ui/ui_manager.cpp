@@ -274,7 +274,7 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
   int series_index = static_cast<int>(current_series_);
   const char *series_items[] = {"CandlestickSeries", "LineSeries",
                                 "AreaSeries"};
-  if (ImGui::Combo("Series", &series_index, series_items,
+  if (ImGui::Combo("Chart Type", &series_index, series_items,
                    static_cast<int>(IM_ARRAYSIZE(series_items)))) {
     current_series_ = static_cast<SeriesType>(series_index);
 #ifdef HAVE_WEBVIEW
@@ -285,6 +285,8 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
     }
 #endif
   }
+  ImGui::SetItemTooltip(
+      "Selects how the chart is displayed: candlesticks, line, or area.");
   auto set_tool = [&](DrawTool t) {
     current_tool_ = t;
     drawing_first_point_ = false;
