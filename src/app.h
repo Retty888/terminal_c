@@ -24,12 +24,8 @@ struct GLFWwindow;
 struct AppStatus {
   float candle_progress = 0.0f;
   std::string error_message;
-  struct LogEntry {
-    std::chrono::system_clock::time_point time;
-    Core::LogLevel level;
-    std::string message;
-  };
-  std::deque<LogEntry> log;
+  std::deque<std::string> log;
+  static constexpr size_t kMaxLogEntries = 200;
 };
 
 // The App class owns the services and drives the main event loop.

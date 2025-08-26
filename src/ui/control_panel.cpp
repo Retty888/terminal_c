@@ -389,30 +389,25 @@ static void RenderStatusPane(AppStatus &status, std::mutex &status_mutex) {
   ImGui::Text("Candles: %.0f%%", status.candle_progress * 100.0f);
   if (!status.error_message.empty())
     ImGui::TextColored(COLOR_LOW, "%s", status.error_message.c_str());
-  std::string log_text;
-  for (const auto &entry : status.log) {
-    std::tm tm;
-    auto t = std::chrono::system_clock::to_time_t(entry.time);
-#if defined(_WIN32)
-    localtime_s(&tm, &t);
-#else
-    localtime_r(&t, &tm);
-#endif
-    char buf[9];
-    std::strftime(buf, sizeof(buf), "%H:%M:%S", &tm);
-    const char *lvl = "INFO";
-    if (entry.level == Core::LogLevel::Warning)
-      lvl = "WARN";
-    else if (entry.level == Core::LogLevel::Error)
-      lvl = "ERROR";
-    log_text += std::string(buf) + " [" + lvl + "] " + entry.message + "\n";
+  ImGui::BeginChild("##status_log", ImVec2(0, 100), true);
+  ImGuiListClipper clipper;
+  clipper.Begin(static_cast<int>(status.log.size()));
+  while (clipper.Step()) {
+    for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i)
+      ImGui::TextUnformatted(status.log[i].c_str());
   }
-  log_text.push_back('\0');
-  ImGui::InputTextMultiline("##status_log", log_text.data(), log_text.size(),
-                            ImVec2(-FLT_MIN, 100),
-                            ImGuiInputTextFlags_ReadOnly);
-  if (ImGui::Button("Copy"))
-    ImGui::SetClipboardText(log_text.c_str());
+  ImGui::EndChild();
+  if (ImGui::Button("Clear"))
+    status.log.clear();
+  ImGui::SameLine();
+  if (ImGui::Button("Copy")) {
+    std::string copy;
+    for (const auto &line : status.log) {
+      copy += line;
+      copy.push_back('\n');
+    }
+    ImGui::SetClipboardText(copy.c_str());
+  }
 }
 
 void DrawControlPanel(

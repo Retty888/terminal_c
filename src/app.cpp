@@ -50,8 +50,22 @@ App::~App() { cleanup(); }
 void App::add_status(const std::string &msg, Core::LogLevel level,
                      std::chrono::system_clock::time_point time) {
   std::lock_guard<std::mutex> lock(status_mutex_);
-  status_.log.push_back({time, level, msg});
-  if (status_.log.size() > 200)
+  std::tm tm;
+  auto t = std::chrono::system_clock::to_time_t(time);
+#if defined(_WIN32)
+  localtime_s(&tm, &t);
+#else
+  localtime_r(&t, &tm);
+#endif
+  char buf[9];
+  std::strftime(buf, sizeof(buf), "%H:%M:%S", &tm);
+  const char *lvl = "INFO";
+  if (level == Core::LogLevel::Warning)
+    lvl = "WARN";
+  else if (level == Core::LogLevel::Error)
+    lvl = "ERROR";
+  status_.log.emplace_back(std::string(buf) + " [" + lvl + "] " + msg);
+  if (status_.log.size() > AppStatus::kMaxLogEntries)
     status_.log.pop_front();
 }
 
