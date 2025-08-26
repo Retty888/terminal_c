@@ -140,6 +140,7 @@ enable_testing()
 add_executable(test_candle_manager
   tests/test_candle_manager.cpp
   src/core/candle_manager.cpp
+  src/core/candle_utils.cpp
   src/core/data_dir.cpp
   src/core/interval_utils.cpp
   src/candle.cpp
@@ -186,6 +187,7 @@ add_executable(test_kline_stream
   src/core/kline_stream.cpp
   src/core/iwebsocket.cpp
   src/core/candle_manager.cpp
+  src/core/candle_utils.cpp
   src/core/data_dir.cpp
   src/core/interval_utils.cpp
   src/candle.cpp

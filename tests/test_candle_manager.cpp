@@ -153,3 +153,41 @@ TEST(CandleManagerTest, SaveLoadJsonFile) {
     std::filesystem::remove_all(dir);
 }
 
+TEST(CandleManagerTest, AppendSkipsDuplicatesWithCorruptedIndex) {
+    using namespace Core;
+    std::filesystem::path dir = std::filesystem::temp_directory_path() / "cm_corrupt_idx_test";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    CandleManager cm(dir);
+
+    std::vector<Candle> base = {
+        {1,1,1,1,1,1,1,1,1,1,1,0},
+        {2,2,2,2,2,2,2,2,2,2,2,0}
+    };
+    ASSERT_TRUE(cm.save_candles("TEST","1m",base));
+
+    // Corrupt index file
+    std::filesystem::path idx_path = dir / "TEST_1m.idx";
+    {
+        std::ofstream idx(idx_path, std::ios::trunc);
+        idx << "bad";
+    }
+
+    std::vector<Candle> more = {
+        {2,2,2,2,2,2,2,2,2,2,2,0}, // duplicate
+        {3,3,3,3,3,3,3,3,3,3,3,0}
+    };
+    ASSERT_TRUE(cm.append_candles("TEST","1m", more));
+
+    auto loaded = cm.load_candles("TEST","1m");
+    ASSERT_EQ(loaded.size(), 3);
+    EXPECT_EQ(loaded.back().open_time, 3);
+
+    long long idx_time = -1;
+    std::ifstream idx(idx_path);
+    idx >> idx_time;
+    EXPECT_EQ(idx_time, 3);
+
+    std::filesystem::remove_all(dir);
+}
+
