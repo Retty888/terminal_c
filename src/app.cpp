@@ -50,7 +50,7 @@ void App::add_status(const std::string &msg, Core::LogLevel level,
                      std::chrono::system_clock::time_point time) {
   std::lock_guard<std::mutex> lock(status_mutex_);
   status_.log.push_back({time, level, msg});
-  if (status_.log.size() > 50)
+  if (status_.log.size() > 200)
     status_.log.pop_front();
 }
 
