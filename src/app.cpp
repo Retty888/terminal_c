@@ -148,8 +148,11 @@ void App::load_pairs(std::vector<std::string> &pair_names) {
       auto lp = entry.rfind(" (");
       auto rp = entry.rfind(')');
       if (lp != std::string::npos && rp != std::string::npos && lp < rp) {
+        auto interval = entry.substr(lp + 2, rp - lp - 2);
+        if (interval == "unknown format")
+          continue;
         pairs_found.insert(entry.substr(0, lp));
-        intervals_found.insert(entry.substr(lp + 2, rp - lp - 2));
+        intervals_found.insert(interval);
       }
     }
     pair_names.assign(pairs_found.begin(), pairs_found.end());

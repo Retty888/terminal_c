@@ -578,17 +578,14 @@ std::vector<std::string> CandleManager::list_stored_data() const {
     if (std::filesystem::exists(data_dir_) && std::filesystem::is_directory(data_dir_)) {
         for (const auto& entry : std::filesystem::directory_iterator(data_dir_)) {
             if (entry.is_regular_file() && entry.path().extension() == ".csv") {
-                std::string filename = entry.path().filename().string();
-                // Assuming filename format is SYMBOL_INTERVAL.csv
-                // Extract SYMBOL and INTERVAL
-                size_t last_underscore = filename.rfind('_');
-                size_t dot_csv = filename.rfind(".csv");
-                if (last_underscore != std::string::npos && dot_csv != std::string::npos && last_underscore < dot_csv) {
-                    std::string symbol = filename.substr(0, last_underscore);
-                    std::string interval = filename.substr(last_underscore + 1, dot_csv - (last_underscore + 1));
-                    stored_files.push_back(symbol + " (" + interval + ")");
-                } else {
-                    stored_files.push_back(filename + " (unknown format)");
+                std::string stem = entry.path().stem().string();
+                size_t last_underscore = stem.rfind('_');
+                if (last_underscore != std::string::npos) {
+                    std::string symbol = stem.substr(0, last_underscore);
+                    std::string interval = stem.substr(last_underscore + 1);
+                    if (!symbol.empty() && !interval.empty()) {
+                        stored_files.push_back(symbol + " (" + interval + ")");
+                    }
                 }
             }
         }
