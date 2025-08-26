@@ -7,6 +7,7 @@
 #include <charconv>
 #include <string_view>
 #include <system_error>
+#include <map>
 #include "core/logger.h"
 #include "interval_utils.h"
 #include "core/data_dir.h"
@@ -165,42 +166,27 @@ bool CandleManager::save_candles(const std::string& symbol, const std::string& i
 }
 
 bool CandleManager::append_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    std::filesystem::path path_to_save = get_candle_path(symbol, interval);
-    long long last_open_time = read_last_open_time(symbol, interval);
+    // Load existing candles from disk first.
+    auto existing = load_candles(symbol, interval);
 
-    std::ofstream file(path_to_save, std::ios::app);
-    if (!file.is_open()) {
-        Logger::instance().error("Could not open file for appending: " + path_to_save.string());
-        return false;
+    // Merge existing and new candles using a map keyed by open_time.
+    std::map<long long, Candle> merged;
+    for (const auto& c : existing) {
+        merged[c.open_time] = c;
+    }
+    for (const auto& c : candles) {
+        merged[c.open_time] = c; // replaces any candle with same open_time
     }
 
-    // If file newly created, write header
-    if (std::filesystem::file_size(path_to_save) == 0) {
-        file << "open_time,open,high,low,close,volume,close_time,quote_asset_volume,number_of_trades,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore\n";
+    // Build a sorted vector from the map values.
+    std::vector<Candle> result;
+    result.reserve(merged.size());
+    for (const auto& [_, c] : merged) {
+        result.push_back(c);
     }
 
-    for (const auto& candle : candles) {
-        if (candle.open_time > last_open_time) {
-            file << candle.open_time << ","
-                 << std::fixed << std::setprecision(8) << candle.open << ","
-                 << std::fixed << std::setprecision(8) << candle.high << ","
-                 << std::fixed << std::setprecision(8) << candle.low << ","
-                 << std::fixed << std::setprecision(8) << candle.close << ","
-                 << std::fixed << std::setprecision(8) << candle.volume << ","
-                 << candle.close_time << ","
-                 << std::fixed << std::setprecision(8) << candle.quote_asset_volume << ","
-                 << candle.number_of_trades << ","
-                 << std::fixed << std::setprecision(8) << candle.taker_buy_base_asset_volume << ","
-                 << std::fixed << std::setprecision(8) << candle.taker_buy_quote_asset_volume << ","
-                 << std::fixed << std::setprecision(8) << candle.ignore << "\n";
-            last_open_time = candle.open_time;
-        }
-    }
-
-    file.close();
-    write_last_open_time(symbol, interval, last_open_time);
-    return true;
+    // Save the merged candle set back to disk.
+    return save_candles(symbol, interval, result);
 }
 
 bool CandleManager::validate_candles(const std::string& symbol, const std::string& interval) const {
