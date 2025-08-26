@@ -495,8 +495,7 @@ void App::start_fetch_thread() {
 void App::stop_fetch_thread() {
   fetch_thread_.request_stop();
   this->ctx_->fetch_cv.notify_all();
-  if (fetch_thread_.joinable())
-    fetch_thread_.join();
+  fetch_thread_ = std::jthread();
 }
 
 void App::process_events() {
