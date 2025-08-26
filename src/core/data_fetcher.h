@@ -17,7 +17,8 @@ enum class FetchError {
   None = 0,        // No error
   HttpError = 1,   // Non-200 HTTP status
   ParseError = 2,  // Failed to parse response
-  NetworkError = 3 // Network level failure
+  NetworkError = 3, // Network level failure
+  InvalidInterval = 4 // Invalid or empty interval
 };
 
 struct KlinesResult {
