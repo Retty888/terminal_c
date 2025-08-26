@@ -262,36 +262,93 @@ void App::update_available_intervals() {
 }
 
 void App::load_existing_candles() {
+  struct LoadTask {
+    std::string pair;
+    std::string interval;
+    std::future<std::vector<Core::Candle>> future;
+  };
+
+  std::vector<LoadTask> tasks;
   for (const auto &pair : this->ctx_->selected_pairs) {
     for (const auto &interval : this->ctx_->intervals) {
-      this->ctx_->all_candles[pair][interval] =
-          data_service_.load_candles(pair, interval);
-      auto &candles = this->ctx_->all_candles[pair][interval];
-      long long interval_ms = Core::parse_interval(interval).count();
-      if (interval_ms > 0 && candles.size() > 1) {
-        bool fixed = false;
-        for (std::size_t i = 0; i + 1 < candles.size(); ++i) {
-          const auto &cur = candles[i];
-          const auto &next = candles[i + 1];
-          long long expected = cur.open_time + interval_ms;
-          if (next.open_time - cur.open_time > interval_ms) {
-            auto res = data_service_.fetch_range(pair, interval, expected,
-                                                 next.open_time - interval_ms);
-            if (res.error == Core::FetchError::None && !res.candles.empty()) {
-              candles.insert(candles.begin() + i + 1, res.candles.begin(),
-                             res.candles.end());
-              data_service_.append_candles(pair, interval, res.candles);
-              i += res.candles.size();
-              fixed = true;
+      tasks.push_back({
+          pair, interval,
+          std::async(std::launch::async, [this, pair, interval]() {
+            auto candles = data_service_.load_candles(pair, interval);
+            long long interval_ms = Core::parse_interval(interval).count();
+            if (interval_ms > 0 && candles.size() > 1) {
+              bool fixed = false;
+              for (std::size_t i = 0; i + 1 < candles.size(); ++i) {
+                const auto &cur = candles[i];
+                const auto &next = candles[i + 1];
+                long long expected = cur.open_time + interval_ms;
+                if (next.open_time - cur.open_time > interval_ms) {
+                  auto res = data_service_.fetch_range(
+                      pair, interval, expected, next.open_time - interval_ms);
+                  if (res.error == Core::FetchError::None &&
+                      !res.candles.empty()) {
+                    candles.insert(candles.begin() + i + 1, res.candles.begin(),
+                                   res.candles.end());
+                    data_service_.append_candles(pair, interval, res.candles);
+                    i += res.candles.size();
+                    fixed = true;
+                  }
+                }
+              }
+              if (fixed)
+                Core::fill_missing(candles, interval_ms);
             }
-          }
-        }
-        if (fixed) {
-          Core::fill_missing(candles, interval_ms);
-        }
-      }
+            return candles;
+          })});
     }
   }
+
+  {
+    std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
+    this->ctx_->total_fetches = tasks.size();
+    this->ctx_->completed_fetches = 0;
+  }
+
+  while (!tasks.empty()) {
+    for (auto it = tasks.begin(); it != tasks.end();) {
+      if (it->future.wait_for(std::chrono::milliseconds(0)) ==
+          std::future_status::ready) {
+        auto pair = it->pair;
+        auto interval = it->interval;
+        auto candles = it->future.get();
+        {
+          std::lock_guard<std::shared_mutex> lock(this->ctx_->candles_mutex);
+          this->ctx_->all_candles[pair][interval] = candles;
+        }
+        if (pair == this->ctx_->active_pair &&
+            interval == this->ctx_->active_interval) {
+          ui_manager_.set_candles(candles);
+        }
+        {
+          std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
+          ++this->ctx_->completed_fetches;
+        }
+        update_candle_progress();
+        it = tasks.erase(it);
+        add_status("Loaded " + pair + " " + interval);
+      } else {
+        ++it;
+      }
+    }
+
+    glfwPollEvents();
+    ui_manager_.begin_frame();
+    render_status_window();
+    ui_manager_.end_frame(window_.get());
+    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
+    this->ctx_->total_fetches = 0;
+    this->ctx_->completed_fetches = 0;
+  }
+  update_candle_progress();
 }
 
 void App::start_initial_fetch_and_streams() {
