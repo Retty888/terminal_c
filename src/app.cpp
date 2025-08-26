@@ -103,8 +103,10 @@ void App::setup_imgui() {
     this->ctx_->selected_interval = iv;
     this->ctx_->active_interval = iv;
   });
-  ui_manager_.set_pair_callback(
-      [this](const std::string &p) { this->ctx_->active_pair = p; });
+  ui_manager_.set_pair_callback([this](const std::string &p) {
+    this->ctx_->active_pair = p;
+    update_available_intervals();
+  });
   ui_manager_.set_status_callback(
       [this](const std::string &msg) { this->add_status(msg); });
   Core::Logger::instance().set_sink(
@@ -126,8 +128,7 @@ void App::load_config() {
     this->ctx_->streaming_enabled = false;
     this->ctx_->save_journal_csv = true;
   }
-  this->ctx_->intervals = {"1m", "3m", "5m",  "15m", "1h",
-                           "4h", "1d", "15s", "5s"};
+  this->ctx_->intervals = {"1m", "3m", "5m", "15m", "1h", "4h", "1d"};
   auto exchange_interval_res = data_service_.fetch_intervals();
   if (exchange_interval_res.error == Core::FetchError::None) {
     this->ctx_->intervals.insert(this->ctx_->intervals.end(),
@@ -135,6 +136,7 @@ void App::load_config() {
                                  exchange_interval_res.intervals.end());
   }
   load_pairs(pair_names);
+  update_available_intervals();
   load_existing_candles();
   start_initial_fetch_and_streams();
 }
@@ -149,7 +151,7 @@ void App::load_pairs(std::vector<std::string> &pair_names) {
       auto rp = entry.rfind(')');
       if (lp != std::string::npos && rp != std::string::npos && lp < rp) {
         auto interval = entry.substr(lp + 2, rp - lp - 2);
-        if (interval == "unknown format")
+        if (Core::parse_interval(interval).count() == 0)
           continue;
         pairs_found.insert(entry.substr(0, lp));
         intervals_found.insert(interval);
@@ -193,6 +195,44 @@ void App::load_pairs(std::vector<std::string> &pair_names) {
       this->ctx_->intervals.empty() ? "1m" : this->ctx_->intervals[0];
   ui_manager_.set_initial_interval(this->ctx_->selected_interval);
   ui_manager_.set_initial_pair(this->ctx_->active_pair);
+}
+
+void App::update_available_intervals() {
+  this->ctx_->available_intervals.clear();
+  auto stored = data_service_.list_stored_data();
+  for (const auto &entry : stored) {
+    auto lp = entry.rfind(" (");
+    auto rp = entry.rfind(')');
+    if (lp != std::string::npos && rp != std::string::npos && lp < rp) {
+      auto symbol = entry.substr(0, lp);
+      auto interval = entry.substr(lp + 2, rp - lp - 2);
+      if (symbol == this->ctx_->active_pair &&
+          Core::parse_interval(interval).count() > 0) {
+        this->ctx_->available_intervals.push_back(interval);
+      }
+    }
+  }
+  std::sort(this->ctx_->available_intervals.begin(),
+            this->ctx_->available_intervals.end(),
+            [](const std::string &a, const std::string &b) {
+              return Core::parse_interval(a) < Core::parse_interval(b);
+            });
+  this->ctx_->available_intervals.erase(
+      std::unique(this->ctx_->available_intervals.begin(),
+                   this->ctx_->available_intervals.end()),
+      this->ctx_->available_intervals.end());
+  if (!this->ctx_->available_intervals.empty()) {
+    if (std::find(this->ctx_->available_intervals.begin(),
+                  this->ctx_->available_intervals.end(),
+                  this->ctx_->active_interval) ==
+        this->ctx_->available_intervals.end()) {
+      this->ctx_->active_interval = this->ctx_->available_intervals.front();
+      this->ctx_->selected_interval = this->ctx_->active_interval;
+    }
+    ui_manager_.set_initial_interval(this->ctx_->active_interval);
+  } else {
+    ui_manager_.set_initial_interval(this->ctx_->active_interval);
+  }
 }
 
 void App::load_existing_candles() {
@@ -588,7 +628,7 @@ void App::render_main_windows() {
                    this->ctx_->show_journal_window,
                    this->ctx_->show_backtest_window);
   ui_manager_.draw_chart_panel(this->ctx_->selected_pairs,
-                               this->ctx_->intervals);
+                               this->ctx_->available_intervals);
   if (this->ctx_->show_analytics_window) {
     DrawAnalyticsWindow(this->ctx_->all_candles, this->ctx_->active_pair,
                         this->ctx_->selected_interval);

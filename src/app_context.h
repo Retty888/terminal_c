@@ -24,6 +24,7 @@ struct AppContext {
   std::string active_pair;
   std::string active_interval;
   std::vector<std::string> intervals;
+  std::vector<std::string> available_intervals;
   std::vector<std::string> exchange_pairs;
   std::string selected_interval;
   std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>
