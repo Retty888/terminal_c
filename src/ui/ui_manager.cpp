@@ -326,7 +326,7 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
       webview_navigate(static_cast<webview_t>(webview_), url.c_str());
     webview_bind(
         static_cast<webview_t>(webview_), "setInterval",
-        [](webview_t w, const char *seq, const char *req, void *arg) {
+        [](const char *seq, const char *req, void *arg) {
           auto self = static_cast<UiManager *>(arg);
           if (self->on_interval_changed_) {
             try {
@@ -336,12 +336,13 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
             } catch (...) {
             }
           }
-          webview_return(w, seq, 0, nullptr);
+          webview_return(static_cast<webview_t>(self->webview_), seq, 0,
+                         "null");
         },
         this);
     webview_bind(
         static_cast<webview_t>(webview_), "setPair",
-        [](webview_t w, const char *seq, const char *req, void *arg) {
+        [](const char *seq, const char *req, void *arg) {
           auto self = static_cast<UiManager *>(arg);
           if (self->on_pair_changed_) {
             try {
@@ -351,12 +352,13 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
             } catch (...) {
             }
           }
-          webview_return(w, seq, 0, nullptr);
+          webview_return(static_cast<webview_t>(self->webview_), seq, 0,
+                         "null");
         },
         this);
     webview_bind(
         static_cast<webview_t>(webview_), "status",
-        [](webview_t w, const char *seq, const char *req, void *arg) {
+        [](const char *seq, const char *req, void *arg) {
           auto self = static_cast<UiManager *>(arg);
           if (self->status_callback_) {
             try {
@@ -366,25 +368,28 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
             } catch (...) {
             }
           }
-          webview_return(w, seq, 0, nullptr);
+          webview_return(static_cast<webview_t>(self->webview_), seq, 0,
+                         "null");
         },
         this);
     webview_bind(
         static_cast<webview_t>(webview_), "setTool",
-        [](webview_t w, const char *seq, const char *req, void *arg) {
+        [](const char *seq, const char *req, void *arg) {
           auto self = static_cast<UiManager *>(arg);
           try {
             auto j = nlohmann::json::parse(req);
             if (j.is_array() && !j.empty())
-              self->current_tool_ = ToolFromString(j[0].get<std::string>());
+              self->current_tool_ =
+                  ToolFromString(j[0].get<std::string>());
           } catch (...) {
           }
-          webview_return(w, seq, 0, nullptr);
+          webview_return(static_cast<webview_t>(self->webview_), seq, 0,
+                         "null");
         },
         this);
     webview_bind(
         static_cast<webview_t>(webview_), "setSeries",
-        [](webview_t w, const char *seq, const char *req, void *arg) {
+        [](const char *seq, const char *req, void *arg) {
           auto self = static_cast<UiManager *>(arg);
           try {
             auto j = nlohmann::json::parse(req);
@@ -393,7 +398,8 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
                   SeriesTypeFromString(j[0].get<std::string>());
           } catch (...) {
           }
-          webview_return(w, seq, 0, nullptr);
+          webview_return(static_cast<webview_t>(self->webview_), seq, 0,
+                         "null");
         },
         this);
       webview_thread_ = std::jthread([this](std::stop_token) {
