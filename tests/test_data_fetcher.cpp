@@ -87,6 +87,16 @@ TEST(DataFetcherTest, AsyncDelegatesToSync) {
   ASSERT_EQ(res.candles.size(), 1u);
 }
 
+TEST(DataFetcherTest, RejectsInvalidInterval) {
+  auto http = std::make_shared<FakeHttpClient>();
+  auto limiter = std::make_shared<DummyLimiter>();
+  Core::DataFetcher fetcher(http, limiter);
+  auto res = fetcher.fetch_klines("BTCUSDT", "", 1);
+  EXPECT_EQ(res.error, Core::FetchError::InvalidInterval);
+  EXPECT_TRUE(res.candles.empty());
+  EXPECT_EQ(http->urls.size(), 0u);
+}
+
 TEST(DataFetcherTest, AltApiBatchesRequestsOverLimit) {
   auto http = std::make_shared<FakeHttpClient>();
   http->responses.push_back({200, make_gate_response(10000, 1000, 10), "", false});

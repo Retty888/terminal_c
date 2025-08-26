@@ -48,6 +48,10 @@ KlinesResult DataFetcher::fetch_klines_from_api(
   std::vector<Candle> all_candles;
   all_candles.reserve(limit);
   auto interval_ms = parse_interval(interval).count();
+  if (interval_ms <= 0) {
+    Logger::instance().error("Invalid interval: " + interval);
+    return {FetchError::InvalidInterval, 0, "Invalid interval", {}};
+  }
 
   auto now = std::chrono::system_clock::now();
   long long current_ms =
@@ -135,6 +139,9 @@ KlinesResult DataFetcher::fetch_klines(
   auto res = fetch_klines_from_api(
       "https://api.binance.com/api/v3/klines?symbol=", symbol, interval, limit,
       max_retries, retry_delay);
+  if (res.error == FetchError::InvalidInterval) {
+    return res;
+  }
   if (res.error != FetchError::None) {
     return fetch_klines_alt(symbol, interval, limit, max_retries, retry_delay);
   }
