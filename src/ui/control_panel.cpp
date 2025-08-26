@@ -397,7 +397,11 @@ static void RenderStatusPane(AppStatus &status) {
       if (entry.level != Core::LogLevel::Info)
         ImGui::PushStyleColor(ImGuiCol_Text, col);
       std::string line = std::string(buf) + " [" + lvl + "] " + entry.message;
-      ImGui::Selectable(line.c_str(), false, ImGuiSelectableFlags_Disabled);
+      ImGui::Selectable(line.c_str(), false);
+      if (ImGui::IsItemHovered() &&
+          ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+        ImGui::SetClipboardText(line.c_str());
+      }
       if (entry.level != Core::LogLevel::Info)
         ImGui::PopStyleColor();
     }
