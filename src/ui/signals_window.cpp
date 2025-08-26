@@ -10,16 +10,19 @@
 #include <algorithm>
 #include <ctime>
 
-
 void DrawSignalsWindow(
     std::string &strategy, int &short_period, int &long_period,
     double &oversold, double &overbought, bool &show_on_chart,
     std::vector<SignalEntry> &signal_entries,
     std::vector<AppContext::TradeEvent> &trades,
-    const std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>
+    const std::map<std::string,
+                   std::map<std::string, std::vector<Core::Candle>>>
         &all_candles,
     const std::string &active_pair, const std::string &selected_interval,
     AppStatus &status) {
+  auto vp = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(vp->WorkSize, ImGuiCond_FirstUseEver);
   ImGui::Begin("Signals");
   static const char *strategies[] = {"sma_crossover", "ema", "rsi"};
   int strategy_idx = 0;
@@ -75,8 +78,8 @@ void DrawSignalsWindow(
 
   if (need_recalc) {
     status.signal_message = "Computing signals";
-    Core::Logger::instance().info("Computing signals for " + active_pair +
-                                  " " + selected_interval);
+    Core::Logger::instance().info("Computing signals for " + active_pair + " " +
+                                  selected_interval);
     cache.strategy = strategy;
     cache.short_period = short_period;
     cache.long_period = long_period;
