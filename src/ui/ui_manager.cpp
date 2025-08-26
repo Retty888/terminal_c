@@ -232,8 +232,29 @@ void UiManager::begin_frame() {
   ImGui::NewFrame();
 }
 
-void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
-                                 const std::vector<std::string> &intervals) {
+void UiManager::set_pairs(const std::vector<std::string> &pairs) {
+  if (pairs != pair_strings_) {
+    pair_strings_ = pairs;
+    pair_items_.clear();
+    pair_items_.reserve(pair_strings_.size());
+    for (auto &p : pair_strings_) {
+      pair_items_.push_back(p.c_str());
+    }
+  }
+}
+
+void UiManager::set_intervals(const std::vector<std::string> &intervals) {
+  if (intervals != interval_strings_) {
+    interval_strings_ = intervals;
+    interval_items_.clear();
+    interval_items_.reserve(interval_strings_.size());
+    for (auto &i : interval_strings_) {
+      interval_items_.push_back(i.c_str());
+    }
+  }
+}
+
+void UiManager::draw_chart_panel() {
   // Display the currently selected interval in the panel title so users can
   // easily confirm the timeframe of the data being shown. If the interval is
   // empty, fall back to the plain "Chart" title.
@@ -247,36 +268,30 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
   ImGui::Begin(title.c_str());
 
   int pair_index = 0;
-  std::vector<const char *> pair_items;
-  pair_items.reserve(pairs.size());
-  for (std::size_t i = 0; i < pairs.size(); ++i) {
-    pair_items.push_back(pairs[i].c_str());
-    if (pairs[i] == current_pair_)
+  for (std::size_t i = 0; i < pair_strings_.size(); ++i) {
+    if (pair_strings_[i] == current_pair_)
       pair_index = static_cast<int>(i);
   }
-  if (ImGui::Combo("Pair", &pair_index, pair_items.data(),
-                   static_cast<int>(pair_items.size()))) {
-    if (pair_index >= 0 && pair_index < static_cast<int>(pairs.size())) {
-      current_pair_ = pairs[pair_index];
+  if (ImGui::Combo("Pair", &pair_index, pair_items_.data(),
+                   static_cast<int>(pair_items_.size()))) {
+    if (pair_index >= 0 && pair_index < static_cast<int>(pair_strings_.size())) {
+      current_pair_ = pair_strings_[pair_index];
       if (on_pair_changed_)
         on_pair_changed_(current_pair_);
     }
   }
 
   int interval_index = 0;
-  std::vector<const char *> interval_items;
-  interval_items.reserve(intervals.size());
-  for (std::size_t i = 0; i < intervals.size(); ++i) {
-    interval_items.push_back(intervals[i].c_str());
-    if (intervals[i] == current_interval_)
+  for (std::size_t i = 0; i < interval_strings_.size(); ++i) {
+    if (interval_strings_[i] == current_interval_)
       interval_index = static_cast<int>(i);
   }
-  if (!interval_items.empty()) {
-    if (ImGui::Combo("Interval", &interval_index, interval_items.data(),
-                     static_cast<int>(interval_items.size()))) {
+  if (!interval_items_.empty()) {
+    if (ImGui::Combo("Interval", &interval_index, interval_items_.data(),
+                     static_cast<int>(interval_items_.size()))) {
       if (interval_index >= 0 &&
-          interval_index < static_cast<int>(intervals.size())) {
-        current_interval_ = intervals[interval_index];
+          interval_index < static_cast<int>(interval_strings_.size())) {
+        current_interval_ = interval_strings_[interval_index];
         if (on_interval_changed_)
           on_interval_changed_(current_interval_);
         ImGuiIO &io = ImGui::GetIO();

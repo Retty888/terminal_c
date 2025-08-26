@@ -725,8 +725,9 @@ void App::render_main_windows() {
   }
   {
     std::shared_lock<std::shared_mutex> lock(this->ctx_->candles_mutex);
-    ui_manager_.draw_chart_panel(this->ctx_->selected_pairs,
-                                 this->ctx_->available_intervals);
+    ui_manager_.set_pairs(this->ctx_->selected_pairs);
+    ui_manager_.set_intervals(this->ctx_->available_intervals);
+    ui_manager_.draw_chart_panel();
     if (this->ctx_->show_analytics_window) {
       DrawAnalyticsWindow(this->ctx_->all_candles, this->ctx_->active_pair,
                           this->ctx_->selected_interval);
