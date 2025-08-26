@@ -196,8 +196,14 @@ void DrawSignalsWindow(
       ImGui::TableNextRow();
       ImGui::TableSetColumnIndex(0);
       std::time_t tt = static_cast<std::time_t>(signal_entries[i].time);
-      std::tm *tm = std::localtime(&tt);
-      if (tm && std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", tm)) {
+      std::tm tm{};
+      bool time_ok = false;
+#if defined(_WIN32)
+      time_ok = localtime_s(&tm, &tt) == 0;
+#else
+      time_ok = localtime_r(&tt, &tm) != nullptr;
+#endif
+      if (time_ok && std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", &tm)) {
         ImGui::TextUnformatted(buf);
       } else {
         ImGui::Text("%lld", static_cast<long long>(signal_entries[i].time));
