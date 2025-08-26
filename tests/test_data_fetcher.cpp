@@ -49,6 +49,32 @@ static std::string make_gate_response(int start_ts, int count, int interval) {
   return arr.dump();
 }
 
+TEST(DataFetcherTest, ReturnsNetworkErrorWhenUninitialized) {
+  Core::DataFetcher fetcher(nullptr, nullptr);
+  auto res1 = fetcher.fetch_klines("BTCUSDT", "1m", 1);
+  EXPECT_EQ(res1.error, Core::FetchError::NetworkError);
+  auto res2 = fetcher.fetch_klines_alt("BTCUSDT", "5s", 1);
+  EXPECT_EQ(res2.error, Core::FetchError::NetworkError);
+  auto sym = fetcher.fetch_all_symbols();
+  EXPECT_EQ(sym.error, Core::FetchError::NetworkError);
+  auto iv = fetcher.fetch_all_intervals();
+  EXPECT_EQ(iv.error, Core::FetchError::NetworkError);
+}
+
+TEST(DataFetcherTest, NetworkErrorWhenHttpClientNull) {
+  auto limiter = std::make_shared<DummyLimiter>();
+  Core::DataFetcher fetcher(nullptr, limiter);
+  auto res = fetcher.fetch_klines("BTCUSDT", "1m", 1);
+  EXPECT_EQ(res.error, Core::FetchError::NetworkError);
+}
+
+TEST(DataFetcherTest, NetworkErrorWhenRateLimiterNull) {
+  auto http = std::make_shared<FakeHttpClient>();
+  Core::DataFetcher fetcher(http, nullptr);
+  auto res = fetcher.fetch_klines("BTCUSDT", "1m", 1);
+  EXPECT_EQ(res.error, Core::FetchError::NetworkError);
+}
+
 TEST(DataFetcherTest, FetchKlinesParsesCandles) {
   auto http = std::make_shared<FakeHttpClient>();
   http->responses.push_back({200,
