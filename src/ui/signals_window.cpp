@@ -63,10 +63,25 @@ void DrawSignalsWindow(
     bool initialized = false;
   };
   static SignalsCache cache;
-
-  const auto &sig_candles = all_candles.at(active_pair).at(selected_interval);
-  long long latest_time =
-      sig_candles.empty() ? 0 : sig_candles.back().open_time;
+  auto pair_it = all_candles.find(active_pair);
+  if (pair_it == all_candles.end()) {
+    status.signal_message = "No candles for " + active_pair;
+    ImGui::End();
+    return;
+  }
+  auto interval_it = pair_it->second.find(selected_interval);
+  if (interval_it == pair_it->second.end()) {
+    status.signal_message = "No candles for interval " + selected_interval;
+    ImGui::End();
+    return;
+  }
+  const auto &sig_candles = interval_it->second;
+  if (sig_candles.empty()) {
+    status.signal_message = "No candle data";
+    ImGui::End();
+    return;
+  }
+  long long latest_time = sig_candles.back().open_time;
 
   bool need_recalc =
       request || !cache.initialized || cache.short_period != short_period ||
