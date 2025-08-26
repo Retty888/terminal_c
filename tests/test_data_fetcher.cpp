@@ -7,6 +7,13 @@
 #include <mutex>
 #include <unordered_map>
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <cstdlib>
+
+#define private public
+#include "services/data_service.h"
+#undef private
 
 
 class DummyLimiter : public Core::IRateLimiter {
@@ -181,5 +188,63 @@ TEST(DataFetcherTest, FetchAllSymbolsParallelSuccess) {
   EXPECT_TRUE(std::find(http->urls.begin(), http->urls.end(),
                         "https://api.binance.com/api/v3/ticker/24hr") !=
               http->urls.end());
+}
+
+TEST(DataServiceFallbackTest, GateioFirstThenBinanceOnFailure) {
+  std::filesystem::path cfg =
+      std::filesystem::temp_directory_path() / "cfg_gate.json";
+  {
+    std::ofstream ofs(cfg);
+    ofs << R"({"fallback_provider":"gateio"})";
+  }
+  setenv("CANDLE_CONFIG_PATH", cfg.c_str(), 1);
+
+  DataService svc;
+  auto http = std::make_shared<FakeHttpClient>();
+  auto limiter = std::make_shared<DummyLimiter>();
+  svc.http_client_ = http;
+  svc.rate_limiter_ = limiter;
+  svc.fetcher_ = Core::DataFetcher(http, limiter);
+
+  http->responses.push_back({500, "", "", false});
+  http->responses.push_back({200,
+                             "[[0,\"1\",\"2\",\"3\",\"4\",\"5\",0,\"7\",0,\"9\",\"10\",\"11\"]]",
+                             "", false});
+  auto res = svc.fetch_klines_alt("BTCUSDT", "1m", 1);
+  EXPECT_EQ(res.error, Core::FetchError::None);
+  ASSERT_EQ(http->urls.size(), 2u);
+  EXPECT_NE(http->urls[0].find("api.gateio.ws"), std::string::npos);
+  EXPECT_NE(http->urls[1].find("api.binance.com"), std::string::npos);
+
+  unsetenv("CANDLE_CONFIG_PATH");
+}
+
+TEST(DataServiceFallbackTest, BinanceFirstThenGateioOnFailure) {
+  std::filesystem::path cfg =
+      std::filesystem::temp_directory_path() / "cfg_bin.json";
+  {
+    std::ofstream ofs(cfg);
+    ofs << R"({"fallback_provider":"binance"})";
+  }
+  setenv("CANDLE_CONFIG_PATH", cfg.c_str(), 1);
+
+  DataService svc;
+  auto http = std::make_shared<FakeHttpClient>();
+  auto limiter = std::make_shared<DummyLimiter>();
+  svc.http_client_ = http;
+  svc.rate_limiter_ = limiter;
+  svc.fetcher_ = Core::DataFetcher(http, limiter);
+
+  http->responses.push_back({500, "", "", false});
+  http->responses.push_back({200,
+                             "[[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\"]]",
+                             "", false});
+  auto res = svc.fetch_klines_alt("BTCUSDT", "1m", 1);
+  EXPECT_EQ(res.error, Core::FetchError::None);
+  ASSERT_EQ(http->urls.size(), 2u);
+  EXPECT_NE(http->urls[0].find("api.binance.com"), std::string::npos);
+  EXPECT_NE(http->urls[1].find("api.gateio.ws"), std::string::npos);
+
+  unsetenv("CANDLE_CONFIG_PATH");
 }
 

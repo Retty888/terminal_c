@@ -54,7 +54,7 @@ Core::KlinesResult DataService::fetch_klines(
 Core::KlinesResult DataService::fetch_klines_alt(
     const std::string &symbol, const std::string &interval, int limit,
     int max_retries, std::chrono::milliseconds retry_delay) const {
-  static const Config::ConfigData cfg =
+  Config::ConfigData cfg =
       Config::ConfigManager::load(resolve_config_path().string())
           .value_or(Config::ConfigData{});
 
@@ -62,16 +62,24 @@ Core::KlinesResult DataService::fetch_klines_alt(
   std::chrono::milliseconds current_delay = retry_delay;
   Core::KlinesResult res;
   for (int attempt = 0; attempt < max_retries; ++attempt) {
-    res = fetcher_.fetch_klines_alt(symbol, interval, limit, 1, current_delay);
-    if (res.error == Core::FetchError::None)
-      return res;
-
-    if (!fallback.empty()) {
-      auto fb =
+    if (fallback == "binance") {
+      res = fetcher_.fetch_klines(symbol, interval, limit, 1, current_delay);
+      if (res.error == Core::FetchError::None)
+        return res;
+      auto alt =
+          fetcher_.fetch_klines_alt(symbol, interval, limit, 1, current_delay);
+      if (alt.error == Core::FetchError::None)
+        return alt;
+      res = alt;
+    } else {
+      res = fetcher_.fetch_klines_alt(symbol, interval, limit, 1, current_delay);
+      if (res.error == Core::FetchError::None)
+        return res;
+      auto alt =
           fetcher_.fetch_klines(symbol, interval, limit, 1, current_delay);
-      if (fb.error == Core::FetchError::None)
-        return fb;
-      res = fb;
+      if (alt.error == Core::FetchError::None)
+        return alt;
+      res = alt;
     }
 
     if (attempt < max_retries - 1) {
