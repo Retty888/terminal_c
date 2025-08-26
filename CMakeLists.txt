@@ -222,10 +222,11 @@ add_test(NAME test_kline_stream COMMAND test_kline_stream)
   target_link_libraries(test_signal PRIVATE GTest::gtest_main)
   add_test(NAME test_signal COMMAND test_signal)
 
-  add_executable(test_ui_manager
+add_executable(test_ui_manager
     tests/test_ui_manager.cpp
     src/ui/ui_manager.cpp
     src/core/path_utils.cpp
+    src/core/logger.cpp
   )
   target_include_directories(test_ui_manager PRIVATE tests/stubs src include third_party/imgui third_party/implot)
   target_link_libraries(test_ui_manager PRIVATE GTest::gtest_main imgui::imgui implot::implot)
