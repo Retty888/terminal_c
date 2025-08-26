@@ -1,10 +1,10 @@
 #pragma once
 
 #include "app_context.h"
+#include "core/glfw_context.h"
 #include "services/data_service.h"
 #include "services/journal_service.h"
 #include "ui/ui_manager.h"
-#include "core/glfw_context.h"
 
 #include <chrono>
 #include <deque>
@@ -45,6 +45,8 @@ public:
                   std::chrono::system_clock::time_point time =
                       std::chrono::system_clock::now());
   void clear_failed_fetches();
+  void set_error_message(const std::string &msg);
+  AppStatus get_status_snapshot() const;
 
 private:
   bool init_window();

@@ -14,6 +14,7 @@
 #include <chrono>
 #include <cstdint>
 #include <ctime>
+#include <mutex>
 #include <numeric>
 #include <string>
 
@@ -376,7 +377,8 @@ static void RenderPairSelector(
 }
 
 // Render application status information and recent log messages.
-static void RenderStatusPane(AppStatus &status) {
+static void RenderStatusPane(AppStatus &status, std::mutex &status_mutex) {
+  std::lock_guard<std::mutex> lock(status_mutex);
   ImGui::Separator();
   ImGui::Text("Status");
   ImGui::Text("Candles: %.0f%%", status.candle_progress * 100.0f);
@@ -416,7 +418,7 @@ void DrawControlPanel(
         &all_candles,
     const std::function<void()> &save_pairs,
     const std::vector<std::string> &exchange_pairs, AppStatus &status,
-    DataService &data_service,
+    std::mutex &status_mutex, DataService &data_service,
     const std::function<void(const std::string &)> &cancel_pair,
     bool &show_analytics_window, bool &show_journal_window,
     bool &show_backtest_window) {
@@ -430,7 +432,7 @@ void DrawControlPanel(
   RenderPairSelector(pairs, selected_pairs, active_pair, intervals,
                      selected_interval, all_candles, save_pairs, data_service,
                      status, cancel_pair);
-  RenderStatusPane(status);
+  RenderStatusPane(status, status_mutex);
 
   ImGui::Separator();
   ImGui::Checkbox("Analytics", &show_analytics_window);
