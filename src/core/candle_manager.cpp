@@ -185,6 +185,11 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
         result.push_back(c);
     }
 
+    auto interval_ms = parse_interval(interval).count();
+    if (interval_ms > 0) {
+        Core::fill_missing(result, interval_ms);
+    }
+
     // Save the merged candle set back to disk.
     return save_candles(symbol, interval, result);
 }
