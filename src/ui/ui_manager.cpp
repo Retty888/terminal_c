@@ -19,6 +19,7 @@
 #endif
 
 #include "core/path_utils.h"
+#include "core/logger.h"
 #ifndef _WIN32
 #include <sys/resource.h>
 #endif
@@ -201,8 +202,16 @@ bool UiManager::setup(GLFWwindow *window) {
     ImGui::LoadIniSettingsFromDisk(io.IniFilename);
   }
   ImGui::StyleColorsDark();
-  ImGui_ImplGlfw_InitForOpenGL(window, true);
-  ImGui_ImplOpenGL3_Init("#version 130");
+  if (!ImGui_ImplGlfw_InitForOpenGL(window, true)) {
+    Core::Logger::instance().error(
+        "Failed to initialize ImGui GLFW backend");
+    return false;
+  }
+  if (!ImGui_ImplOpenGL3_Init("#version 130")) {
+    Core::Logger::instance().error(
+        "Failed to initialize ImGui OpenGL3 backend");
+    return false;
+  }
   return true;
 }
 
