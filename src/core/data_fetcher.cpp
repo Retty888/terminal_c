@@ -239,86 +239,95 @@ std::future<KlinesResult> DataFetcher::fetch_klines_async(
 SymbolsResult DataFetcher::fetch_all_symbols(
     int max_retries, std::chrono::milliseconds retry_delay,
     std::size_t top_n) const {
-  const std::string url = "https://api.binance.com/api/v3/exchangeInfo";
+  const std::string info_url = "https://api.binance.com/api/v3/exchangeInfo";
+  const std::string ticker_url = "https://api.binance.com/api/v3/ticker/24hr";
+
   for (int attempt = 0; attempt < max_retries; ++attempt) {
+    // Launch ticker request in parallel while fetching exchange info.
+    auto ticker_future = std::async(std::launch::async, [this, &ticker_url]() {
+      rate_limiter_->acquire();
+      return http_client_->get(ticker_url, kHttpTimeout, kDefaultHeaders);
+    });
+
     rate_limiter_->acquire();
-    HttpResponse r = http_client_->get(url, kHttpTimeout, kDefaultHeaders);
-    if (r.network_error) {
-      Logger::instance().error("Request error: " + r.error_message);
+    HttpResponse info_resp =
+        http_client_->get(info_url, kHttpTimeout, kDefaultHeaders);
+    HttpResponse ticker_resp = ticker_future.get();
+
+    if (info_resp.network_error) {
+      Logger::instance().error("Request error: " + info_resp.error_message);
       if (attempt < max_retries - 1) {
         std::this_thread::sleep_for(retry_delay);
         continue;
       }
-      return {FetchError::NetworkError, 0, r.error_message, {}};
+      return {FetchError::NetworkError, 0, info_resp.error_message, {}};
     }
-    if (r.status_code == 200) {
-      try {
-        std::vector<std::string> symbols;
-        auto json_data = nlohmann::json::parse(r.text);
-        for (const auto &item : json_data["symbols"]) {
-          symbols.push_back(item["symbol"].get<std::string>());
-        }
-
-        const std::string ticker_url =
-            "https://api.binance.com/api/v3/ticker/24hr";
-        rate_limiter_->acquire();
-        HttpResponse t = http_client_->get(ticker_url, kHttpTimeout, kDefaultHeaders);
-        if (t.network_error) {
-          Logger::instance().error("Ticker request failed: " +
-                                   t.error_message);
-          return {FetchError::NetworkError, 0, t.error_message, symbols};
-        }
-        if (t.status_code != 200) {
-          Logger::instance().error(
-              "Ticker request failed with status code: " +
-              std::to_string(t.status_code));
-          return {FetchError::HttpError, t.status_code, t.error_message,
-                  symbols};
-        }
-        try {
-          auto tickers = nlohmann::json::parse(t.text);
-          std::vector<std::pair<std::string, double>> vols;
-          vols.reserve(tickers.size());
-          for (const auto &tk : tickers) {
-            if (!tk.contains("symbol") || !tk.contains("quoteVolume"))
-              continue;
-            double vol = 0.0;
-            try {
-              vol = std::stod(tk["quoteVolume"].get<std::string>());
-            } catch (...) {
-              continue;
-            }
-            vols.emplace_back(tk["symbol"].get<std::string>(), vol);
-          }
-          std::sort(vols.begin(), vols.end(),
-                    [](const auto &a, const auto &b) {
-                      return a.second > b.second;
-                    });
-          std::vector<std::string> top_symbols;
-          for (size_t i = 0; i < std::min(top_n, vols.size()); ++i) {
-            top_symbols.push_back(vols[i].first);
-          }
-          return {FetchError::None, r.status_code, "", top_symbols};
-        } catch (const std::exception &e) {
-          Logger::instance().error(
-              std::string("Error processing ticker data: ") + e.what());
-        }
-        return {FetchError::ParseError, r.status_code,
-                "Ticker parse error", {}};
-      } catch (const std::exception &e) {
-        Logger::instance().error(
-            std::string("Error processing symbol list: ") + e.what());
-        return {FetchError::ParseError, r.status_code, e.what(), {}};
+    if (info_resp.status_code != 200) {
+      Logger::instance().error("HTTP Request failed with status code: " +
+                               std::to_string(info_resp.status_code));
+      if (attempt < max_retries - 1) {
+        std::this_thread::sleep_for(retry_delay);
+        continue;
       }
+      return {FetchError::HttpError, info_resp.status_code,
+              info_resp.error_message, {}};
     }
-    Logger::instance().error("HTTP Request failed with status code: " +
-                             std::to_string(r.status_code));
-    if (attempt < max_retries - 1) {
-      std::this_thread::sleep_for(retry_delay);
-    } else {
-      return {FetchError::HttpError, r.status_code, r.error_message, {}};
+
+    std::vector<std::string> symbols;
+    try {
+      auto json_data = nlohmann::json::parse(info_resp.text);
+      for (const auto &item : json_data["symbols"]) {
+        symbols.push_back(item["symbol"].get<std::string>());
+      }
+    } catch (const std::exception &e) {
+      Logger::instance().error(
+          std::string("Error processing symbol list: ") + e.what());
+      return {FetchError::ParseError, info_resp.status_code, e.what(), {}};
+    }
+
+    if (ticker_resp.network_error) {
+      Logger::instance().error("Ticker request failed: " +
+                               ticker_resp.error_message);
+      return {FetchError::NetworkError, 0, ticker_resp.error_message, symbols};
+    }
+    if (ticker_resp.status_code != 200) {
+      Logger::instance().error(
+          "Ticker request failed with status code: " +
+          std::to_string(ticker_resp.status_code));
+      return {FetchError::HttpError, ticker_resp.status_code,
+              ticker_resp.error_message, symbols};
+    }
+
+    try {
+      auto tickers = nlohmann::json::parse(ticker_resp.text);
+      std::vector<std::pair<std::string, double>> vols;
+      vols.reserve(tickers.size());
+      for (const auto &tk : tickers) {
+        if (!tk.contains("symbol") || !tk.contains("quoteVolume"))
+          continue;
+        double vol = 0.0;
+        try {
+          vol = std::stod(tk["quoteVolume"].get<std::string>());
+        } catch (...) {
+          continue;
+        }
+        vols.emplace_back(tk["symbol"].get<std::string>(), vol);
+      }
+      std::sort(vols.begin(), vols.end(),
+                [](const auto &a, const auto &b) { return a.second > b.second; });
+      std::vector<std::string> top_symbols;
+      for (size_t i = 0; i < std::min(top_n, vols.size()); ++i) {
+        top_symbols.push_back(vols[i].first);
+      }
+      return {FetchError::None, info_resp.status_code, "", top_symbols};
+    } catch (const std::exception &e) {
+      Logger::instance().error(
+          std::string("Error processing ticker data: ") + e.what());
+      return {FetchError::ParseError, info_resp.status_code,
+              "Ticker parse error", {}};
     }
   }
+
   return {FetchError::HttpError, 0, "Max retries exceeded", {}};
 }
 

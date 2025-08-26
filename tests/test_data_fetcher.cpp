@@ -4,6 +4,9 @@
 #include <nlohmann/json.hpp>
 #include <chrono>
 #include <map>
+#include <mutex>
+#include <unordered_map>
+#include <algorithm>
 
 
 class DummyLimiter : public Core::IRateLimiter {
@@ -14,12 +17,23 @@ public:
 class FakeHttpClient : public Core::IHttpClient {
 public:
   std::vector<Core::HttpResponse> responses;
+  std::unordered_map<std::string, Core::HttpResponse> url_responses;
   std::vector<std::string> urls;
   size_t index{0};
+  std::mutex mtx;
+
+  void set_response(const std::string &url, const Core::HttpResponse &resp) {
+    url_responses[url] = resp;
+  }
+
   Core::HttpResponse get(const std::string &url,
                          std::chrono::milliseconds /*timeout*/,
                          const std::map<std::string, std::string> & /*headers*/) override {
+    std::lock_guard<std::mutex> lock(mtx);
     urls.push_back(url);
+    auto it = url_responses.find(url);
+    if (it != url_responses.end())
+      return it->second;
     if (index < responses.size())
       return responses[index++];
     return {};
@@ -95,12 +109,41 @@ TEST(DataFetcherTest, AltApiRejectsUnsupportedInterval) {
 
 TEST(DataFetcherTest, TopSymbolsTickerFailureReturnsError) {
   auto http = std::make_shared<FakeHttpClient>();
-  http->responses.push_back(
+  http->set_response(
+      "https://api.binance.com/api/v3/exchangeInfo",
       {200, R"({"symbols":[{"symbol":"AAA"}]})", "", false});
-  http->responses.push_back({0, "", "net fail", true});
+  http->set_response("https://api.binance.com/api/v3/ticker/24hr",
+                     {0, "", "net fail", true});
   auto limiter = std::make_shared<DummyLimiter>();
   Core::DataFetcher fetcher(http, limiter);
   auto res = fetcher.fetch_all_symbols();
   EXPECT_EQ(res.error, Core::FetchError::NetworkError);
+}
+
+TEST(DataFetcherTest, FetchAllSymbolsParallelSuccess) {
+  auto http = std::make_shared<FakeHttpClient>();
+  http->set_response(
+      "https://api.binance.com/api/v3/exchangeInfo",
+      {200, R"({"symbols":[{"symbol":"AAA"},{"symbol":"BBB"}]})", "", false});
+  http->set_response(
+      "https://api.binance.com/api/v3/ticker/24hr",
+      {200,
+       R"([{"symbol":"AAA","quoteVolume":"5"},{"symbol":"BBB","quoteVolume":"10"}])",
+       "", false});
+  auto limiter = std::make_shared<DummyLimiter>();
+  Core::DataFetcher fetcher(http, limiter);
+  auto res = fetcher.fetch_all_symbols();
+  EXPECT_EQ(res.error, Core::FetchError::None);
+  ASSERT_EQ(res.symbols.size(), 2u);
+  EXPECT_EQ(res.symbols[0], "BBB");
+  EXPECT_EQ(res.symbols[1], "AAA");
+  // both endpoints should have been queried once
+  EXPECT_EQ(http->urls.size(), 2u);
+  EXPECT_TRUE(std::find(http->urls.begin(), http->urls.end(),
+                        "https://api.binance.com/api/v3/exchangeInfo") !=
+              http->urls.end());
+  EXPECT_TRUE(std::find(http->urls.begin(), http->urls.end(),
+                        "https://api.binance.com/api/v3/ticker/24hr") !=
+              http->urls.end());
 }
 
