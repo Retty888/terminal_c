@@ -382,39 +382,30 @@ static void RenderStatusPane(AppStatus &status) {
   ImGui::Text("Candles: %.0f%%", status.candle_progress * 100.0f);
   if (!status.error_message.empty())
     ImGui::TextColored(COLOR_LOW, "%s", status.error_message.c_str());
-  if (ImGui::BeginListBox("##status_log", ImVec2(-FLT_MIN, 100))) {
-    for (const auto &entry : status.log) {
-      std::tm tm;
-      auto t = std::chrono::system_clock::to_time_t(entry.time);
+  std::string log_text;
+  for (const auto &entry : status.log) {
+    std::tm tm;
+    auto t = std::chrono::system_clock::to_time_t(entry.time);
 #if defined(_WIN32)
-      localtime_s(&tm, &t);
+    localtime_s(&tm, &t);
 #else
-      localtime_r(&t, &tm);
+    localtime_r(&t, &tm);
 #endif
-      char buf[9];
-      std::strftime(buf, sizeof(buf), "%H:%M:%S", &tm);
-      const char *lvl = "INFO";
-      ImVec4 col = ImGui::GetStyle().Colors[ImGuiCol_Text];
-      if (entry.level == Core::LogLevel::Warning) {
-        lvl = "WARN";
-        col = COLOR_MED;
-      } else if (entry.level == Core::LogLevel::Error) {
-        lvl = "ERROR";
-        col = COLOR_LOW;
-      }
-      if (entry.level != Core::LogLevel::Info)
-        ImGui::PushStyleColor(ImGuiCol_Text, col);
-      std::string line = std::string(buf) + " [" + lvl + "] " + entry.message;
-      ImGui::Selectable(line.c_str(), false);
-      if (ImGui::IsItemHovered() &&
-          ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-        ImGui::SetClipboardText(line.c_str());
-      }
-      if (entry.level != Core::LogLevel::Info)
-        ImGui::PopStyleColor();
-    }
-    ImGui::EndListBox();
+    char buf[9];
+    std::strftime(buf, sizeof(buf), "%H:%M:%S", &tm);
+    const char *lvl = "INFO";
+    if (entry.level == Core::LogLevel::Warning)
+      lvl = "WARN";
+    else if (entry.level == Core::LogLevel::Error)
+      lvl = "ERROR";
+    log_text += std::string(buf) + " [" + lvl + "] " + entry.message + "\n";
   }
+  log_text.push_back('\0');
+  ImGui::InputTextMultiline("##status_log", log_text.data(), log_text.size(),
+                            ImVec2(-FLT_MIN, 100),
+                            ImGuiInputTextFlags_ReadOnly);
+  if (ImGui::Button("Copy"))
+    ImGui::SetClipboardText(log_text.c_str());
 }
 
 void DrawControlPanel(
