@@ -8,12 +8,14 @@
 #include <filesystem>
 #include <memory>
 #include <cstdint>
+#include <optional>
 
 #include "core/candle.h"
 #include "core/candle_manager.h"
 #include "core/data_fetcher.h"
 #include "core/net/cpr_http_client.h"
 #include "core/net/token_bucket_rate_limiter.h"
+#include "config_types.h"
 
 // DataService groups configuration loading, candle storage and
 // network operations used by the application.  At the moment it is
@@ -77,9 +79,11 @@ public:
   const Core::CandleManager &candle_manager() const { return candle_manager_; }
 
 private:
+  const Config::ConfigData &config() const;
   std::shared_ptr<Core::IHttpClient> http_client_;
   std::shared_ptr<Core::IRateLimiter> rate_limiter_;
   Core::DataFetcher fetcher_;
   Core::CandleManager candle_manager_;
+  mutable std::optional<Config::ConfigData> config_cache_;
 };
 
