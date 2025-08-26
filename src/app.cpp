@@ -29,10 +29,10 @@
 
 #include <GLFW/glfw3.h>
 
-#include "ui/control_panel.h"
 #include "ui/analytics_window.h"
-#include "ui/journal_window.h"
 #include "ui/backtest_window.h"
+#include "ui/control_panel.h"
+#include "ui/journal_window.h"
 
 static void OnFramebufferResize(GLFWwindow * /*w*/, int width, int height) {
   glViewport(0, 0, width, height);
@@ -219,7 +219,7 @@ void App::update_available_intervals() {
             });
   this->ctx_->available_intervals.erase(
       std::unique(this->ctx_->available_intervals.begin(),
-                   this->ctx_->available_intervals.end()),
+                  this->ctx_->available_intervals.end()),
       this->ctx_->available_intervals.end());
   if (!this->ctx_->available_intervals.empty()) {
     if (std::find(this->ctx_->available_intervals.begin(),
@@ -605,6 +605,9 @@ void App::render_ui() {
 void App::render_status_window() {
   std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
   if (this->ctx_->completed_fetches < this->ctx_->total_fetches) {
+    auto vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(vp->WorkSize, ImGuiCond_FirstUseEver);
     ImGui::Begin("Status", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
     float progress = this->ctx_->total_fetches
                          ? static_cast<float>(this->ctx_->completed_fetches) /
@@ -619,14 +622,13 @@ void App::render_status_window() {
 
 void App::render_main_windows() {
   std::lock_guard<std::mutex> lock(this->ctx_->candles_mutex);
-  DrawControlPanel(this->ctx_->pairs, this->ctx_->selected_pairs,
-                   this->ctx_->active_pair, this->ctx_->intervals,
-                   this->ctx_->selected_interval, this->ctx_->all_candles,
-                   this->ctx_->save_pairs, this->ctx_->exchange_pairs, status_,
-                   data_service_, this->ctx_->cancel_pair,
-                   this->ctx_->show_analytics_window,
-                   this->ctx_->show_journal_window,
-                   this->ctx_->show_backtest_window);
+  DrawControlPanel(
+      this->ctx_->pairs, this->ctx_->selected_pairs, this->ctx_->active_pair,
+      this->ctx_->intervals, this->ctx_->selected_interval,
+      this->ctx_->all_candles, this->ctx_->save_pairs,
+      this->ctx_->exchange_pairs, status_, data_service_,
+      this->ctx_->cancel_pair, this->ctx_->show_analytics_window,
+      this->ctx_->show_journal_window, this->ctx_->show_backtest_window);
   ui_manager_.draw_chart_panel(this->ctx_->selected_pairs,
                                this->ctx_->available_intervals);
   if (this->ctx_->show_analytics_window) {
