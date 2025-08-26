@@ -45,9 +45,12 @@ std::filesystem::path resolve_data_dir() {
         }
         j["data_dir"] = dir.string();
         std::ofstream out(cfg_path);
-        if (out.is_open()) {
-            out << j.dump(4);
+        if (!out.is_open()) {
+            Logger::instance().error("Failed to open " + cfg_path.string() + " for writing");
+            std::filesystem::create_directories(dir);
+            return dir;
         }
+        out << j.dump(4);
     }
 
     std::filesystem::create_directories(dir);
