@@ -108,10 +108,11 @@ void CandleManager::write_last_open_time(const std::string& symbol, const std::s
     }
 }
 
-bool CandleManager::save_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) const {
+bool CandleManager::save_candles(const std::string& symbol, const std::string& interval,
+                                 const std::vector<Candle>& candles, bool verify) const {
+    std::filesystem::path path_to_save = get_candle_path(symbol, interval);
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        std::filesystem::path path_to_save = get_candle_path(symbol, interval);
         std::ofstream file(path_to_save);
 
         if (!file.is_open()) {
@@ -140,14 +141,23 @@ bool CandleManager::save_candles(const std::string& symbol, const std::string& i
                  << candle.ignore << "\n";
         }
 
+        file.flush();
+        if (!file) {
+            Logger::instance().error("Failed to flush file: " + path_to_save.string());
+            return false;
+        }
         file.close();
-
-        if (!candles.empty()) {
-            write_last_open_time(symbol, interval, candles.back().open_time);
+        if (!file) {
+            Logger::instance().error("Failed to close file: " + path_to_save.string());
+            return false;
         }
     }
 
     if (!candles.empty()) {
+        write_last_open_time(symbol, interval, candles.back().open_time);
+    }
+
+    if (verify && !candles.empty()) {
         auto loaded = load_candles(symbol, interval);
         if (loaded.size() >= candles.size()) {
             const auto& orig = candles.back();
@@ -396,8 +406,8 @@ std::vector<Candle> CandleManager::load_candles_from_json(const std::string& sym
 }
 
 std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const std::string& interval) const {
-    std::lock_guard<std::mutex> lock(mutex_);
     std::filesystem::path path = get_candle_path(symbol, interval);
+    std::lock_guard<std::mutex> lock(mutex_);
     std::vector<Candle> candles;
 
     if (!std::filesystem::exists(path)) {

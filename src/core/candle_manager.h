@@ -15,8 +15,9 @@ public:
     CandleManager();
     explicit CandleManager(const std::filesystem::path& dir);
 
-    // Saves a vector of candles to a CSV file.
-    bool save_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) const;
+    // Saves a vector of candles to a CSV file. Optionally verifies the written data.
+    bool save_candles(const std::string& symbol, const std::string& interval,
+                      const std::vector<Candle>& candles, bool verify = true) const;
 
     // Appends new candles to an existing CSV file, skipping duplicates.
     bool append_candles(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) const;
