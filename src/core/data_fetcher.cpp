@@ -150,7 +150,8 @@ KlinesResult DataFetcher::fetch_klines(
   if (res.error != FetchError::None) {
     return fetch_klines_alt(symbol, interval, limit, max_retries, retry_delay);
   }
-  fill_missing(res.candles, parse_interval(interval).count());
+  // fetch_klines_from_api already performs fill_missing on the candle data,
+  // so avoid doing it again here.
   return res;
 }
 
