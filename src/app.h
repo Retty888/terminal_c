@@ -66,6 +66,7 @@ private:
   void render_status_window();
   void render_main_windows();
   void handle_active_pair_change();
+  void update_available_intervals();
   void start_fetch_thread();
   void stop_fetch_thread();
 

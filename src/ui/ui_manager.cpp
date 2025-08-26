@@ -254,14 +254,18 @@ void UiManager::draw_chart_panel(const std::vector<std::string> &pairs,
     if (intervals[i] == current_interval_)
       interval_index = static_cast<int>(i);
   }
-  if (ImGui::Combo("Interval", &interval_index, interval_items.data(),
-                   static_cast<int>(interval_items.size()))) {
-    if (interval_index >= 0 &&
-        interval_index < static_cast<int>(intervals.size())) {
-      current_interval_ = intervals[interval_index];
-      if (on_interval_changed_)
-        on_interval_changed_(current_interval_);
+  if (!interval_items.empty()) {
+    if (ImGui::Combo("Interval", &interval_index, interval_items.data(),
+                     static_cast<int>(interval_items.size()))) {
+      if (interval_index >= 0 &&
+          interval_index < static_cast<int>(intervals.size())) {
+        current_interval_ = intervals[interval_index];
+        if (on_interval_changed_)
+          on_interval_changed_(current_interval_);
+      }
     }
+  } else {
+    ImGui::Text("No intervals");
   }
   ImGui::SameLine();
   if (ImGui::Button("Fit")) {
