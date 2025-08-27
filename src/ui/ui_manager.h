@@ -118,5 +118,6 @@ private:
   std::jthread webview_thread_{};
   bool webview_ready_ = false;
   bool webview_missing_chart_ = false;
+  bool webview_init_failed_ = false;
 #endif
 };

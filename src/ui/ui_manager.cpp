@@ -353,120 +353,127 @@ void UiManager::draw_chart_panel() {
   ImGui::SameLine();
   ImGui::BeginChild("ChartChild", ImVec2(0, 0), false);
 #ifdef HAVE_WEBVIEW
-  if (!webview_ && !webview_missing_chart_) {
+  if (!webview_ && !webview_missing_chart_ && !webview_init_failed_) {
     auto html_path = Core::path_from_executable("chart.html");
     if (std::filesystem::exists(html_path)) {
+
       webview_ = webview_create(0, nullptr);
-      std::string url = std::string("file://") + html_path.generic_string();
-      webview_navigate(static_cast<webview_t>(webview_), url.c_str());
-      webview_bind(
-          static_cast<webview_t>(webview_), "setInterval",
-          [](const char *seq, const char *req, void *arg) {
-            auto self = static_cast<UiManager *>(arg);
-            if (self->on_interval_changed_) {
+      if (webview_) {
+        std::string url = std::string("file://") + html_path.generic_string();
+        webview_navigate(static_cast<webview_t>(webview_), url.c_str());
+        webview_bind(
+            static_cast<webview_t>(webview_), "setInterval",
+            [](const char *seq, const char *req, void *arg) {
+              auto self = static_cast<UiManager *>(arg);
+              if (self->on_interval_changed_) {
+                try {
+                  auto j = nlohmann::json::parse(req);
+                  if (j.is_array() && !j.empty())
+                    self->on_interval_changed_(j[0].get<std::string>());
+                } catch (...) {
+                }
+              }
+              webview_return(static_cast<webview_t>(self->webview_), seq, 0,
+                             "null");
+            },
+            this);
+        webview_bind(
+            static_cast<webview_t>(webview_), "setPair",
+            [](const char *seq, const char *req, void *arg) {
+              auto self = static_cast<UiManager *>(arg);
+              if (self->on_pair_changed_) {
+                try {
+                  auto j = nlohmann::json::parse(req);
+                  if (j.is_array() && !j.empty())
+                    self->on_pair_changed_(j[0].get<std::string>());
+                } catch (...) {
+                }
+              }
+              webview_return(static_cast<webview_t>(self->webview_), seq, 0,
+                             "null");
+            },
+            this);
+        webview_bind(
+            static_cast<webview_t>(webview_), "status",
+            [](const char *seq, const char *req, void *arg) {
+              auto self = static_cast<UiManager *>(arg);
+              if (self->status_callback_) {
+                try {
+                  auto j = nlohmann::json::parse(req);
+                  if (j.is_array() && !j.empty())
+                    self->status_callback_(j[0].get<std::string>());
+                } catch (...) {
+                }
+              }
+              webview_return(static_cast<webview_t>(self->webview_), seq, 0,
+                             "null");
+            },
+            this);
+        webview_bind(
+            static_cast<webview_t>(webview_), "setTool",
+            [](const char *seq, const char *req, void *arg) {
+              auto self = static_cast<UiManager *>(arg);
               try {
                 auto j = nlohmann::json::parse(req);
                 if (j.is_array() && !j.empty())
-                  self->on_interval_changed_(j[0].get<std::string>());
+                  self->current_tool_ =
+                      ToolFromString(j[0].get<std::string>());
               } catch (...) {
               }
-            }
-            webview_return(static_cast<webview_t>(self->webview_), seq, 0,
-                           "null");
-          },
-          this);
-      webview_bind(
-          static_cast<webview_t>(webview_), "setPair",
-          [](const char *seq, const char *req, void *arg) {
-            auto self = static_cast<UiManager *>(arg);
-            if (self->on_pair_changed_) {
+              webview_return(static_cast<webview_t>(self->webview_), seq, 0,
+                             "null");
+            },
+            this);
+        webview_bind(
+            static_cast<webview_t>(webview_), "setSeries",
+            [](const char *seq, const char *req, void *arg) {
+              auto self = static_cast<UiManager *>(arg);
               try {
                 auto j = nlohmann::json::parse(req);
                 if (j.is_array() && !j.empty())
-                  self->on_pair_changed_(j[0].get<std::string>());
+                  self->current_series_ =
+                      SeriesTypeFromString(j[0].get<std::string>());
               } catch (...) {
               }
+              webview_return(static_cast<webview_t>(self->webview_), seq, 0,
+                             "null");
+            },
+            this);
+        webview_thread_ = std::jthread([this](std::stop_token) {
+          webview_run(static_cast<webview_t>(webview_));
+        });
+        webview_ready_ = true;
+        {
+          std::lock_guard<std::mutex> lock(ui_mutex_);
+          if (!candles_.empty()) {
+            nlohmann::json arr = nlohmann::json::array();
+            for (const auto &c : candles_) {
+              arr.push_back({{"time", c.open_time / 1000},
+                             {"open", c.open},
+                             {"high", c.high},
+                             {"low", c.low},
+                             {"close", c.close}});
             }
-            webview_return(static_cast<webview_t>(self->webview_), seq, 0,
-                           "null");
-          },
-          this);
-      webview_bind(
-          static_cast<webview_t>(webview_), "status",
-          [](const char *seq, const char *req, void *arg) {
-            auto self = static_cast<UiManager *>(arg);
-            if (self->status_callback_) {
-              try {
-                auto j = nlohmann::json::parse(req);
-                if (j.is_array() && !j.empty())
-                  self->status_callback_(j[0].get<std::string>());
-              } catch (...) {
-              }
-            }
-            webview_return(static_cast<webview_t>(self->webview_), seq, 0,
-                           "null");
-          },
-          this);
-      webview_bind(
-          static_cast<webview_t>(webview_), "setTool",
-          [](const char *seq, const char *req, void *arg) {
-            auto self = static_cast<UiManager *>(arg);
-            try {
-              auto j = nlohmann::json::parse(req);
-              if (j.is_array() && !j.empty())
-                self->current_tool_ =
-                    ToolFromString(j[0].get<std::string>());
-            } catch (...) {
-            }
-            webview_return(static_cast<webview_t>(self->webview_), seq, 0,
-                           "null");
-          },
-          this);
-      webview_bind(
-          static_cast<webview_t>(webview_), "setSeries",
-          [](const char *seq, const char *req, void *arg) {
-            auto self = static_cast<UiManager *>(arg);
-            try {
-              auto j = nlohmann::json::parse(req);
-              if (j.is_array() && !j.empty())
-                self->current_series_ =
-                    SeriesTypeFromString(j[0].get<std::string>());
-            } catch (...) {
-            }
-            webview_return(static_cast<webview_t>(self->webview_), seq, 0,
-                           "null");
-          },
-          this);
-      webview_thread_ = std::jthread([this](std::stop_token) {
-        webview_run(static_cast<webview_t>(webview_));
-      });
-      webview_ready_ = true;
-      {
-        std::lock_guard<std::mutex> lock(ui_mutex_);
-        if (!candles_.empty()) {
-          nlohmann::json arr = nlohmann::json::array();
-          for (const auto &c : candles_) {
-            arr.push_back({{"time", c.open_time / 1000},
-                           {"open", c.open},
-                           {"high", c.high},
-                           {"low", c.low},
-                           {"close", c.close}});
+            std::string js = "series.setData(" + arr.dump() + ");";
+            webview_eval(static_cast<webview_t>(webview_), js.c_str());
           }
-          std::string js = "series.setData(" + arr.dump() + ");";
-          webview_eval(static_cast<webview_t>(webview_), js.c_str());
+          if (price_line_) {
+            std::ostringstream oss;
+            oss << "chart.setPriceLine(" << *price_line_ << ");";
+            webview_eval(static_cast<webview_t>(webview_), oss.str().c_str());
+          }
+          std::string js_series =
+              "setActiveSeries('" +
+              std::string(SeriesTypeToString(current_series_)) + "');";
+          webview_eval(static_cast<webview_t>(webview_), js_series.c_str());
+          std::string js_tool = "setActiveTool('" +
+                                std::string(ToolToString(current_tool_)) + "');";
+          webview_eval(static_cast<webview_t>(webview_), js_tool.c_str());
         }
-        if (price_line_) {
-          std::ostringstream oss;
-          oss << "chart.setPriceLine(" << *price_line_ << ");";
-          webview_eval(static_cast<webview_t>(webview_), oss.str().c_str());
-        }
-        std::string js_series =
-            "setActiveSeries('" +
-            std::string(SeriesTypeToString(current_series_)) + "');";
-        webview_eval(static_cast<webview_t>(webview_), js_series.c_str());
-        std::string js_tool = "setActiveTool('" +
-                              std::string(ToolToString(current_tool_)) + "');";
-        webview_eval(static_cast<webview_t>(webview_), js_tool.c_str());
+      } else {
+        webview_init_failed_ = true;
+        if (status_callback_)
+          status_callback_("WebView initialization failed");
       }
     } else {
       webview_missing_chart_ = true;
@@ -474,274 +481,18 @@ void UiManager::draw_chart_panel() {
         status_callback_("chart.html not found");
     }
   }
-  if (webview_missing_chart_)
+  if (webview_missing_chart_) {
     ImGui::TextUnformatted("chart.html not found");
-  else
+  } else if (webview_init_failed_ || !webview_) {
+    ImGui::TextUnformatted("WebView initialization failed");
+  } else {
     ImGui::TextUnformatted("WebView chart running in external window.");
-#else
-  ImGui::TextUnformatted(
-      "WebView support disabled; displaying fallback candlestick chart.");
-  if (status_callback_)
-    status_callback_(
-        "WebView support disabled; displaying fallback candlestick chart.");
-  std::vector<double> xs, opens, closes, lows, highs;
-  {
-    std::lock_guard<std::mutex> lock(ui_mutex_);
-    xs.reserve(candles_.size());
-    opens.reserve(candles_.size());
-    closes.reserve(candles_.size());
-    lows.reserve(candles_.size());
-    highs.reserve(candles_.size());
-    for (const auto &c : candles_) {
-      xs.push_back(c.open_time / 1000.0);
-      opens.push_back(c.open);
-      closes.push_back(c.close);
-      lows.push_back(c.low);
-      highs.push_back(c.high);
-    }
   }
-  if (fit_next_plot_) {
-    ImPlot::SetNextAxesToFit();
-    fit_next_plot_ = false;
-  }
-  if (ImPlot::BeginPlot("Candles", ImVec2(-1, -1))) {
-    ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
-    ImPlot::SetupAxisFormat(ImAxis_X1, "%Y-%m-%d %H:%M");
-    if (!xs.empty()) {
-      PlotCandlestick("price", xs.data(), opens.data(), closes.data(),
-                      lows.data(), highs.data(), (int)xs.size());
-      if (price_line_) {
-        double xline[2] = {xs.front(), xs.back()};
-        double yline[2] = {*price_line_, *price_line_};
-        ImPlot::PlotLine("PriceLine", xline, yline, 2);
-      }
-      for (const auto &m : markers_) {
-        auto it = std::find_if(candles_.begin(), candles_.end(),
-                               [&](const Core::Candle &c) {
-                                 return c.open_time / 1000.0 == m.time;
-                               });
-        if (it != candles_.end()) {
-          double price = m.above ? it->high : it->low;
-          ImPlot::Annotation(m.time, price, m.color,
-                             ImVec2(0, m.above ? -10.0f : 10.0f), true,
-                             "%s", m.text.c_str());
-        }
-      }
-      double x_min = xs.front();
-      double x_max = xs.back();
-      ImPlotPoint mouse = ImPlot::GetPlotMousePos();
-      if (ImPlot::IsPlotHovered()) {
-        if (current_tool_ == DrawTool::None) {
-          ImPlotRect lims = ImPlot::GetPlotLimits();
-          ImDrawList *dl = ImPlot::GetPlotDrawList();
-          ImVec2 top = ImPlot::PlotToPixels(mouse.x, lims.Y.Max);
-          ImVec2 bottom = ImPlot::PlotToPixels(mouse.x, lims.Y.Min);
-          ImVec2 left = ImPlot::PlotToPixels(lims.X.Min, mouse.y);
-          ImVec2 right = ImPlot::PlotToPixels(lims.X.Max, mouse.y);
-          ImPlot::PushPlotClipRect();
-          dl->AddLine(top, bottom, IM_COL32(128, 128, 128, 128));
-          dl->AddLine(left, right, IM_COL32(128, 128, 128, 128));
-          ImPlot::PopPlotClipRect();
-          char price_buf[32];
-          std::snprintf(price_buf, sizeof(price_buf), "%.2f", mouse.y);
-          ImPlot::Annotation(lims.X.Max, mouse.y, ImVec4(1, 1, 1, 1),
-                             ImVec2(5, 0), true, "%s", price_buf);
-          auto tp = std::chrono::system_clock::time_point(
-              std::chrono::seconds(static_cast<long long>(mouse.x)));
-          std::time_t tt = std::chrono::system_clock::to_time_t(tp);
-          std::tm tm;
-#if defined(_WIN32)
-          gmtime_s(&tm, &tt);
-#else
-          gmtime_r(&tt, &tm);
 #endif
-          char time_buf[32];
-          std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%d %H:%M", &tm);
-          ImPlot::Annotation(mouse.x, lims.Y.Min, ImVec4(1, 1, 1, 1),
-                             ImVec2(0, 5), true, "%s", time_buf);
-        }
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-          if (editing_object_ >= 0) {
-            auto &obj = draw_objects_[editing_object_];
-            if (obj.type == DrawTool::Line || obj.type == DrawTool::Ruler ||
-                obj.type == DrawTool::Fibo) {
-              if (!drawing_first_point_) {
-                obj.x1 = mouse.x;
-                obj.y1 = mouse.y;
-                drawing_first_point_ = true;
-              } else {
-                obj.x2 = mouse.x;
-                obj.y2 = mouse.y;
-                drawing_first_point_ = false;
-                editing_object_ = -1;
-              }
-            } else if (obj.type == DrawTool::HLine) {
-              obj.y1 = obj.y2 = mouse.y;
-              obj.x1 = x_min;
-              obj.x2 = x_max;
-              editing_object_ = -1;
-            }
-          } else {
-            if (current_tool_ == DrawTool::Line ||
-                current_tool_ == DrawTool::Ruler ||
-                current_tool_ == DrawTool::Fibo) {
-              if (!drawing_first_point_) {
-                temp_x_ = mouse.x;
-                temp_y_ = mouse.y;
-                drawing_first_point_ = true;
-              } else {
-                draw_objects_.push_back(
-                    {current_tool_, temp_x_, temp_y_, mouse.x, mouse.y});
-                drawing_first_point_ = false;
-              }
-            } else if (current_tool_ == DrawTool::HLine) {
-              draw_objects_.push_back(
-                  {DrawTool::HLine, x_min, mouse.y, x_max, mouse.y});
-            } else if (current_tool_ == DrawTool::Long ||
-                       current_tool_ == DrawTool::Short) {
-              if (!drawing_first_point_) {
-                temp_x_ = mouse.x;
-                temp_y_ = mouse.y;
-                drawing_first_point_ = true;
-              } else {
-                Position p{};
-                p.id = next_position_id_++;
-                p.is_long = current_tool_ == DrawTool::Long;
-                p.time1 = temp_x_;
-                p.price1 = temp_y_;
-                p.time2 = mouse.x;
-                p.price2 = mouse.y;
-                positions_.push_back(p);
-                drawing_first_point_ = false;
-              }
-            }
-          }
-        }
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-          int idx = -1;
-          ImVec2 mp = ImPlot::PlotToPixels(mouse);
-          const float threshold = 5.0f;
-          for (std::size_t i = 0; i < draw_objects_.size(); ++i) {
-            const auto &o = draw_objects_[i];
-            ImVec2 p1 = ImPlot::PlotToPixels(o.x1, o.y1);
-            ImVec2 p2 = ImPlot::PlotToPixels(o.x2, o.y2);
-            if (o.type == DrawTool::HLine) {
-              if (std::fabs(mp.y - p1.y) < threshold) {
-                idx = static_cast<int>(i);
-                break;
-              }
-            } else if (o.type == DrawTool::Line || o.type == DrawTool::Ruler ||
-                       o.type == DrawTool::Fibo) {
-              double dx = p2.x - p1.x;
-              double dy = p2.y - p1.y;
-              double len2 = dx * dx + dy * dy;
-              if (len2 > 0.0) {
-                double t = ((mp.x - p1.x) * dx + (mp.y - p1.y) * dy) / len2;
-                t = std::clamp(t, 0.0, 1.0);
-                double projx = p1.x + t * dx;
-                double projy = p1.y + t * dy;
-                double dist2 = (mp.x - projx) * (mp.x - projx) +
-                               (mp.y - projy) * (mp.y - projy);
-                if (std::sqrt(dist2) < threshold) {
-                  idx = static_cast<int>(i);
-                  break;
-                }
-              }
-            }
-          }
-          if (idx != -1) {
-            context_object_ = idx;
-            ImGui::OpenPopup("DrawObjContext");
-          }
-        }
-      }
-      if (ImGui::BeginPopup("DrawObjContext")) {
-        if (ImGui::MenuItem("Edit")) {
-          editing_object_ = context_object_;
-          drawing_first_point_ = false;
-        }
-        if (ImGui::MenuItem("Delete")) {
-          if (context_object_ >= 0 &&
-              context_object_ < static_cast<int>(draw_objects_.size())) {
-            draw_objects_.erase(draw_objects_.begin() + context_object_);
-          }
-          editing_object_ = -1;
-        }
-        ImGui::EndPopup();
-      }
-      for (std::size_t i = 0; i < draw_objects_.size(); ++i) {
-        auto &o = draw_objects_[i];
-        if (o.type == DrawTool::Line) {
-          double lx[2] = {o.x1, o.x2};
-          double ly[2] = {o.y1, o.y2};
-          ImPlot::PlotLine((std::string("L") + std::to_string(i)).c_str(), lx,
-                           ly, 2);
-        } else if (o.type == DrawTool::HLine) {
-          double lx[2] = {o.x1, o.x2};
-          double ly[2] = {o.y1, o.y1};
-          ImPlot::PlotLine((std::string("H") + std::to_string(i)).c_str(), lx,
-                           ly, 2);
-          char buf[32];
-          std::snprintf(buf, sizeof(buf), "%.2f", o.y1);
-          ImPlot::Annotation((o.x1 + o.x2) / 2.0, o.y1, ImVec4(1, 1, 1, 1),
-                             ImVec2(0, -5.0f), true, "%s", buf);
-        } else if (o.type == DrawTool::Ruler) {
-          double lx[2] = {o.x1, o.x2};
-          double ly[2] = {o.y1, o.y2};
-          ImPlot::PlotLine((std::string("R") + std::to_string(i)).c_str(), lx,
-                           ly, 2);
-          double diff = o.y2 - o.y1;
-          double pct = o.y1 != 0.0 ? diff / o.y1 * 100.0 : 0.0;
-          char buf[64];
-          std::snprintf(buf, sizeof(buf), "%.2f (%.2f%%)", diff, pct);
-          ImPlot::Annotation(o.x2, o.y2, ImVec4(1, 1, 0, 1), ImVec2(5, 5), true,
-                             "%s", buf);
-        } else if (o.type == DrawTool::Fibo) {
-          double xmin = std::min(o.x1, o.x2);
-          double xmax = std::max(o.x1, o.x2);
-          double dy = o.y2 - o.y1;
-          const double levels[] = {0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0};
-          for (double lvl : levels) {
-            double y = o.y1 + dy * lvl;
-            double lx[2] = {xmin, xmax};
-            double ly[2] = {y, y};
-            ImPlot::PlotLine((std::string("F") + std::to_string(i) + "_" +
-                              std::to_string(static_cast<int>(lvl * 1000)))
-                                 .c_str(),
-                             lx, ly, 2);
-            char buf[32];
-            std::snprintf(buf, sizeof(buf), "%.1f%%", lvl * 100.0);
-            ImPlot::Annotation(xmax, y, ImVec4(1, 1, 1, 1), ImVec2(5, 0), true,
-                               "%s", buf);
-          }
-        }
-      }
-      for (const auto &p : positions_) {
-        ImDrawList *dl = ImPlot::GetPlotDrawList();
-        ImVec2 p1 = ImPlot::PlotToPixels(p.time1, p.price1);
-        ImVec2 p2 = ImPlot::PlotToPixels(p.time2, p.price2);
-        ImVec2 a(std::min(p1.x, p2.x), std::min(p1.y, p2.y));
-        ImVec2 b(std::max(p1.x, p2.x), std::max(p1.y, p2.y));
-        ImPlot::PushPlotClipRect();
-        ImU32 fill =
-            p.is_long ? IM_COL32(0, 255, 0, 50) : IM_COL32(255, 0, 0, 50);
-        ImU32 line =
-            p.is_long ? IM_COL32(0, 255, 0, 255) : IM_COL32(255, 0, 0, 255);
-        dl->AddRectFilled(a, b, fill);
-        dl->AddRect(a, b, line);
-        ImPlot::PopPlotClipRect();
-        double diff = p.is_long ? p.price2 - p.price1 : p.price1 - p.price2;
-        double pct = p.price1 != 0.0 ? diff / p.price1 * 100.0 : 0.0;
-        char buf[64];
-        std::snprintf(buf, sizeof(buf), "%.2f (%.2f%%)", diff, pct);
-        ImVec4 col = diff >= 0 ? ImVec4(0, 1, 0, 1) : ImVec4(1, 0, 0, 1);
-        ImPlot::Annotation(std::max(p.time1, p.time2),
-                           (p.price1 + p.price2) / 2.0, col, ImVec2(10, 0),
-                           true, "%s", buf);
-      }
-    }
-    ImPlot::EndPlot();
-  }
+#ifndef HAVE_WEBVIEW
+  ImGui::TextUnformatted("WebView support disabled");
+  if (status_callback_)
+    status_callback_("WebView support disabled");
 #endif
   ImGui::EndChild();
   ImGui::End();
