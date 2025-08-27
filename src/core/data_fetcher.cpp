@@ -98,16 +98,16 @@ KlinesResult DataFetcher::fetch_klines_from_api(
             const auto &kline = *it;
             all_candles.push_back(Candle(
                 kline[0].get<long long>(),
-                std::stod(kline[1].get<std::string>()),
-                std::stod(kline[2].get<std::string>()),
-                std::stod(kline[3].get<std::string>()),
-                std::stod(kline[4].get<std::string>()),
-                std::stod(kline[5].get<std::string>()),
+                kline[1].get<double>(),
+                kline[2].get<double>(),
+                kline[3].get<double>(),
+                kline[4].get<double>(),
+                kline[5].get<double>(),
                 kline[6].get<long long>(),
-                std::stod(kline[7].get<std::string>()), kline[8].get<int>(),
-                std::stod(kline[9].get<std::string>()),
-                std::stod(kline[10].get<std::string>()),
-                std::stod(kline[11].get<std::string>())));
+                kline[7].get<double>(), kline[8].get<int>(),
+                kline[9].get<double>(),
+                kline[10].get<double>(),
+                kline[11].get<double>()));
           }
           end_time = json_data.front()[0].get<long long>() - 1;
           success = true;
