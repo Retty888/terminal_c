@@ -35,18 +35,12 @@ bool Journal::load_json(const std::string &filename) {
     }
     return true;
   }
-  if (!nlohmann::json::accept(content)) {
-    Core::Logger::instance().error("Invalid JSON format in journal file: " +
-                                   filename);
-    return false;
-  }
-
   nlohmann::json j;
   try {
     j = nlohmann::json::parse(content);
   } catch (const std::exception &e) {
-    Core::Logger::instance().error("Journal parse error: " +
-                                   std::string(e.what()));
+    Core::Logger::instance().error("Invalid JSON format in journal file: " +
+                                   filename + ": " + e.what());
     return false;
   }
 
