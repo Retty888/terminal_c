@@ -748,16 +748,34 @@ void App::handle_active_pair_change() {
     this->ctx_->last_active_pair = this->ctx_->active_pair;
     this->ctx_->last_active_interval = this->ctx_->active_interval;
     int miss;
+    std::vector<Core::Candle> candles_copy;
+    bool need_load = false;
     {
       std::lock_guard<std::shared_mutex> lock(this->ctx_->candles_mutex);
       auto &candles = this->ctx_->all_candles[this->ctx_->active_pair]
                                              [this->ctx_->active_interval];
-      if (candles.empty())
-        candles = data_service_.load_candles(this->ctx_->active_pair,
-                                             this->ctx_->active_interval);
-      ui_manager_.set_candles(candles);
-      miss = this->ctx_->candles_limit - static_cast<int>(candles.size());
+      if (candles.empty()) {
+        need_load = true;
+      } else {
+        candles_copy = candles;
+        miss = this->ctx_->candles_limit -
+               static_cast<int>(candles.size());
+      }
     }
+    if (need_load) {
+      auto loaded = data_service_.load_candles(this->ctx_->active_pair,
+                                               this->ctx_->active_interval);
+      candles_copy = loaded;
+      {
+        std::lock_guard<std::shared_mutex> lock(this->ctx_->candles_mutex);
+        auto &candles = this->ctx_->all_candles[this->ctx_->active_pair]
+                                               [this->ctx_->active_interval];
+        candles = std::move(loaded);
+        miss = this->ctx_->candles_limit -
+               static_cast<int>(candles.size());
+      }
+    }
+    ui_manager_.set_candles(candles_copy);
     bool exists;
     bool failed;
     {
