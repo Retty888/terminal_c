@@ -65,6 +65,11 @@ Core::KlinesResult DataService::fetch_klines_alt(
     int max_retries, std::chrono::milliseconds retry_delay) const {
   const Config::ConfigData &cfg = config();
   std::string fallback = cfg.fallback_provider;
+  if (fallback != "binance" && fallback != "gateio") {
+    Core::Logger::instance().warn("Unknown fallback provider '" + fallback +
+                                  "', defaulting to binance");
+    fallback = "binance";
+  }
   std::chrono::milliseconds current_delay = retry_delay;
   Core::KlinesResult res;
   for (int attempt = 0; attempt < max_retries; ++attempt) {

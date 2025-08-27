@@ -6,6 +6,8 @@
 #include <map>
 #include <mutex>
 #include <unordered_map>
+#include <vector>
+#include <thread>
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -246,5 +248,45 @@ TEST(DataServiceFallbackTest, BinanceFirstThenGateioOnFailure) {
   EXPECT_NE(http->urls[1].find("api.gateio.ws"), std::string::npos);
 
   unsetenv("CANDLE_CONFIG_PATH");
+}
+
+TEST(DataServiceFallbackTest, UnknownProviderLogsWarningAndDefaults) {
+  std::filesystem::path cfg =
+      std::filesystem::temp_directory_path() / "cfg_unknown.json";
+  {
+    std::ofstream ofs(cfg);
+    ofs << R"({"fallback_provider":"foo"})";
+  }
+  setenv("CANDLE_CONFIG_PATH", cfg.c_str(), 1);
+
+  std::vector<std::string> warnings;
+  Core::Logger::instance().set_sink(
+      [&](Core::LogLevel level, std::chrono::system_clock::time_point,
+          const std::string &msg) {
+        if (level == Core::LogLevel::Warning)
+          warnings.push_back(msg);
+      });
+
+  DataService svc;
+  auto http = std::make_shared<FakeHttpClient>();
+  auto limiter = std::make_shared<DummyLimiter>();
+  svc.http_client_ = http;
+  svc.rate_limiter_ = limiter;
+  svc.fetcher_ = Core::DataFetcher(http, limiter);
+
+  http->responses.push_back({500, "", "", false});
+  http->responses.push_back({200,
+                             "[[0,\"1\",\"2\",\"3\",\"4\",\"5\",0,\"7\",0,\"9\",\"10\",\"11\"]]",
+                             "", false});
+  svc.fetch_klines_alt("BTCUSDT", "1m", 1, 1);
+  ASSERT_FALSE(http->urls.empty());
+  EXPECT_NE(http->urls[0].find("api.binance.com"), std::string::npos);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  Core::Logger::instance().set_sink(nullptr);
+  unsetenv("CANDLE_CONFIG_PATH");
+
+  ASSERT_FALSE(warnings.empty());
+  EXPECT_NE(warnings[0].find("Unknown fallback provider"), std::string::npos);
 }
 
