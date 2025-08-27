@@ -381,7 +381,7 @@ void App::start_initial_fetch_and_streams() {
       this->ctx_->active_interval != "15s") {
     for (const auto &p : this->ctx_->pairs) {
       std::string pair = p.name;
-      auto stream = std::make_unique<Core::KlineStream>(
+      auto stream = std::make_shared<Core::KlineStream>(
           pair, this->ctx_->active_interval, data_service_.candle_manager());
       stream->start(
           [this, pair](const Core::Candle &c) {

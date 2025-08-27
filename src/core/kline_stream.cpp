@@ -28,7 +28,10 @@ void KlineStream::start(CandleCallback cb, ErrorCallback err_cb,
   if (running_)
     return;
   running_ = true;
-  thread_ = std::thread(&KlineStream::run, this, cb, err_cb, ui_cb);
+  auto self = shared_from_this();
+  thread_ = std::thread([self, cb, err_cb, ui_cb]() {
+    self->run(cb, err_cb, ui_cb);
+  });
 }
 
 void KlineStream::stop() {
@@ -40,6 +43,8 @@ void KlineStream::stop() {
   }
   if (thread_.joinable())
     thread_.join();
+  std::unique_lock<std::mutex> lk(cb_mutex_);
+  cb_cv_.wait(lk, [this] { return callbacks_inflight_.load() == 0; });
 }
 
 void KlineStream::run(CandleCallback cb, ErrorCallback err_cb,
@@ -104,18 +109,31 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb,
           err_cb();
       }
     });
-    ws_->setOnError([&]() {
-      error = true;
-      std::lock_guard<std::mutex> lock(ws_mutex_);
-      if (ws_)
-        ws_->stop();
-    });
-    ws_->setOnClose([&]() {
-      {
-        std::lock_guard<std::mutex> lk(m);
-        closed = true;
+    auto weak_self = std::weak_ptr<KlineStream>(shared_from_this());
+    ws_->setOnError([weak_self, &error]() {
+      if (auto self = weak_self.lock()) {
+        self->callbacks_inflight_++;
+        error = true;
+        {
+          std::lock_guard<std::mutex> lock(self->ws_mutex_);
+          if (self->ws_)
+            self->ws_->stop();
+        }
+        self->callbacks_inflight_--;
+        self->cb_cv_.notify_all();
       }
-      cv.notify_one();
+    });
+    ws_->setOnClose([weak_self, &m, &cv, &closed]() {
+      if (auto self = weak_self.lock()) {
+        self->callbacks_inflight_++;
+        {
+          std::lock_guard<std::mutex> lk(m);
+          closed = true;
+        }
+        cv.notify_one();
+        self->callbacks_inflight_--;
+        self->cb_cv_.notify_all();
+      }
     });
 
     ws_->start();

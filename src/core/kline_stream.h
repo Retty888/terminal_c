@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <condition_variable>
 #include <string>
 #include <thread>
 
@@ -13,7 +14,7 @@
 #include "iwebsocket.h"
 
 namespace Core {
-class KlineStream {
+class KlineStream : public std::enable_shared_from_this<KlineStream> {
 public:
   using CandleCallback = std::function<void(const Candle &)>;
   using ErrorCallback = std::function<void()>;
@@ -46,5 +47,8 @@ private:
   std::atomic<bool> running_{false};
   std::mutex ws_mutex_;
   std::unique_ptr<IWebSocket> ws_;
+  std::atomic<int> callbacks_inflight_{0};
+  std::mutex cb_mutex_;
+  std::condition_variable cb_cv_;
 };
 } // namespace Core
