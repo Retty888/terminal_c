@@ -150,6 +150,16 @@ void App::load_config() {
     this->ctx_->candles_limit = static_cast<int>(cfg->candles_limit);
     this->ctx_->streaming_enabled = cfg->enable_streaming;
     this->ctx_->save_journal_csv = cfg->save_journal_csv;
+    // Optional chunk size from JSON (if present) via raw JSON read is not
+    // stored in ConfigData; read from environment override as a quick control.
+    // Default remains 1000.
+    const char* chunk_env = std::getenv("CANDLE_FETCH_CHUNK");
+    if (chunk_env) {
+      try {
+        int v = std::stoi(chunk_env);
+        if (v > 0) this->ctx_->fetch_chunk_size = v;
+      } catch (...) {}
+    }
   } else {
     Core::Logger::instance().warn("Using default configuration");
     this->ctx_->candles_limit = 5000;
@@ -359,13 +369,15 @@ void App::start_initial_fetch_and_streams() {
   if (missing > 0) {
     {
       std::lock_guard<std::mutex> lock(this->ctx_->fetch_mutex);
+      int chunk = std::max(1, std::min(this->ctx_->fetch_chunk_size, missing));
       this->ctx_->fetch_queue.push_back(
           {this->ctx_->active_pair, this->ctx_->active_interval,
            data_service_.fetch_klines_async(
-               this->ctx_->active_pair, this->ctx_->active_interval, missing,
+               this->ctx_->active_pair, this->ctx_->active_interval, chunk,
                this->ctx_->max_retries, this->ctx_->retry_delay),
            std::chrono::steady_clock::now()});
-      this->ctx_->total_fetches = 1;
+      this->ctx_->total_fetches =
+          static_cast<std::size_t>((missing + chunk - 1) / chunk);
     }
     this->ctx_->fetch_cv.notify_one();
     add_status("Fetching " + this->ctx_->active_pair + " " +
@@ -474,8 +486,35 @@ void App::start_fetch_thread() {
             }
             lock.lock();
             add_status("Loaded " + it->pair + " " + it->interval);
-            ++this->ctx_->completed_fetches;
-            it = this->ctx_->fetch_queue.erase(it);
+            ++this->ctx_->completed_fetches; // one chunk finished
+            int miss;
+            {
+              std::shared_lock<std::shared_mutex> lock_candles(
+                  this->ctx_->candles_mutex);
+              miss = this->ctx_->candles_limit - static_cast<int>(
+                                         this->ctx_->all_candles[it->pair]
+                                                             [it->interval]
+                                                                 .size());
+            }
+            if (miss > 0) {
+              // Schedule next chunk in the chain
+              int chunk = std::max(
+                  1, std::min(this->ctx_->fetch_chunk_size, miss));
+              auto pair = it->pair;
+              auto interval = it->interval;
+              lock.unlock();
+              auto fut = data_service_.fetch_klines_async(
+                  pair, interval, chunk, this->ctx_->max_retries,
+                  this->ctx_->retry_delay);
+              auto now = std::chrono::steady_clock::now();
+              lock.lock();
+              it->future = std::move(fut);
+              it->start = now;
+              it->retries = 0;
+              ++it; // keep this task for next chunk
+            } else {
+              it = this->ctx_->fetch_queue.erase(it);
+            }
           } else {
             int miss;
             {
@@ -553,11 +592,12 @@ void App::start_fetch_thread() {
                 delay *= (1 << shift);
                 delay = std::min(delay, max_delay);
               }
+              int chunk = std::max(1, std::min(this->ctx_->fetch_chunk_size, miss));
               auto pair = it->pair;
               auto interval = it->interval;
               lock.unlock();
               auto fut = data_service_.fetch_klines_async(
-                  pair, interval, miss, this->ctx_->max_retries, delay);
+                  pair, interval, chunk, this->ctx_->max_retries, delay);
               auto now = std::chrono::steady_clock::now();
               lock.lock();
               it->future = std::move(fut);
@@ -814,12 +854,15 @@ void App::handle_active_pair_change() {
       failed = this->ctx_->failed_fetches.count(
                    {this->ctx_->active_pair, this->ctx_->active_interval}) > 0;
       if (miss > 0 && !exists && !failed) {
+        int chunk = std::max(1, std::min(this->ctx_->fetch_chunk_size, miss));
         this->ctx_->fetch_queue.push_back(
             {this->ctx_->active_pair, this->ctx_->active_interval,
              data_service_.fetch_klines_async(
-                 this->ctx_->active_pair, this->ctx_->active_interval, miss),
+                 this->ctx_->active_pair, this->ctx_->active_interval, chunk),
              std::chrono::steady_clock::now()});
-        ++this->ctx_->total_fetches;
+        if (this->ctx_->total_fetches == 0)
+          this->ctx_->total_fetches =
+              static_cast<std::size_t>((miss + chunk - 1) / chunk);
       }
     }
     if (miss > 0 && !exists && !failed)

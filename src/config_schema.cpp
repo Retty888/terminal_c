@@ -81,6 +81,13 @@ std::optional<ConfigData> ConfigSchema::parse(const nlohmann::json &j,
     }
     cfg.candles_limit = j["candles_limit"].get<std::size_t>();
   }
+  if (j.contains("fetch_chunk_size")) {
+    if (!j["fetch_chunk_size"].is_number_unsigned()) {
+      error = "'fetch_chunk_size' must be an unsigned number";
+      return std::nullopt;
+    }
+    // Will be applied into AppContext during load_config
+  }
 
   if (j.contains("enable_streaming")) {
     if (!j["enable_streaming"].is_boolean()) {

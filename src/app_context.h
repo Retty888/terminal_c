@@ -66,4 +66,7 @@ struct AppContext {
   int max_retries = 3;
   bool exponential_backoff = true;
   const std::chrono::seconds request_timeout{10};
+  // Limit per network fetch to avoid long, blocking requests for large history.
+  // The app will fetch in chunks until reaching candles_limit.
+  int fetch_chunk_size = 1000;
 };
