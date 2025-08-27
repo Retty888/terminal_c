@@ -104,15 +104,11 @@ if(BUILD_TRADING_TERMINAL)
     $<TARGET_PROPERTY:cpr::cpr,INTERFACE_INCLUDE_DIRECTORIES>
   )
 
+  
+
   if (WIN32)
-    find_library(WebView2LoaderStatic NAMES WebView2LoaderStatic)
-    if (WebView2LoaderStatic)
-      target_compile_definitions(TradingTerminal PRIVATE HAVE_WEBVIEW)
-      target_include_directories(TradingTerminal PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview_legacy)
-      target_link_libraries(TradingTerminal PRIVATE WebView2LoaderStatic)
-    else()
-      message(FATAL_ERROR "WebView2LoaderStatic not found; building without WebView support")
-    endif()
+    find_package(unofficial-webview2 CONFIG REQUIRED)
+    target_link_libraries(TradingTerminal PRIVATE unofficial::webview2::webview2)
   else()
     find_package(PkgConfig QUIET)
     if (PkgConfig_FOUND)
@@ -166,9 +162,18 @@ add_executable(test_data_fetcher
   src/core/exchange_utils.cpp
   src/candle.cpp
   src/core/logger.cpp
+  src/services/data_service.cpp
+  src/config_manager.cpp
+  src/config_schema.cpp
+  src/config_path.cpp
+  src/core/path_utils.cpp
+  src/core/candle_manager.cpp
+  src/core/net/cpr_http_client.cpp
+  src/core/net/token_bucket_rate_limiter.cpp
+  src/core/data_dir.cpp
 )
 target_include_directories(test_data_fetcher PRIVATE src include third_party/imgui)
-target_link_libraries(test_data_fetcher PRIVATE GTest::gtest_main)
+target_link_libraries(test_data_fetcher PRIVATE GTest::gtest_main cpr::cpr)
 add_test(NAME test_data_fetcher COMMAND test_data_fetcher)
 
 add_executable(test_interval_utils

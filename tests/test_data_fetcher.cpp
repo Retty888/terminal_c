@@ -199,7 +199,11 @@ TEST(DataServiceFallbackTest, GateioFirstThenBinanceOnFailure) {
     std::ofstream ofs(cfg);
     ofs << R"({"fallback_provider":"gateio"})";
   }
+  #ifdef _WIN32
+  _putenv_s("CANDLE_CONFIG_PATH", cfg.string().c_str());
+#else
   setenv("CANDLE_CONFIG_PATH", cfg.c_str(), 1);
+#endif
 
   DataService svc;
   auto http = std::make_shared<FakeHttpClient>();
@@ -218,7 +222,11 @@ TEST(DataServiceFallbackTest, GateioFirstThenBinanceOnFailure) {
   EXPECT_NE(http->urls[0].find("api.gateio.ws"), std::string::npos);
   EXPECT_NE(http->urls[1].find("api.binance.com"), std::string::npos);
 
+  #ifdef _WIN32
+  _putenv_s("CANDLE_CONFIG_PATH", "");
+#else
   unsetenv("CANDLE_CONFIG_PATH");
+#endif
 }
 
 TEST(DataServiceFallbackTest, BinanceFirstThenGateioOnFailure) {
@@ -228,7 +236,11 @@ TEST(DataServiceFallbackTest, BinanceFirstThenGateioOnFailure) {
     std::ofstream ofs(cfg);
     ofs << R"({"fallback_provider":"binance"})";
   }
+  #ifdef _WIN32
+  _putenv_s("CANDLE_CONFIG_PATH", cfg.string().c_str());
+#else
   setenv("CANDLE_CONFIG_PATH", cfg.c_str(), 1);
+#endif
 
   DataService svc;
   auto http = std::make_shared<FakeHttpClient>();
@@ -247,7 +259,11 @@ TEST(DataServiceFallbackTest, BinanceFirstThenGateioOnFailure) {
   EXPECT_NE(http->urls[0].find("api.binance.com"), std::string::npos);
   EXPECT_NE(http->urls[1].find("api.gateio.ws"), std::string::npos);
 
+  #ifdef _WIN32
+  _putenv_s("CANDLE_CONFIG_PATH", "");
+#else
   unsetenv("CANDLE_CONFIG_PATH");
+#endif
 }
 
 TEST(DataServiceFallbackTest, UnknownProviderLogsWarningAndDefaults) {
@@ -257,7 +273,11 @@ TEST(DataServiceFallbackTest, UnknownProviderLogsWarningAndDefaults) {
     std::ofstream ofs(cfg);
     ofs << R"({"fallback_provider":"foo"})";
   }
+  #ifdef _WIN32
+  _putenv_s("CANDLE_CONFIG_PATH", cfg.string().c_str());
+#else
   setenv("CANDLE_CONFIG_PATH", cfg.c_str(), 1);
+#endif
 
   std::vector<std::string> warnings;
   Core::Logger::instance().set_sink(
@@ -284,7 +304,11 @@ TEST(DataServiceFallbackTest, UnknownProviderLogsWarningAndDefaults) {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   Core::Logger::instance().set_sink(nullptr);
+  #ifdef _WIN32
+  _putenv_s("CANDLE_CONFIG_PATH", "");
+#else
   unsetenv("CANDLE_CONFIG_PATH");
+#endif
 
   ASSERT_FALSE(warnings.empty());
   EXPECT_NE(warnings[0].find("Unknown fallback provider"), std::string::npos);
