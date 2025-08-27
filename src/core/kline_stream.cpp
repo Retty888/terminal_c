@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <memory>
 #include <nlohmann/json.hpp>
 #include <thread>
 
@@ -67,10 +68,10 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb,
       break;
     }
 
-    std::atomic<bool> error{false};
-    std::mutex m;
-    std::condition_variable cv;
-    bool closed = false;
+    auto error = std::make_shared<std::atomic<bool>>(false);
+    auto m = std::make_shared<std::mutex>();
+    auto cv = std::make_shared<std::condition_variable>();
+    auto closed = std::make_shared<std::atomic<bool>>(false);
 
     ws_->setUrl(url);
     ws_->setOnMessage([this, cb, err_cb, ui_cb](const std::string &msg) {
@@ -110,10 +111,10 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb,
       }
     });
     auto weak_self = std::weak_ptr<KlineStream>(shared_from_this());
-    ws_->setOnError([weak_self, &error]() {
+    ws_->setOnError([weak_self, error]() {
       if (auto self = weak_self.lock()) {
         self->callbacks_inflight_++;
-        error = true;
+        error->store(true);
         {
           std::lock_guard<std::mutex> lock(self->ws_mutex_);
           if (self->ws_)
@@ -123,14 +124,14 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb,
         self->cb_cv_.notify_all();
       }
     });
-    ws_->setOnClose([weak_self, &m, &cv, &closed]() {
+    ws_->setOnClose([weak_self, m, cv, closed]() {
       if (auto self = weak_self.lock()) {
         self->callbacks_inflight_++;
         {
-          std::lock_guard<std::mutex> lk(m);
-          closed = true;
+          std::lock_guard<std::mutex> lk(*m);
+          closed->store(true);
         }
-        cv.notify_one();
+        cv->notify_one();
         self->callbacks_inflight_--;
         self->cb_cv_.notify_all();
       }
@@ -139,8 +140,8 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb,
     ws_->start();
 
     {
-      std::unique_lock<std::mutex> lk(m);
-      cv.wait(lk, [&] { return closed; });
+      std::unique_lock<std::mutex> lk(*m);
+      cv->wait(lk, [closed] { return closed->load(); });
     }
 
     {
@@ -154,10 +155,10 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb,
     if (!running_)
       break;
 
-    if (error && err_cb)
+    if (error->load() && err_cb)
       err_cb();
 
-    if (error) {
+    if (error->load()) {
       ++attempt;
       auto delay = base_delay_ * (1 << std::min<std::size_t>(attempt - 1, 8));
       sleep_func_(delay);
