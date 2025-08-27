@@ -424,6 +424,8 @@ void App::start_initial_fetch_and_streams() {
 
 void App::start_fetch_thread() {
   fetch_thread_ = std::jthread([this](std::stop_token stoken) {
+    constexpr int max_shift = 8;
+    constexpr std::chrono::milliseconds max_delay{60000};
     std::unique_lock<std::mutex> lock(this->ctx_->fetch_mutex);
     while (!stoken.stop_requested()) {
       if (this->ctx_->fetch_queue.empty()) {
@@ -499,8 +501,11 @@ void App::start_fetch_thread() {
               it = this->ctx_->fetch_queue.erase(it);
             } else {
               auto delay = this->ctx_->retry_delay;
-              if (this->ctx_->exponential_backoff)
-                delay *= (1 << (it->retries - 1));
+              if (this->ctx_->exponential_backoff) {
+                int shift = std::min(it->retries - 1, max_shift);
+                delay *= (1 << shift);
+                delay = std::min(delay, max_delay);
+              }
               auto pair = it->pair;
               auto interval = it->interval;
               lock.unlock();
@@ -543,8 +548,11 @@ void App::start_fetch_thread() {
               it = this->ctx_->fetch_queue.erase(it);
             } else {
               auto delay = this->ctx_->retry_delay;
-              if (this->ctx_->exponential_backoff)
-                delay *= (1 << (it->retries - 1));
+              if (this->ctx_->exponential_backoff) {
+                int shift = std::min(it->retries - 1, max_shift);
+                delay *= (1 << shift);
+                delay = std::min(delay, max_delay);
+              }
               auto pair = it->pair;
               auto interval = it->interval;
               lock.unlock();
