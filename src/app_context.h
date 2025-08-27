@@ -31,7 +31,7 @@ struct AppContext {
   std::map<std::string, std::map<std::string, std::vector<Core::Candle>>>
       all_candles;
   std::shared_mutex candles_mutex;
-  std::map<std::string, std::unique_ptr<Core::KlineStream>> streams;
+  std::map<std::string, std::shared_ptr<Core::KlineStream>> streams;
   std::atomic<bool> stream_failed{false};
   struct PendingFetch {
     std::string interval;
