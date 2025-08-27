@@ -46,6 +46,10 @@ if(BUILD_TRADING_TERMINAL)
   find_package(OpenGL REQUIRED)
   find_package(cpr CONFIG REQUIRED)
 
+  if(NOT TARGET glfw::glfw)
+    add_library(glfw::glfw ALIAS glfw)
+  endif()
+
   add_executable(TradingTerminal
     main.cpp
     src/app.cpp
@@ -87,7 +91,7 @@ if(BUILD_TRADING_TERMINAL)
   target_link_libraries(TradingTerminal PRIVATE
       imgui::imgui
       implot::implot
-    glfw
+    glfw::glfw
     OpenGL::GL
     cpr::cpr
   )
@@ -96,6 +100,8 @@ if(BUILD_TRADING_TERMINAL)
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends
+    $<TARGET_PROPERTY:glfw::glfw,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:cpr::cpr,INTERFACE_INCLUDE_DIRECTORIES>
   )
 
   if (WIN32)
