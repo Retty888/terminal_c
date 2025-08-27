@@ -22,13 +22,13 @@ CandleManager::CandleManager(const std::filesystem::path& dir) : data_dir_(dir) 
 }
 
 void CandleManager::set_data_dir(const std::filesystem::path& dir) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     data_dir_ = dir;
     std::filesystem::create_directories(data_dir_);
 }
 
 std::filesystem::path CandleManager::get_data_dir() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     return data_dir_;
 }
 
@@ -112,7 +112,7 @@ bool CandleManager::save_candles(const std::string& symbol, const std::string& i
                                  const std::vector<Candle>& candles, bool verify) const {
     std::filesystem::path path_to_save = get_candle_path(symbol, interval);
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
         std::ofstream file(path_to_save);
 
         if (!file.is_open()) {
@@ -120,8 +120,8 @@ bool CandleManager::save_candles(const std::string& symbol, const std::string& i
             return false;
         }
 
-        // Write header
-        file << "open_time,open,high,low,close,volume,close_time,quote_asset_volume,number_of_trades,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore";
+        // Write header (ensure newline so first data row isn't merged)
+        file << "open_time,open,high,low,close,volume,close_time,quote_asset_volume,number_of_trades,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore\n";
         file.setf(std::ios::fixed);
         file << std::setprecision(8);
 
@@ -188,7 +188,7 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
 
     std::size_t written = 0;
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
         bool file_exists = std::filesystem::exists(path_to_save);
         std::ofstream file(path_to_save, std::ios::app);
         if (!file.is_open()) {
@@ -237,7 +237,7 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
 }
 
 bool CandleManager::validate_candles(const std::string& symbol, const std::string& interval) const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     std::filesystem::path path = get_candle_path(symbol, interval);
     if (!std::filesystem::exists(path)) {
         return true;
@@ -307,7 +307,7 @@ bool CandleManager::validate_candles(const std::string& symbol, const std::strin
 
 bool CandleManager::save_candles_json(const std::string& symbol, const std::string& interval, const std::vector<Candle>& candles) const {
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::lock_guard<std::recursive_mutex> lock(mutex_);
         std::filesystem::path path_to_save = get_candle_json_path(symbol, interval);
         std::ofstream file(path_to_save);
         if (!file.is_open()) {
@@ -359,7 +359,7 @@ bool CandleManager::save_candles_json(const std::string& symbol, const std::stri
 }
 
 std::vector<Candle> CandleManager::load_candles_from_json(const std::string& symbol, const std::string& interval) const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     std::filesystem::path path = get_candle_json_path(symbol, interval);
     std::vector<Candle> candles;
     if (!std::filesystem::exists(path)) {
@@ -407,7 +407,7 @@ std::vector<Candle> CandleManager::load_candles_from_json(const std::string& sym
 
 std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const std::string& interval) const {
     std::filesystem::path path = get_candle_path(symbol, interval);
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     std::vector<Candle> candles;
 
     if (!std::filesystem::exists(path)) {
@@ -518,7 +518,7 @@ nlohmann::json CandleManager::load_candles_tradingview(const std::string& symbol
 
 
 bool CandleManager::remove_candles(const std::string& symbol) const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     bool success = true;
     if (std::filesystem::exists(data_dir_) && std::filesystem::is_directory(data_dir_)) {
         std::string prefix = symbol + "_";
@@ -540,7 +540,7 @@ bool CandleManager::remove_candles(const std::string& symbol) const {
 }
 
 bool CandleManager::clear_interval(const std::string& symbol, const std::string& interval) const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     bool success = true;
     std::error_code ec;
     std::filesystem::path csv_path = get_candle_path(symbol, interval);
@@ -566,7 +566,7 @@ bool CandleManager::clear_interval(const std::string& symbol, const std::string&
 }
 
 std::uintmax_t CandleManager::file_size(const std::string& symbol, const std::string& interval) const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     std::filesystem::path csv_path = get_candle_path(symbol, interval);
     std::error_code ec;
     if (std::filesystem::exists(csv_path)) {
@@ -578,7 +578,7 @@ std::uintmax_t CandleManager::file_size(const std::string& symbol, const std::st
 }
 
 std::vector<std::string> CandleManager::list_stored_data() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     std::vector<std::string> stored_files;
     if (std::filesystem::exists(data_dir_) && std::filesystem::is_directory(data_dir_)) {
         for (const auto& entry : std::filesystem::directory_iterator(data_dir_)) {

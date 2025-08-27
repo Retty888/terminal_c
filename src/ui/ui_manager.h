@@ -100,6 +100,7 @@ private:
   std::function<void(const std::string &)> on_pair_changed_;
   std::function<void(const std::string &)> status_callback_;
   bool shutdown_called_ = false;
+  bool owns_imgui_context_ = false;
   mutable std::mutex ui_mutex_;
 
   // Cached data for pair and interval selection combos

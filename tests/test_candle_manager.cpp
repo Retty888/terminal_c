@@ -187,7 +187,7 @@ TEST(CandleManagerTest, AppendSkipsDuplicatesWithCorruptedIndex) {
     std::ifstream idx(idx_path);
     idx >> idx_time;
     EXPECT_EQ(idx_time, 3);
-
+    idx.close();
     std::filesystem::remove_all(dir);
 }
 

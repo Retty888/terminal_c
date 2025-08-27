@@ -45,7 +45,13 @@ TEST(LoggerFilesystem, OpenFailure) {
 TEST(LoggerFilesystem, RotateFailure) {
     Core::Logger::instance().set_file("");
     Core::Logger::instance().enable_console_output(false);
+#ifdef _WIN32
+    // Use a known existing system binary that should not be writable/rotatable
+    // by the test process to force a rotate failure scenario.
+    auto path = std::filesystem::path("C:/Windows/System32/notepad.exe");
+#else
     auto path = std::filesystem::path("/proc/version");
+#endif
     ASSERT_TRUE(std::filesystem::exists(path));
     testing::internal::CaptureStderr();
     Core::Logger::instance().set_file(path.string(), 0);

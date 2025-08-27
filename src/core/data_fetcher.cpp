@@ -94,22 +94,40 @@ KlinesResult DataFetcher::fetch_klines_from_api(
             fill_missing(all_candles, interval_ms);
             return {FetchError::None, http_status, "", all_candles};
           }
+          auto get_ll = [](const nlohmann::json &v) -> long long {
+            if (v.is_number_integer() || v.is_number_unsigned())
+              return v.get<long long>();
+            if (v.is_string())
+              return std::stoll(v.get<std::string>());
+            if (v.is_number_float())
+              return static_cast<long long>(v.get<double>());
+            return 0LL;
+          };
+          auto get_d = [](const nlohmann::json &v) -> double {
+            if (v.is_number())
+              return v.get<double>();
+            if (v.is_string())
+              return std::stod(v.get<std::string>());
+            return 0.0;
+          };
           for (auto it = json_data.rbegin(); it != json_data.rend(); ++it) {
             const auto &kline = *it;
             all_candles.push_back(Candle(
-                kline[0].get<long long>(),
-                kline[1].get<double>(),
-                kline[2].get<double>(),
-                kline[3].get<double>(),
-                kline[4].get<double>(),
-                kline[5].get<double>(),
-                kline[6].get<long long>(),
-                kline[7].get<double>(), kline[8].get<int>(),
-                kline[9].get<double>(),
-                kline[10].get<double>(),
-                kline[11].get<double>()));
+                get_ll(kline[0]),
+                get_d(kline[1]),
+                get_d(kline[2]),
+                get_d(kline[3]),
+                get_d(kline[4]),
+                get_d(kline[5]),
+                get_ll(kline[6]),
+                get_d(kline[7]),
+                kline[8].is_number() ? kline[8].get<int>()
+                                      : std::stoi(kline[8].get<std::string>()),
+                get_d(kline[9]),
+                get_d(kline[10]),
+                get_d(kline[11])));
           }
-          end_time = json_data.front()[0].get<long long>() - 1;
+          end_time = get_ll(json_data.front()[0]) - 1;
           success = true;
           break;
         } catch (const std::exception &e) {

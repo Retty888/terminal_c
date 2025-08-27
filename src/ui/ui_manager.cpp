@@ -174,6 +174,7 @@ bool UiManager::setup(GLFWwindow *window) {
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   ImPlot::CreateContext();
+  owns_imgui_context_ = true;
   const auto ini_path = Core::path_from_executable("imgui.ini");
   std::filesystem::create_directories(ini_path.parent_path());
   static std::string ini_path_str = ini_path.string();
@@ -684,8 +685,12 @@ void UiManager::shutdown() {
     webview_ready_ = false;
   }
 #endif
-  ImPlot::DestroyContext();
-  ImGui_ImplOpenGL3_Shutdown();
-  ImGui_ImplGlfw_Shutdown();
-  ImGui::DestroyContext();
+  // Only tear down ImGui/ImPlot if we created them via setup().
+  if (owns_imgui_context_) {
+    ImPlot::DestroyContext();
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+    owns_imgui_context_ = false;
+  }
 }

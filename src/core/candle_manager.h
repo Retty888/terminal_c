@@ -72,7 +72,9 @@ private:
     void write_last_open_time(const std::string& symbol, const std::string& interval, long long open_time) const;
 
     std::filesystem::path data_dir_;
-    mutable std::mutex mutex_;
+    // Recursive to avoid deadlocks when helper methods call other
+    // methods that also acquire the same mutex (e.g., get_* helpers).
+    mutable std::recursive_mutex mutex_;
 };
 
 } // namespace Core
