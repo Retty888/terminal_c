@@ -114,3 +114,31 @@ TEST(SignalIndicators, CalculatesMacd) {
     EXPECT_NEAR(m.histogram, 0.0, 1e-6);
 }
 
+TEST(SignalBotTest, ReturnsNeutralSignalOnInvalidEmaPeriod) {
+    std::vector<Core::Candle> candles;
+    for (int i = 0; i < 5; ++i) {
+        candles.emplace_back(i,0,0,0,static_cast<double>(i+1),0,0,0,0,0,0,0);
+    }
+    Config::SignalConfig cfg{"ema", 0, 0};
+    cfg.params["period"] = -5.0; // negative value
+    SignalBot bot(cfg);
+    EXPECT_EQ(bot.generate_signal(candles,4), 0);
+    cfg.params["period"] = 5.5; // non-integer value
+    bot.set_config(cfg);
+    EXPECT_EQ(bot.generate_signal(candles,4), 0);
+}
+
+TEST(SignalBotTest, ReturnsNeutralSignalOnInvalidRsiPeriod) {
+    std::vector<Core::Candle> candles;
+    for (int i = 0; i < 5; ++i) {
+        candles.emplace_back(i,0,0,0,static_cast<double>(i+1),0,0,0,0,0,0,0);
+    }
+    Config::SignalConfig cfg{"rsi", 0, 0};
+    cfg.params["period"] = -4.0; // negative value
+    SignalBot bot(cfg);
+    EXPECT_EQ(bot.generate_signal(candles,4), 0);
+    cfg.params["period"] = 3.2; // non-integer value
+    bot.set_config(cfg);
+    EXPECT_EQ(bot.generate_signal(candles,4), 0);
+}
+

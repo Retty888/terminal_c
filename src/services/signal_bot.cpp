@@ -1,4 +1,5 @@
 #include "services/signal_bot.h"
+#include <cmath>
 
 SignalBot::SignalBot(const Config::SignalConfig& cfg) : cfg_(cfg) {}
 
@@ -18,7 +19,13 @@ int SignalBot::generate_signal(const std::vector<Core::Candle>& candles, size_t 
         if (period == 0) {
             auto it = cfg_.params.find("period");
             if (it != cfg_.params.end()) {
-                period = static_cast<std::size_t>(it->second);
+                double val = it->second;
+                if (val >= 0 && std::floor(val) == val) {
+                    period = static_cast<std::size_t>(val);
+                } else {
+                    Core::Logger::instance().warn("Invalid EMA period value");
+                    return 0;
+                }
             }
         }
         return Signal::ema_signal(candles, index, period);
@@ -27,7 +34,13 @@ int SignalBot::generate_signal(const std::vector<Core::Candle>& candles, size_t 
         if (period == 0) {
             auto it = cfg_.params.find("period");
             if (it != cfg_.params.end()) {
-                period = static_cast<std::size_t>(it->second);
+                double val = it->second;
+                if (val >= 0 && std::floor(val) == val) {
+                    period = static_cast<std::size_t>(val);
+                } else {
+                    Core::Logger::instance().warn("Invalid RSI period value");
+                    return 0;
+                }
             }
         }
         double oversold = 30.0;
