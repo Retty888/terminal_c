@@ -76,14 +76,14 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb,
           bool closed = k.value("x", false);
           if (closed) {
             Candle c(
-                k.value("t", 0LL), std::stod(k.value("o", std::string("0"))),
-                std::stod(k.value("h", std::string("0"))),
-                std::stod(k.value("l", std::string("0"))),
-                std::stod(k.value("c", std::string("0"))),
-                std::stod(k.value("v", std::string("0"))), k.value("T", 0LL),
-                std::stod(k.value("q", std::string("0"))), k.value("n", 0),
-                std::stod(k.value("V", std::string("0"))),
-                std::stod(k.value("Q", std::string("0"))), 0.0);
+                k.value("t", 0LL), k.value("o", 0.0),
+                k.value("h", 0.0),
+                k.value("l", 0.0),
+                k.value("c", 0.0),
+                k.value("v", 0.0), k.value("T", 0LL),
+                k.value("q", 0.0), k.value("n", 0),
+                k.value("V", 0.0),
+                k.value("Q", 0.0), 0.0);
             candle_manager_.append_candles(symbol_, interval_, {c});
             if (cb)
               cb(c);
