@@ -79,12 +79,13 @@ int ema_signal(const std::vector<Core::Candle>& candles,
   double relative_strength_index(const std::vector<Core::Candle>& candles,
                                  std::size_t index,
                                  std::size_t period) {
-    if (period == 0 || index >= candles.size() || index < period) {
+    if (period == 0 || index >= candles.size() || index + 1 < period) {
         return 0.0;
     }
     double gain = 0.0;
     double loss = 0.0;
-    for (std::size_t i = index + 1 - period; i <= index; ++i) {
+    std::size_t start = index + 2 - period;
+    for (std::size_t i = start; i <= index; ++i) {
         double change = candles[i].close - candles[i - 1].close;
         if (change > 0) {
             gain += change;
