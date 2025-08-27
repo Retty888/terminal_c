@@ -318,15 +318,15 @@ bool DataService::clear_interval(const std::string &pair,
 
 bool DataService::reload_candles(const std::string &pair,
                                  const std::string &interval) const {
-  candle_manager_.clear_interval(pair, interval);
   const Config::ConfigData &cfg = config();
   auto res = fetch_klines(pair, interval, static_cast<int>(cfg.candles_limit));
   if (res.error == Core::FetchError::None && !res.candles.empty()) {
+    candle_manager_.clear_interval(pair, interval);
     candle_manager_.save_candles(pair, interval, res.candles);
     Core::Logger::instance().info("Reloaded " + pair + " " + interval);
     return true;
   }
-  Core::Logger::instance().error(
+  Core::Logger::instance().warn(
       "Reload failed for " + pair + " " + interval +
       (res.message.empty() ? "" : ": " + res.message));
   return false;
