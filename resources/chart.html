@@ -5,7 +5,7 @@
   <style>
     html, body { margin:0; padding:0; height:100%; }
     #container { position:relative; width:100%; height:100%; }
-    #tvchart { width:100%; height:100%; }
+    #tvchart { width:100%; height:100%; background:#111; }
     #toolbar { position:absolute; left:0; top:0; z-index:10; display:flex; flex-direction:column; }
     #toolbar button, #toolbar select { height:32px; margin:2px; background:#222; color:#fff; border:none; cursor:pointer; }
     #toolbar button { width:64px; }
@@ -37,7 +37,15 @@
   <canvas id="overlay"></canvas>
   <div id="coords"></div>
 </div>
+<script>
+  function __status(msg){ try { if (typeof appStatus === 'function') appStatus(String(msg)); } catch(e){}
+    try { console.log('[chart]', msg); } catch(e){}
+  }
+  window.addEventListener('error', function(e){ __status('js-error: '+(e && e.message)); });
+  document.addEventListener('DOMContentLoaded', function(){ __status('dom-content-loaded'); });
+</script>
 <script src="lightweight-charts.standalone.production.js"></script>
+<script> if (!window.LightweightCharts) { __status('lc-missing'); } else { __status('lc-loaded'); } </script>
 <script>
   const container = document.getElementById('container');
   const chartEl = document.getElementById('tvchart');
@@ -46,24 +54,44 @@
   const intervalSelect = document.getElementById('interval-select');
   const seriesSelect = document.getElementById('series-select');
 
+  __status('init-script-start');
   const chart = LightweightCharts.createChart(chartEl, {
     width: container.clientWidth,
     height: container.clientHeight,
     timeScale: { timeVisible: true, secondsVisible: false }
   });
+  __status('chart-created');
   let series = chart.addCandlestickSeries();
   let markers = [];
   let priceLine = null;
   const data = [];
   const ctx = overlay.getContext('2d');
   chart.subscribeCrosshairMove(param => {
-    if (!param.time || !param.point) { coordsEl.textContent = ''; return; }
-    const price = param.seriesPrices.get(series);
-    const ts = (typeof param.time === 'object')
-      ? `${param.time.year}-${param.time.month}-${param.time.day}`
-      : new Date(param.time * 1000).toLocaleString();
-    coordsEl.textContent = `${ts} ${price !== undefined ? price.toFixed(2) : ''}`;
+    try {
+      if (!param || !param.time || !param.point) { coordsEl.textContent = ''; return; }
+      let price;
+      if (param.seriesPrices && typeof param.seriesPrices.get === 'function') {
+        price = param.seriesPrices.get(series);
+      } else if (param.seriesData && typeof param.seriesData === 'object') {
+        // Fallback for older/newer API shapes
+        const v = param.seriesData.value || param.seriesData;
+        price = (typeof v === 'object' && v && 'close' in v) ? v.close : v;
+      }
+      const ts = (typeof param.time === 'object')
+        ? `${param.time.year}-${param.time.month}-${param.time.day}`
+        : new Date(param.time * 1000).toLocaleString();
+      coordsEl.textContent = `${ts} ${price !== undefined ? Number(price).toFixed(2) : ''}`;
+    } catch(e) {
+      __status('crosshair-error: '+(e && e.message));
+    }
   });
+
+  // Declare state BEFORE first resize/redraw to avoid TDZ on 'drawings'
+  let currentTool = 'cross';
+  let drawing = null;
+  const drawings = [];
+  const positions = [];
+  let positionId = 0;
 
   function resize() {
     const w = container.clientWidth;
@@ -74,12 +102,6 @@
   }
   window.addEventListener('resize', resize);
   resize();
-
-  let currentTool = 'cross';
-  let drawing = null;
-  const drawings = [];
-  const positions = [];
-  let positionId = 0;
 
   function setActiveTool(t) {
     currentTool = t;
@@ -109,6 +131,7 @@
     else if (t === 'AreaSeries') series = chart.addAreaSeries();
     else series = chart.addCandlestickSeries();
     series.setData(data);
+    __status('series-added');
     if (markers.length) series.setMarkers(markers);
     if (priceLine !== null) series.createPriceLine({ price: priceLine });
   }
@@ -191,6 +214,16 @@
   window.removePosition = function(id) { const i = positions.findIndex(p => p.id === id); if (i !== -1) { positions.splice(i,1); redraw(); } };
   window.updatePosition = function(p) { const i = positions.findIndex(x => x.id === p.id); if (i !== -1) { positions[i] = { ...positions[i], ...p }; redraw(); } };
   window.getPositions = () => positions;
+  // Notify native side when the page is loaded and JS is ready.
+  (function(){
+    __status('page-loading');
+    const notify = () => { if (typeof appReady === 'function') appReady('ok'); };
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(notify, 0);
+    } else {
+      window.addEventListener('DOMContentLoaded', notify);
+    }
+  })();
 </script>
 </body>
 </html>

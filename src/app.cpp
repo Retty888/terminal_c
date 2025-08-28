@@ -142,7 +142,10 @@ void App::setup_imgui() {
     update_available_intervals();
   });
   ui_manager_.set_status_callback(
-      [this](const std::string &msg) { this->add_status(msg); });
+      [this](const std::string &msg) {
+        this->add_status(msg);
+        Core::Logger::instance().info(std::string("UI: ") + msg);
+      });
   Core::Logger::instance().set_sink(
       [this](Core::LogLevel level, std::chrono::system_clock::time_point time,
              const std::string &msg) { this->add_status(msg, level, time); });

@@ -384,7 +384,9 @@ void UiManager::draw_chart_panel() {
   (void)screen_pos; (void)avail;
 #endif
 #ifdef HAVE_WEBVIEW
-  if (!webview_ && !webview_missing_chart_ && !webview_init_failed_) {
+  const bool disable_webview = std::getenv("CANDLE_DISABLE_WEBVIEW") != nullptr;
+  const bool external_webview = std::getenv("CANDLE_WEBVIEW_EXTERNAL") != nullptr;
+  if (!disable_webview && !webview_ && !webview_missing_chart_ && !webview_init_failed_) {
     std::filesystem::path html_path;
     if (!chart_html_path_.empty()) {
       html_path = chart_html_path_;
@@ -394,7 +396,7 @@ void UiManager::draw_chart_panel() {
     if (std::filesystem::exists(html_path)) {
       void *parent = nullptr;
 #if defined(_WIN32) && defined(EMBED_WEBVIEW)
-      if (glfw_window_) {
+      if (glfw_window_ && !external_webview) {
         HWND hwnd_parent = glfwGetWin32Window(glfw_window_);
         if (hwnd_parent) {
           // Translate ImGui screen coords to parent client coords
@@ -429,7 +431,14 @@ void UiManager::draw_chart_panel() {
         if (status_callback_)
           status_callback_("WebView created");
         std::string url = std::string("file://") + html_path.generic_string();
-        webview_navigate(static_cast<webview_t>(webview_), url.c_str());
+        if (status_callback_)
+          status_callback_(std::string("Navigating to ") + url);
+        if (std::getenv("CANDLE_WEBVIEW_TEST")) {
+          const char *test = "data:text/html,%3Ch1%3EOK%3C/h1%3E";
+          webview_navigate(static_cast<webview_t>(webview_), test);
+        } else {
+          webview_navigate(static_cast<webview_t>(webview_), url.c_str());
+        }
         webview_bind(
             static_cast<webview_t>(webview_), "appSetInterval",
             [](const char *seq, const char *req, void *arg) {
@@ -567,27 +576,43 @@ void UiManager::draw_chart_panel() {
     }
   }
   if (webview_missing_chart_ || webview_init_failed_ || !webview_) {
+    ImGui::Text("Chart area %.0fx%.0f, candles: %zu", avail.x, avail.y, candles_.size());
+    if (ImGui::Button("Fit")) {
+      fit_next_plot_ = true;
+    }
     // Fallback: draw a native ImPlot candlestick chart so the user always
     // sees data even if WebView is unavailable.
     if (!candles_.empty()) {
-      if (ImPlot::BeginPlot("Native Chart", ImVec2(-1, -1),
-                           ImPlotFlags_CanvasOnly)) {
-        std::vector<double> xs(candles_.size());
-        std::vector<double> o(candles_.size());
-        std::vector<double> h(candles_.size());
-        std::vector<double> l(candles_.size());
-        std::vector<double> c(candles_.size());
-        for (size_t i = 0; i < candles_.size(); ++i) {
-          xs[i] = static_cast<double>(candles_[i].open_time / 1000);
-          o[i] = candles_[i].open;
-          h[i] = candles_[i].high;
-          l[i] = candles_[i].low;
-          c[i] = candles_[i].close;
+      std::vector<double> xs(candles_.size());
+      std::vector<double> o(candles_.size());
+      std::vector<double> h(candles_.size());
+      std::vector<double> l(candles_.size());
+      std::vector<double> c(candles_.size());
+      double min_x = std::numeric_limits<double>::max();
+      double max_x = std::numeric_limits<double>::lowest();
+      double min_y = std::numeric_limits<double>::max();
+      double max_y = std::numeric_limits<double>::lowest();
+      for (size_t i = 0; i < candles_.size(); ++i) {
+        xs[i] = static_cast<double>(candles_[i].open_time / 1000);
+        o[i] = candles_[i].open;
+        h[i] = candles_[i].high;
+        l[i] = candles_[i].low;
+        c[i] = candles_[i].close;
+        min_x = std::min(min_x, xs[i]);
+        max_x = std::max(max_x, xs[i]);
+        min_y = std::min(min_y, l[i]);
+        max_y = std::max(max_y, h[i]);
+      }
+      if (ImPlot::BeginPlot("Native Chart", ImVec2(-1, -1), 0)) {
+        ImPlot::SetupAxes("Time", "Price", ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
+        if (fit_next_plot_) {
+          // Pad ranges a bit for readability
+          double dx = (max_x - min_x) * 0.02; if (dx <= 0) dx = 1.0;
+          double dy = (max_y - min_y) * 0.05; if (dy <= 0) dy = 1.0;
+          ImPlot::SetupAxesLimits(min_x - dx, max_x + dx, min_y - dy, max_y + dy, ImPlotCond_Always);
+          fit_next_plot_ = false;
         }
-        ImPlot::SetupAxes("Time", "Price", ImPlotAxisFlags_AutoFit,
-                          ImPlotAxisFlags_AutoFit);
-        PlotCandlestick("ohlc", xs.data(), o.data(), c.data(), l.data(),
-                        h.data(), static_cast<int>(xs.size()));
+        PlotCandlestick("ohlc", xs.data(), o.data(), c.data(), l.data(), h.data(), static_cast<int>(xs.size()));
         ImPlot::EndPlot();
       }
     } else {
