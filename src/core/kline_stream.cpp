@@ -111,7 +111,7 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb,
       }
     });
     auto weak_self = std::weak_ptr<KlineStream>(shared_from_this());
-    ws_->setOnError([weak_self, error]() {
+    ws_->setOnError([weak_self, error, m, cv, closed]() {
       if (auto self = weak_self.lock()) {
         self->callbacks_inflight_++;
         error->store(true);
@@ -120,6 +120,13 @@ void KlineStream::run(CandleCallback cb, ErrorCallback err_cb,
           if (self->ws_)
             self->ws_->stop();
         }
+        // Ensure the run loop doesn't block waiting for a close event
+        // if the underlying implementation fails to deliver it promptly.
+        {
+          std::lock_guard<std::mutex> lk(*m);
+          closed->store(true);
+        }
+        cv->notify_one();
         self->callbacks_inflight_--;
         self->cb_cv_.notify_all();
       }

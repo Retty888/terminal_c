@@ -10,9 +10,6 @@
 
 void DrawJournalWindow(JournalService &service, bool save_csv) {
   auto &journal = service.journal();
-  auto vp = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(vp->WorkSize, ImGuiCond_FirstUseEver);
   ImGui::Begin("Journal");
   static char j_symbol[32] = "";
   static int j_side = 0;

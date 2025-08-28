@@ -1,6 +1,10 @@
 #include "ui_manager.h"
 
 #include <GLFW/glfw3.h>
+#if defined(_WIN32) && defined(EMBED_WEBVIEW)
+#include <windows.h>
+extern "C" HWND glfwGetWin32Window(GLFWwindow *window);
+#endif
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -171,10 +175,12 @@ void AddCandle(std::vector<Core::Candle> &candles, const Core::Candle &candle) {
 UiManager::~UiManager() { shutdown(); }
 
 bool UiManager::setup(GLFWwindow *window) {
+  glfw_window_ = window;
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
   ImPlot::CreateContext();
   owns_imgui_context_ = true;
+  ImGuiIO &io = ImGui::GetIO();
   const auto ini_path = Core::path_from_executable("imgui.ini");
   std::filesystem::create_directories(ini_path.parent_path());
   static std::string ini_path_str = ini_path.string();
@@ -197,7 +203,6 @@ bool UiManager::setup(GLFWwindow *window) {
       }
     }
   }
-  ImGuiIO &io = ImGui::GetIO();
   io.IniFilename = ini_path_str.c_str();
   if (load_ini) {
     ImGui::LoadIniSettingsFromDisk(io.IniFilename);
@@ -252,6 +257,18 @@ void UiManager::set_intervals(const std::vector<std::string> &intervals) {
     for (auto &i : interval_strings_) {
       interval_items_.push_back(i.c_str());
     }
+#ifdef HAVE_WEBVIEW
+    if (webview_) {
+      nlohmann::json arr = nlohmann::json::array();
+      for (const auto &s : interval_strings_) arr.push_back(s);
+      std::string js = "setIntervals(" + arr.dump() + ");";
+      webview_eval(static_cast<webview_t>(webview_), js.c_str());
+      if (!current_interval_.empty()) {
+        std::string js2 = "setActiveInterval('" + current_interval_ + "');";
+        webview_eval(static_cast<webview_t>(webview_), js2.c_str());
+      }
+    }
+#endif
   }
 }
 
@@ -264,8 +281,15 @@ void UiManager::draw_chart_panel() {
     title += " - " + current_interval_;
   }
   auto vp = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(vp->WorkSize, ImGuiCond_FirstUseEver);
+  // Lay out: reserve a left panel and optional bottom strip for other windows.
+  const float left_w = 360.0f;
+  const float bottom_h = 260.0f;
+  ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + left_w, vp->WorkPos.y),
+                          ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(
+      ImVec2(std::max(100.0f, vp->WorkSize.x - left_w),
+             std::max(100.0f, vp->WorkSize.y - bottom_h)),
+      ImGuiCond_FirstUseEver);
   ImGui::Begin(title.c_str());
 
   int pair_index = 0;
@@ -353,12 +377,42 @@ void UiManager::draw_chart_panel() {
   ImGui::EndChild();
   ImGui::SameLine();
   ImGui::BeginChild("ChartChild", ImVec2(0, 0), false);
+  // Determine the on-screen rect for embedding the WebView (Windows)
+  ImVec2 screen_pos = ImGui::GetCursorScreenPos();
+  ImVec2 avail = ImGui::GetContentRegionAvail();
 #ifdef HAVE_WEBVIEW
   if (!webview_ && !webview_missing_chart_ && !webview_init_failed_) {
-    auto html_path = Core::path_from_executable("chart.html");
+    std::filesystem::path html_path;
+    if (!chart_html_path_.empty()) {
+      html_path = chart_html_path_;
+    } else {
+      html_path = Core::path_from_executable("chart.html");
+    }
     if (std::filesystem::exists(html_path)) {
-
-      webview_ = webview_create(0, nullptr);
+      void *parent = nullptr;
+#if defined(_WIN32) && defined(EMBED_WEBVIEW)
+      if (glfw_window_) {
+        HWND hwnd_parent = glfwGetWin32Window(glfw_window_);
+        if (hwnd_parent) {
+          // Translate ImGui screen coords to parent client coords
+          POINT clientTL{0,0};
+          ClientToScreen(hwnd_parent, &clientTL);
+          int x = static_cast<int>(screen_pos.x - clientTL.x);
+          int y = static_cast<int>(screen_pos.y - clientTL.y);
+          int w = std::max(1, static_cast<int>(avail.x));
+          int h = std::max(1, static_cast<int>(avail.y));
+          HWND host = CreateWindowExW(0, L"STATIC", L"",
+                                      WS_CHILD | WS_VISIBLE,
+                                      x, y, w, h, hwnd_parent, nullptr,
+                                      GetModuleHandleW(nullptr), nullptr);
+          if (host) {
+            webview_host_hwnd_ = host;
+            parent = host;
+          }
+        }
+      }
+#endif
+      webview_ = webview_create(0, parent);
       if (webview_) {
         std::string url = std::string("file://") + html_path.generic_string();
         webview_navigate(static_cast<webview_t>(webview_), url.c_str());
@@ -458,6 +512,17 @@ void UiManager::draw_chart_panel() {
             std::string js = "series.setData(" + arr.dump() + ");";
             webview_eval(static_cast<webview_t>(webview_), js.c_str());
           }
+          // Push intervals and current selection to the chart UI
+          if (!interval_strings_.empty()) {
+            nlohmann::json arr_iv = nlohmann::json::array();
+            for (const auto &s : interval_strings_) arr_iv.push_back(s);
+            std::string jsiv = "setIntervals(" + arr_iv.dump() + ");";
+            webview_eval(static_cast<webview_t>(webview_), jsiv.c_str());
+          }
+          if (!current_interval_.empty()) {
+            std::string jsai = "setActiveInterval('" + current_interval_ + "');";
+            webview_eval(static_cast<webview_t>(webview_), jsai.c_str());
+          }
           if (price_line_) {
             std::ostringstream oss;
             oss << "chart.setPriceLine(" << *price_line_ << ");";
@@ -478,16 +543,33 @@ void UiManager::draw_chart_panel() {
       }
     } else {
       webview_missing_chart_ = true;
-      if (status_callback_)
-        status_callback_("chart.html not found");
+      if (status_callback_) {
+        std::string p = html_path.empty() ? std::string("chart.html")
+                                          : html_path.string();
+        status_callback_("chart HTML not found: " + p);
+      }
     }
   }
   if (webview_missing_chart_) {
-    ImGui::TextUnformatted("chart.html not found");
+    ImGui::TextUnformatted("Chart HTML not found");
   } else if (webview_init_failed_ || !webview_) {
     ImGui::TextUnformatted("WebView initialization failed");
   } else {
-    ImGui::TextUnformatted("WebView chart running in external window.");
+    // Keep embedded WebView child sized to the ImGui region
+#if defined(_WIN32) && defined(EMBED_WEBVIEW)
+    if (webview_host_hwnd_) {
+      HWND hwnd_parent = glfwGetWin32Window(glfw_window_);
+      if (hwnd_parent) {
+        POINT clientTL{0,0};
+        ClientToScreen(hwnd_parent, &clientTL);
+        int x = static_cast<int>(screen_pos.x - clientTL.x);
+        int y = static_cast<int>(screen_pos.y - clientTL.y);
+        int w = std::max(1, static_cast<int>(avail.x));
+        int h = std::max(1, static_cast<int>(avail.y));
+        MoveWindow(static_cast<HWND>(webview_host_hwnd_), x, y, w, h, TRUE);
+      }
+    }
+#endif
   }
 #endif
 #ifndef HAVE_WEBVIEW
@@ -684,6 +766,12 @@ void UiManager::shutdown() {
     webview_ = nullptr;
     webview_ready_ = false;
   }
+  #if defined(_WIN32) && defined(EMBED_WEBVIEW)
+  if (webview_host_hwnd_) {
+    DestroyWindow(static_cast<HWND>(webview_host_hwnd_));
+    webview_host_hwnd_ = nullptr;
+  }
+  #endif
 #endif
   // Only tear down ImGui/ImPlot if we created them via setup().
   if (owns_imgui_context_) {
@@ -694,3 +782,11 @@ void UiManager::shutdown() {
     owns_imgui_context_ = false;
   }
 }
+
+#ifdef HAVE_WEBVIEW
+void UiManager::set_chart_html_path(const std::string &path) {
+  chart_html_path_ = path;
+}
+#else
+void UiManager::set_chart_html_path(const std::string &) {}
+#endif

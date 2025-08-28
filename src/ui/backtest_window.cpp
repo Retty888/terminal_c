@@ -11,9 +11,6 @@ void DrawBacktestWindow(
                    std::map<std::string, std::vector<Core::Candle>>>
         &all_candles,
     const std::string &active_pair, const std::string &selected_interval) {
-  auto vp = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(vp->WorkSize, ImGuiCond_FirstUseEver);
   ImGui::Begin("Backtest");
 
   static Core::BacktestResult result;

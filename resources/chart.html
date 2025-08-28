@@ -8,24 +8,27 @@
     #tvchart { width:100%; height:100%; }
     #toolbar { position:absolute; left:0; top:0; z-index:10; display:flex; flex-direction:column; }
     #toolbar button, #toolbar select { height:32px; margin:2px; background:#222; color:#fff; border:none; cursor:pointer; }
-    #toolbar button { width:48px; }
+    #toolbar button { width:64px; }
     #toolbar button.active { background:#555; }
     #overlay { position:absolute; left:0; top:0; z-index:5; }
     #coords { position:absolute; right:0; bottom:0; z-index:10; background:#222; color:#fff; padding:2px 4px; font-family:monospace; }
   </style>
-</head>
+  <title>Chart</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: file:; script-src 'self' 'unsafe-inline' file:;">
+  </head>
 <body>
 <div id="container">
   <div id="toolbar">
+    <select id="interval-select"></select>
     <select id="series-select">
       <option value="CandlestickSeries">CandlestickSeries</option>
       <option value="LineSeries">LineSeries</option>
       <option value="AreaSeries">AreaSeries</option>
     </select>
     <button id="fit-btn">Fit</button>
-    <button id="tool-cross" data-tool="cross">✖</button>
-    <button id="tool-ruler" data-tool="ruler">📏</button>
-    <button id="tool-trend" data-tool="trend">／</button>
+    <button id="tool-cross" data-tool="cross">Cross</button>
+    <button id="tool-ruler" data-tool="ruler">Ruler</button>
+    <button id="tool-trend" data-tool="trend">Trend</button>
     <button id="tool-long" data-tool="long">Long</button>
     <button id="tool-short" data-tool="short">Short</button>
     <button id="tool-fibo" data-tool="fibo">Fibo</button>
@@ -40,11 +43,12 @@
   const chartEl = document.getElementById('tvchart');
   const overlay = document.getElementById('overlay');
   const coordsEl = document.getElementById('coords');
+  const intervalSelect = document.getElementById('interval-select');
+  const seriesSelect = document.getElementById('series-select');
 
   const chart = LightweightCharts.createChart(chartEl, {
     width: container.clientWidth,
     height: container.clientHeight,
-    localization: { locale: 'ru-RU' },
     timeScale: { timeVisible: true, secondsVisible: false }
   });
   let series = chart.addCandlestickSeries();
@@ -53,27 +57,19 @@
   const data = [];
   const ctx = overlay.getContext('2d');
   chart.subscribeCrosshairMove(param => {
-    if (!param.time || !param.point) {
-      coordsEl.textContent = '';
-      return;
-    }
+    if (!param.time || !param.point) { coordsEl.textContent = ''; return; }
     const price = param.seriesPrices.get(series);
-    let timeStr = '';
-    if (typeof param.time === 'object') {
-      timeStr = `${param.time.year}-${param.time.month}-${param.time.day}`;
-    } else {
-      const d = new Date(param.time * 1000);
-      timeStr = d.toLocaleString();
-    }
-    coordsEl.textContent = `${timeStr} ${price !== undefined ? price.toFixed(2) : ''}`;
+    const ts = (typeof param.time === 'object')
+      ? `${param.time.year}-${param.time.month}-${param.time.day}`
+      : new Date(param.time * 1000).toLocaleString();
+    coordsEl.textContent = `${ts} ${price !== undefined ? price.toFixed(2) : ''}`;
   });
 
   function resize() {
     const w = container.clientWidth;
     const h = container.clientHeight;
     chart.applyOptions({ width: w, height: h });
-    overlay.width = w;
-    overlay.height = h;
+    overlay.width = w; overlay.height = h;
     redraw();
   }
   window.addEventListener('resize', resize);
@@ -90,7 +86,7 @@
     document.querySelectorAll('#toolbar button[data-tool]').forEach(b => {
       b.classList.toggle('active', b.dataset.tool === t);
     });
-    overlay.style.pointerEvents = t === 'cross' ? 'none' : 'auto';
+    overlay.style.pointerEvents = (t === 'cross') ? 'none' : 'auto';
   }
   window.setActiveTool = setActiveTool;
 
@@ -98,7 +94,6 @@
     setActiveTool(t);
     if (typeof setTool === 'function') setTool(t);
   }
-
   document.querySelectorAll('#toolbar button[data-tool]').forEach(b => {
     b.addEventListener('click', () => selectTool(b.dataset.tool));
   });
@@ -108,73 +103,51 @@
     chart.timeScale().scrollToRealTime();
   });
 
-  const seriesSelect = document.getElementById('series-select');
-
   function createSeries(t) {
-    if (series) {
-      chart.removeSeries(series);
-    }
-    if (t === 'LineSeries') {
-      series = chart.addLineSeries();
-    } else if (t === 'AreaSeries') {
-      series = chart.addAreaSeries();
-    } else {
-      series = chart.addCandlestickSeries();
-    }
+    if (series) chart.removeSeries(series);
+    if (t === 'LineSeries') series = chart.addLineSeries();
+    else if (t === 'AreaSeries') series = chart.addAreaSeries();
+    else series = chart.addCandlestickSeries();
     series.setData(data);
     if (markers.length) series.setMarkers(markers);
     if (priceLine !== null) series.createPriceLine({ price: priceLine });
   }
-
-  function setActiveSeries(t) {
-    seriesSelect.value = t;
-    createSeries(t);
-  }
+  function setActiveSeries(t) { seriesSelect.value = t; createSeries(t); }
   window.setActiveSeries = setActiveSeries;
-
-  function selectSeries(t) {
-    setActiveSeries(t);
-    if (typeof setSeries === 'function') setSeries(t);
-  }
-
+  function selectSeries(t) { setActiveSeries(t); if (typeof setSeries === 'function') setSeries(t); }
   seriesSelect.addEventListener('change', () => selectSeries(seriesSelect.value));
+
+  // Interval change → notify native side via bound function if present
+  intervalSelect.addEventListener('change', () => {
+    const iv = intervalSelect.value;
+    if (typeof setInterval === 'function') setInterval(iv);
+    if (typeof status === 'function') status('Interval: ' + iv);
+  });
+
+  // Allow native side to push intervals and active selection
+  window.setIntervals = function(list) {
+    const current = intervalSelect.value;
+    intervalSelect.innerHTML = '';
+    (list || []).forEach(iv => {
+      const opt = document.createElement('option');
+      opt.value = iv; opt.textContent = iv; intervalSelect.appendChild(opt);
+    });
+    if (current && list && list.includes(current)) intervalSelect.value = current;
+  };
+  window.setActiveInterval = function(iv) {
+    if (!iv) return;
+    intervalSelect.value = iv;
+  };
 
   function redraw() {
     ctx.clearRect(0, 0, overlay.width, overlay.height);
     drawings.forEach(d => {
-      if (d.tool === 'fibo') {
-        const x1 = chart.timeScale().timeToCoordinate(d.time1);
-        const x2 = chart.timeScale().timeToCoordinate(d.time2);
-        const y1 = series.priceToCoordinate(d.price1);
-        const y2 = series.priceToCoordinate(d.price2);
-        const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
-        ctx.strokeStyle = 'yellow';
-        ctx.fillStyle = 'yellow';
-        levels.forEach(l => {
-          const y = y1 + (y2 - y1) * l;
-          ctx.beginPath();
-          ctx.moveTo(x1, y);
-          ctx.lineTo(x2, y);
-          ctx.stroke();
-          ctx.fillText((l * 100).toFixed(1) + '%', x2 + 5, y);
-        });
-      } else {
-        const x1 = chart.timeScale().timeToCoordinate(d.time1);
-        const y1 = series.priceToCoordinate(d.price1);
-        const x2 = chart.timeScale().timeToCoordinate(d.time2);
-        const y2 = series.priceToCoordinate(d.price2);
-        ctx.strokeStyle = 'yellow';
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-        if (d.tool === 'ruler') {
-          const diff = d.price2 - d.price1;
-          const pct = diff / d.price1 * 100;
-          ctx.fillStyle = 'yellow';
-          ctx.fillText(diff.toFixed(2) + ' (' + pct.toFixed(2) + '%)', x2 + 5, y2 + 5);
-        }
-      }
+      const x1 = chart.timeScale().timeToCoordinate(d.time1);
+      const y1 = series.priceToCoordinate(d.price1);
+      const x2 = chart.timeScale().timeToCoordinate(d.time2);
+      const y2 = series.priceToCoordinate(d.price2);
+      ctx.strokeStyle = 'yellow';
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
     });
     positions.forEach(p => {
       const x1 = chart.timeScale().timeToCoordinate(p.time1);
@@ -183,140 +156,40 @@
       const y2 = series.priceToCoordinate(p.price2);
       ctx.fillStyle = p.tool === 'long' ? 'rgba(0,255,0,0.2)' : 'rgba(255,0,0,0.2)';
       ctx.strokeStyle = p.tool === 'long' ? 'green' : 'red';
-      ctx.beginPath();
-      ctx.rect(x1, y1, x2 - x1, y2 - y1);
-      ctx.fill();
-      ctx.stroke();
-      const diff = p.tool === 'long' ? p.price2 - p.price1 : p.price1 - p.price2;
-      const pct = diff / p.price1 * 100;
-      const arrowX = Math.max(x1, x2) + 10;
-      ctx.strokeStyle = diff >= 0 ? 'green' : 'red';
-      ctx.beginPath();
-      ctx.moveTo(arrowX, y1);
-      ctx.lineTo(arrowX, y2);
-      ctx.stroke();
-      ctx.beginPath();
-      const dir = y2 < y1 ? -1 : 1;
-      ctx.moveTo(arrowX - 5, y2 + 5 * dir);
-      ctx.lineTo(arrowX, y2);
-      ctx.lineTo(arrowX + 5, y2 + 5 * dir);
-      ctx.stroke();
-      ctx.fillStyle = diff >= 0 ? 'green' : 'red';
-      ctx.fillText(diff.toFixed(2) + ' (' + pct.toFixed(2) + '%)', arrowX + 5, (y1 + y2) / 2);
+      ctx.beginPath(); ctx.rect(x1, y1, x2 - x1, y2 - y1); ctx.fill(); ctx.stroke();
     });
   }
 
   overlay.addEventListener('mousedown', e => {
     if (currentTool === 'cross') return;
-    const x = e.offsetX;
-    const y = e.offsetY;
-    drawing = {
-      x1: x,
-      y1: y,
-      time1: chart.timeScale().coordinateToTime(x),
-      price1: series.coordinateToPrice(y)
-    };
+    const x = e.offsetX; const y = e.offsetY;
+    drawing = { x1: x, y1: y, time1: chart.timeScale().coordinateToTime(x), price1: series.coordinateToPrice(y), tool: currentTool };
   });
-
   overlay.addEventListener('mousemove', e => {
-    if (!drawing) return;
-    redraw();
-    const x = e.offsetX;
-    const y = e.offsetY;
-    ctx.strokeStyle = 'yellow';
-    ctx.fillStyle = 'yellow';
-    if (currentTool === 'trend' || currentTool === 'ruler') {
-      ctx.beginPath();
-      ctx.moveTo(drawing.x1, drawing.y1);
-      ctx.lineTo(x, y);
-      ctx.stroke();
-      if (currentTool === 'ruler') {
-        const price2 = series.coordinateToPrice(y);
-        const diff = price2 - drawing.price1;
-        const pct = diff / drawing.price1 * 100;
-        ctx.fillText(diff.toFixed(2) + ' (' + pct.toFixed(2) + '%)', x + 5, y + 5);
-      }
-    } else if (currentTool === 'fibo') {
-      const price2 = series.coordinateToPrice(y);
-      const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
-      levels.forEach(l => {
-        const py = drawing.price1 + (price2 - drawing.price1) * l;
-        const yc = series.priceToCoordinate(py);
-        ctx.beginPath();
-        ctx.moveTo(drawing.x1, yc);
-        ctx.lineTo(x, yc);
-        ctx.stroke();
-        ctx.fillText((l * 100).toFixed(1) + '%', x + 5, yc);
-      });
-    } else if (currentTool === 'long' || currentTool === 'short') {
-      ctx.fillStyle = currentTool === 'long' ? 'rgba(0,255,0,0.2)' : 'rgba(255,0,0,0.2)';
-      ctx.strokeStyle = currentTool === 'long' ? 'green' : 'red';
-      ctx.beginPath();
-      ctx.rect(drawing.x1, drawing.y1, x - drawing.x1, y - drawing.y1);
-      ctx.fill();
-      ctx.stroke();
-    }
+    if (!drawing) return; redraw();
+    const x = e.offsetX; const y = e.offsetY;
+    ctx.strokeStyle = 'yellow'; ctx.beginPath(); ctx.moveTo(drawing.x1, drawing.y1); ctx.lineTo(x, y); ctx.stroke();
   });
-
   overlay.addEventListener('mouseup', e => {
     if (!drawing) return;
-    const x = e.offsetX;
-    const y = e.offsetY;
-    drawing.x2 = x;
-    drawing.y2 = y;
-    drawing.time2 = chart.timeScale().coordinateToTime(x);
-    drawing.price2 = series.coordinateToPrice(y);
-    drawing.tool = currentTool;
-    if (currentTool === 'long' || currentTool === 'short') {
-      addPosition(drawing);
-    } else {
-      drawings.push(drawing);
-      redraw();
-    }
-    drawing = null;
+    const x = e.offsetX; const y = e.offsetY;
+    drawing.x2 = x; drawing.y2 = y; drawing.time2 = chart.timeScale().coordinateToTime(x); drawing.price2 = series.coordinateToPrice(y);
+    positions.push(drawing); drawing = null; redraw();
   });
 
+  // API used by native side
   window.updateCandle = function(c) {
     if (data.length && data[data.length - 1].time === c.time) {
-      data[data.length - 1] = c;
-      series.update(c);
-    } else {
-      data.push(c);
-      series.update(c);
-    }
+      data[data.length - 1] = c; series.update(c);
+    } else { data.push(c); series.update(c); }
   };
   window.chart = {
     setMarkers: function(m) { markers = m; series.setMarkers(m); },
     setPriceLine: function(p) { priceLine = p; series.createPriceLine({ price: p }); }
   };
-
-  function addPosition(p) {
-    if (p.id === undefined) {
-      p.id = positionId++;
-    } else {
-      positionId = Math.max(positionId, p.id + 1);
-    }
-    positions.push(p);
-    redraw();
-    return p.id;
-  }
-  function removePosition(id) {
-    const idx = positions.findIndex(p => p.id === id);
-    if (idx !== -1) {
-      positions.splice(idx, 1);
-      redraw();
-    }
-  }
-  function updatePosition(p) {
-    const idx = positions.findIndex(x => x.id === p.id);
-    if (idx !== -1) {
-      positions[idx] = { ...positions[idx], ...p };
-      redraw();
-    }
-  }
-  window.addPosition = addPosition;
-  window.removePosition = removePosition;
-  window.updatePosition = updatePosition;
+  window.addPosition = function(p) { p.id = p.id ?? (positionId++); positions.push(p); redraw(); return p.id; };
+  window.removePosition = function(id) { const i = positions.findIndex(p => p.id === id); if (i !== -1) { positions.splice(i,1); redraw(); } };
+  window.updatePosition = function(p) { const i = positions.findIndex(x => x.id === p.id); if (i !== -1) { positions[i] = { ...positions[i], ...p }; redraw(); } };
   window.getPositions = () => positions;
 </script>
 </body>

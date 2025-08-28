@@ -1,19 +1,24 @@
 {
-  "data_dir": "candle_data",
-  "pairs": [],
-  "log_level": "INFO",
-  "log_sinks": ["file", "console"],
-  "log_file": "terminal.log",
-  "candles_limit": 5000,
-  "enable_chart": true,
-  "chart_html_path": "resources/chart.html",
-  "enable_streaming": false,
-  "save_journal_csv": true,
-  "primary_provider": "binance",
-  "fallback_provider": "gateio",
-  "signal": {
-    "type": "sma_crossover",
-    "short_period": 2,
-    "long_period": 3
-  }
+    "candles_limit": 5000,
+    "chart_html_path": "resources/chart.html",
+    "data_dir": "candle_data",
+    "enable_chart": true,
+    "enable_streaming": false,
+    "fallback_provider": "gateio",
+    "log_file": "terminal.log",
+    "log_level": "INFO",
+    "log_sinks": [
+        "file",
+        "console"
+    ],
+    "pairs": [
+        "BTCUSDT"
+    ],
+    "primary_provider": "binance",
+    "save_journal_csv": true,
+    "signal": {
+        "long_period": 3,
+        "short_period": 2,
+        "type": "sma_crossover"
+    }
 }

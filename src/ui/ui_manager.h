@@ -50,6 +50,8 @@ public:
   void set_initial_pair(const std::string &pair);
   void end_frame(GLFWwindow *window);
   void shutdown();
+  // Provide the absolute or executable-relative path to chart HTML.
+  void set_chart_html_path(const std::string &path);
 
   enum class DrawTool { None, Line, HLine, Ruler, Long, Short, Fibo };
   enum class SeriesType { Candlestick, Line, Area };
@@ -120,5 +122,11 @@ private:
   bool webview_ready_ = false;
   bool webview_missing_chart_ = false;
   bool webview_init_failed_ = false;
+  std::string chart_html_path_{};
+#if defined(_WIN32)
+  void *webview_host_hwnd_ = nullptr; // HWND for embedded WebView child
 #endif
+#endif
+
+  GLFWwindow *glfw_window_ = nullptr;
 };

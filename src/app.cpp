@@ -127,6 +127,12 @@ bool App::init_window() {
 
 void App::setup_imgui() {
   ui_manager_.setup(window_.get());
+  // Provide chart HTML path from configuration if available
+  if (auto cfg = Config::ConfigManager::load(resolve_config_path().string())) {
+    if (cfg->enable_chart) {
+      ui_manager_.set_chart_html_path(cfg->chart_html_path);
+    }
+  }
   ui_manager_.set_interval_callback([this](const std::string &iv) {
     this->ctx_->selected_interval = iv;
     this->ctx_->active_interval = iv;
@@ -637,6 +643,12 @@ void App::process_events() {
 
 void App::schedule_http_updates(std::chrono::milliseconds period,
                                 long long now_ms) {
+  auto align_next_boundary = [&](long long t_ms) -> long long {
+    const long long p = period.count();
+    if (p <= 0)
+      return t_ms;
+    return (t_ms / p) * p + p; // ceil to next multiple
+  };
   if (this->ctx_->next_fetch_time.load() == 0) {
     std::shared_lock<std::shared_mutex> lock(this->ctx_->candles_mutex);
     auto pair_it = this->ctx_->all_candles.find(this->ctx_->active_pair);
@@ -647,7 +659,7 @@ void App::schedule_http_updates(std::chrono::milliseconds period,
                                period.count());
     }
     if (this->ctx_->next_fetch_time.load() == 0)
-      update_next_fetch_time(now_ms + period.count());
+      update_next_fetch_time(align_next_boundary(now_ms));
   }
   if (now_ms >= this->ctx_->next_fetch_time.load()) {
     for (const auto &item : this->ctx_->pairs) {
@@ -670,7 +682,7 @@ void App::schedule_http_updates(std::chrono::milliseconds period,
         add_status("Updating " + pair);
       }
     }
-    update_next_fetch_time(now_ms + period.count());
+    update_next_fetch_time(align_next_boundary(now_ms));
   }
 }
 
@@ -708,7 +720,14 @@ void App::handle_http_updates() {
           long long boundary = vec.back().open_time + p.count();
           update_next_fetch_time(boundary);
         } else {
-          schedule_retry(result_now, this->ctx_->retry_delay);
+          // No new candle yet — wait until the next aligned boundary.
+          auto p = Core::parse_interval(it->second.interval);
+          long long boundary = 0;
+          if (!vec.empty())
+            boundary = vec.back().open_time + p.count();
+          else
+            boundary = (result_now / p.count()) * p.count() + p.count();
+          update_next_fetch_time(boundary);
         }
         add_status("Updated " + it->first);
       } else {
@@ -780,6 +799,13 @@ void App::render_status_window() {
 void App::render_main_windows() {
   {
     std::unique_lock<std::shared_mutex> lock(this->ctx_->candles_mutex);
+    // Left control panel
+    auto vp = ImGui::GetMainViewport();
+    const float left_w = 360.0f;
+    const float bottom_h = 260.0f;
+    ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(left_w, vp->WorkSize.y),
+                             ImGuiCond_FirstUseEver);
     DrawControlPanel(
         this->ctx_->pairs, this->ctx_->selected_pairs, this->ctx_->active_pair,
         this->ctx_->intervals, this->ctx_->selected_interval,
@@ -791,16 +817,41 @@ void App::render_main_windows() {
   {
     std::shared_lock<std::shared_mutex> lock(this->ctx_->candles_mutex);
     ui_manager_.set_pairs(this->ctx_->selected_pairs);
-    ui_manager_.set_intervals(this->ctx_->available_intervals);
+    const auto &intervals_src =
+        this->ctx_->available_intervals.empty() ? this->ctx_->intervals
+                                                : this->ctx_->available_intervals;
+    ui_manager_.set_intervals(intervals_src);
     ui_manager_.draw_chart_panel();
+    // Bottom pane (shared) for optional windows
+    auto vp = ImGui::GetMainViewport();
+    const float left_w = 360.0f;
+    const float bottom_h = 260.0f;
     if (this->ctx_->show_analytics_window) {
+      ImGui::SetNextWindowPos(
+          ImVec2(vp->WorkPos.x + left_w, vp->WorkPos.y + vp->WorkSize.y - bottom_h),
+          ImGuiCond_FirstUseEver);
+      ImGui::SetNextWindowSize(
+          ImVec2(std::max(100.0f, vp->WorkSize.x - left_w), bottom_h),
+          ImGuiCond_FirstUseEver);
       DrawAnalyticsWindow(this->ctx_->all_candles, this->ctx_->active_pair,
                           this->ctx_->selected_interval);
     }
     if (this->ctx_->show_journal_window) {
+      ImGui::SetNextWindowPos(
+          ImVec2(vp->WorkPos.x + left_w, vp->WorkPos.y + vp->WorkSize.y - bottom_h),
+          ImGuiCond_FirstUseEver);
+      ImGui::SetNextWindowSize(
+          ImVec2(std::max(100.0f, vp->WorkSize.x - left_w), bottom_h),
+          ImGuiCond_FirstUseEver);
       DrawJournalWindow(journal_service_, this->ctx_->save_journal_csv);
     }
     if (this->ctx_->show_backtest_window) {
+      ImGui::SetNextWindowPos(
+          ImVec2(vp->WorkPos.x + left_w, vp->WorkPos.y + vp->WorkSize.y - bottom_h),
+          ImGuiCond_FirstUseEver);
+      ImGui::SetNextWindowSize(
+          ImVec2(std::max(100.0f, vp->WorkSize.x - left_w), bottom_h),
+          ImGuiCond_FirstUseEver);
       DrawBacktestWindow(this->ctx_->all_candles, this->ctx_->active_pair,
                          this->ctx_->selected_interval);
     }

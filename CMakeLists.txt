@@ -104,10 +104,19 @@ if(BUILD_TRADING_TERMINAL)
     $<TARGET_PROPERTY:cpr::cpr,INTERFACE_INCLUDE_DIRECTORIES>
   )
 
+  # Enable embedding the WebView inside the GLFW window on Windows build.
+  target_compile_definitions(TradingTerminal PRIVATE EMBED_WEBVIEW)
+
   
 
   if (WIN32)
     find_package(unofficial-webview2 CONFIG REQUIRED)
+    # Enable WebView code paths on Windows and include the legacy single-header API
+    # which forwards to the platform implementation. The WebView2 SDK is linked
+    # via the unofficial-webview2 package.
+    target_compile_definitions(TradingTerminal PRIVATE HAVE_WEBVIEW)
+    target_include_directories(TradingTerminal PRIVATE 
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview_legacy/webview)
     target_link_libraries(TradingTerminal PRIVATE unofficial::webview2::webview2)
   else()
     find_package(PkgConfig QUIET)
@@ -248,4 +257,3 @@ add_executable(test_ui_manager
   add_custom_target(ctest COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
       DEPENDS test_candle_manager test_scheduler test_kline_stream test_data_fetcher test_interval_utils test_logger test_signal test_ui_manager
     )
-
