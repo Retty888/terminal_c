@@ -380,6 +380,9 @@ void UiManager::draw_chart_panel() {
   // Determine the on-screen rect for embedding the WebView (Windows)
   ImVec2 screen_pos = ImGui::GetCursorScreenPos();
   ImVec2 avail = ImGui::GetContentRegionAvail();
+#ifndef HAVE_WEBVIEW
+  (void)screen_pos; (void)avail;
+#endif
 #ifdef HAVE_WEBVIEW
   if (!webview_ && !webview_missing_chart_ && !webview_init_failed_) {
     std::filesystem::path html_path;
@@ -408,16 +411,27 @@ void UiManager::draw_chart_panel() {
           if (host) {
             webview_host_hwnd_ = host;
             parent = host;
+            if (status_callback_) {
+              std::ostringstream oss;
+              oss << "Created WebView host hwnd at (" << x << ", " << y
+                  << ") size (" << w << "x" << h << ")";
+              status_callback_(oss.str());
+            }
+          }
+          else if (status_callback_) {
+            status_callback_("Failed to create WebView host window");
           }
         }
       }
 #endif
       webview_ = webview_create(0, parent);
       if (webview_) {
+        if (status_callback_)
+          status_callback_("WebView created");
         std::string url = std::string("file://") + html_path.generic_string();
         webview_navigate(static_cast<webview_t>(webview_), url.c_str());
         webview_bind(
-            static_cast<webview_t>(webview_), "setInterval",
+            static_cast<webview_t>(webview_), "appSetInterval",
             [](const char *seq, const char *req, void *arg) {
               auto self = static_cast<UiManager *>(arg);
               if (self->on_interval_changed_) {
@@ -433,7 +447,7 @@ void UiManager::draw_chart_panel() {
             },
             this);
         webview_bind(
-            static_cast<webview_t>(webview_), "setPair",
+            static_cast<webview_t>(webview_), "appSetPair",
             [](const char *seq, const char *req, void *arg) {
               auto self = static_cast<UiManager *>(arg);
               if (self->on_pair_changed_) {
@@ -449,7 +463,7 @@ void UiManager::draw_chart_panel() {
             },
             this);
         webview_bind(
-            static_cast<webview_t>(webview_), "status",
+            static_cast<webview_t>(webview_), "appStatus",
             [](const char *seq, const char *req, void *arg) {
               auto self = static_cast<UiManager *>(arg);
               if (self->status_callback_) {
@@ -465,7 +479,7 @@ void UiManager::draw_chart_panel() {
             },
             this);
         webview_bind(
-            static_cast<webview_t>(webview_), "setTool",
+            static_cast<webview_t>(webview_), "appSetTool",
             [](const char *seq, const char *req, void *arg) {
               auto self = static_cast<UiManager *>(arg);
               try {
@@ -480,7 +494,7 @@ void UiManager::draw_chart_panel() {
             },
             this);
         webview_bind(
-            static_cast<webview_t>(webview_), "setSeries",
+            static_cast<webview_t>(webview_), "appSetSeries",
             [](const char *seq, const char *req, void *arg) {
               auto self = static_cast<UiManager *>(arg);
               try {
@@ -512,6 +526,8 @@ void UiManager::draw_chart_panel() {
             std::string js = "series.setData(" + arr.dump() + ");";
             webview_eval(static_cast<webview_t>(webview_), js.c_str());
           }
+          if (status_callback_)
+            status_callback_("WebView initialized and data (if any) pushed");
           // Push intervals and current selection to the chart UI
           if (!interval_strings_.empty()) {
             nlohmann::json arr_iv = nlohmann::json::array();
@@ -550,10 +566,33 @@ void UiManager::draw_chart_panel() {
       }
     }
   }
-  if (webview_missing_chart_) {
-    ImGui::TextUnformatted("Chart HTML not found");
-  } else if (webview_init_failed_ || !webview_) {
-    ImGui::TextUnformatted("WebView initialization failed");
+  if (webview_missing_chart_ || webview_init_failed_ || !webview_) {
+    // Fallback: draw a native ImPlot candlestick chart so the user always
+    // sees data even if WebView is unavailable.
+    if (!candles_.empty()) {
+      if (ImPlot::BeginPlot("Native Chart", ImVec2(-1, -1),
+                           ImPlotFlags_CanvasOnly)) {
+        std::vector<double> xs(candles_.size());
+        std::vector<double> o(candles_.size());
+        std::vector<double> h(candles_.size());
+        std::vector<double> l(candles_.size());
+        std::vector<double> c(candles_.size());
+        for (size_t i = 0; i < candles_.size(); ++i) {
+          xs[i] = static_cast<double>(candles_[i].open_time / 1000);
+          o[i] = candles_[i].open;
+          h[i] = candles_[i].high;
+          l[i] = candles_[i].low;
+          c[i] = candles_[i].close;
+        }
+        ImPlot::SetupAxes("Time", "Price", ImPlotAxisFlags_AutoFit,
+                          ImPlotAxisFlags_AutoFit);
+        PlotCandlestick("ohlc", xs.data(), o.data(), c.data(), l.data(),
+                        h.data(), static_cast<int>(xs.size()));
+        ImPlot::EndPlot();
+      }
+    } else {
+      ImGui::TextUnformatted("No candles to display");
+    }
   } else {
     // Keep embedded WebView child sized to the ImGui region
 #if defined(_WIN32) && defined(EMBED_WEBVIEW)
@@ -566,7 +605,8 @@ void UiManager::draw_chart_panel() {
         int y = static_cast<int>(screen_pos.y - clientTL.y);
         int w = std::max(1, static_cast<int>(avail.x));
         int h = std::max(1, static_cast<int>(avail.y));
-        MoveWindow(static_cast<HWND>(webview_host_hwnd_), x, y, w, h, TRUE);
+        SetWindowPos(static_cast<HWND>(webview_host_hwnd_), HWND_TOP,
+                     x, y, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW);
       }
     }
 #endif

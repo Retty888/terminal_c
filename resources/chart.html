@@ -92,7 +92,7 @@
 
   function selectTool(t) {
     setActiveTool(t);
-    if (typeof setTool === 'function') setTool(t);
+    if (typeof appSetTool === 'function') appSetTool(t);
   }
   document.querySelectorAll('#toolbar button[data-tool]').forEach(b => {
     b.addEventListener('click', () => selectTool(b.dataset.tool));
@@ -114,14 +114,14 @@
   }
   function setActiveSeries(t) { seriesSelect.value = t; createSeries(t); }
   window.setActiveSeries = setActiveSeries;
-  function selectSeries(t) { setActiveSeries(t); if (typeof setSeries === 'function') setSeries(t); }
+  function selectSeries(t) { setActiveSeries(t); if (typeof appSetSeries === 'function') appSetSeries(t); }
   seriesSelect.addEventListener('change', () => selectSeries(seriesSelect.value));
 
   // Interval change → notify native side via bound function if present
   intervalSelect.addEventListener('change', () => {
     const iv = intervalSelect.value;
-    if (typeof setInterval === 'function') setInterval(iv);
-    if (typeof status === 'function') status('Interval: ' + iv);
+    if (typeof appSetInterval === 'function') appSetInterval(iv);
+    if (typeof appStatus === 'function') appStatus('Interval: ' + iv);
   });
 
   // Allow native side to push intervals and active selection
