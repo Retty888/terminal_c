@@ -71,3 +71,23 @@ The `examples/sample_chart.py` script demonstrates how to download and display B
 
 
 
+
+## Windows UI Troubleshooting
+
+- Build option `USE_OPENGL_BACKEND=ON`: switches Windows build to OpenGL backend (avoids rare DX11 grey-screen cases).
+- Disable WebView to force native chart: set `CANDLE_DISABLE_WEBVIEW=1` before running.
+- Reset ImGui layout if windows are off-screen: set `CANDLE_RESET_LAYOUT=1` once.
+- Visibility debug marker: set `CANDLE_VIS_DEBUG=1` to draw a red corner triangle.
+
+### Config keys
+- `require_tv_chart` (bool): if true, waits indefinitely for WebView; if false, falls back to native chart after timeout.
+- `webview_ready_timeout_ms` (int): how long to wait for WebView readiness before fallback when `require_tv_chart=false`.
+
+### Example build/run
+```
+cmake -S . -B build_vs_rel -G "Visual Studio 17 2022" -A x64 -D USE_OPENGL_BACKEND=ON -D CMAKE_TOOLCHAIN_FILE="%CD%/vcpkg/scripts/buildsystems/vcpkg.cmake"
+cmake --build build_vs_rel --config Release --parallel 8
+set CANDLE_DISABLE_WEBVIEW=1
+set CANDLE_RESET_LAYOUT=1
+build_vs_rel\Release\TradingTerminal.exe
+```
