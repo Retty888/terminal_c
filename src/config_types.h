@@ -26,6 +26,13 @@ struct ConfigData {
   std::string chart_html_path{"resources/chart.html"};
   bool enable_streaming{false};
   bool save_journal_csv{true};
+  int http_timeout_ms{15000};
+  // Do not require TradingView/WebView chart by default; fallback to ImPlot if WebView isn't ready quickly.
+  bool require_tv_chart{false};
+  // Faster fallback if WebView is slow to initialize.
+  int webview_ready_timeout_ms{5000};
+  // Limit JS updates pushed into WebView; default 2000ms.
+  int webview_throttle_ms{2000};
   SignalConfig signal{};
   std::string primary_provider{"binance"};
   std::string fallback_provider{"gateio"};

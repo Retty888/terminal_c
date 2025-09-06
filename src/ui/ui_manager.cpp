@@ -467,11 +467,8 @@ void UiManager::draw_chart_panel() {
       if (glfw_window_ && !external_webview) {
         HWND hwnd_parent = glfwGetWin32Window(glfw_window_);
         if (hwnd_parent) {
-          // Default to using a child host sized to the chart region; allow override with CANDLE_WEBVIEW_NO_CHILD=1
+          // Force child-host for reliability (ignore env to avoid accidental parent-host)
           bool no_child = false;
-          if (const char* nc = std::getenv("CANDLE_WEBVIEW_NO_CHILD")) {
-            if (nc[0] == '1') no_child = true; else no_child = false;
-          }
           if (no_child) {
             parent = hwnd_parent;
             if (status_callback_) status_callback_("Using parent window as WebView host (no child)");
@@ -594,6 +591,11 @@ void UiManager::draw_chart_panel() {
             static_cast<webview_t>(webview_), "appReady",
             [](const char *seq, const char * /*req*/, void *arg) {
               auto *self = static_cast<UiManager *>(arg);
+              if (self->webview_ready_) {
+                // Ignore duplicate ready notifications to avoid re-pushing initialization
+                webview_return(static_cast<webview_t>(self->webview_), seq, 0, "{}");
+                return;
+              }
               self->webview_ready_ = true;
               {
                 std::lock_guard<std::mutex> lock(self->ui_mutex_);
@@ -1067,6 +1069,10 @@ void UiManager::set_require_tv_chart(bool require) {
 
 void UiManager::set_webview_ready_timeout_ms(int ms) {
   if (ms > 0) webview_ready_timeout_ms_ = ms;
+}
+
+void UiManager::set_webview_throttle_ms(int ms) {
+  if (ms > 0) throttle_interval_ = std::chrono::milliseconds(ms);
 }
 
 void UiManager::end_frame(GLFWwindow *window) {

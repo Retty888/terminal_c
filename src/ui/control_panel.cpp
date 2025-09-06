@@ -429,6 +429,19 @@ void DrawControlPanel(
 
   RenderLoadControls(pairs, selected_pairs, intervals, all_candles, save_pairs,
                      exchange_pairs, data_service);
+  // Quick action for active pair/interval
+  if (!active_pair.empty() && !selected_interval.empty()) {
+    ImGui::Separator();
+    ImGui::Text("Active: %s (%s)", active_pair.c_str(), selected_interval.c_str());
+    ImGui::SameLine();
+    if (ImGui::Button("Clear & Reload Active")) {
+      data_service.clear_interval(active_pair, selected_interval);
+      if (data_service.reload_candles(active_pair, selected_interval)) {
+        all_candles[active_pair][selected_interval] =
+            data_service.load_candles(active_pair, selected_interval);
+      }
+    }
+  }
   RenderPairSelector(pairs, selected_pairs, active_pair, intervals,
                      selected_interval, all_candles, save_pairs, data_service,
                      status, cancel_pair);

@@ -15,10 +15,14 @@ public:
   void setOnMessage(MessageCallback cb) override { msg_cb_ = std::move(cb); }
   void setOnError(ErrorCallback cb) override { err_cb_ = std::move(cb); }
   void setOnClose(CloseCallback cb) override { close_cb_ = std::move(cb); }
+  void setOnOpen(OpenCallback cb) override { open_cb_ = std::move(cb); }
+  void sendText(const std::string &text) override { ws_.sendText(text); }
   void start() override {
-    ws_.setOnMessage([this](const ix::WebSocketMessagePtr &msg) {
+    ws_.setOnMessageCallback([this](const ix::WebSocketMessagePtr &msg) {
       if (msg->type == ix::WebSocketMessageType::Message) {
         if (msg_cb_) msg_cb_(msg->str);
+      } else if (msg->type == ix::WebSocketMessageType::Open) {
+        if (open_cb_) open_cb_();
       } else if (msg->type == ix::WebSocketMessageType::Error) {
         if (err_cb_) err_cb_();
         if (close_cb_) close_cb_();
@@ -38,6 +42,7 @@ private:
   MessageCallback msg_cb_;
   ErrorCallback err_cb_;
   CloseCallback close_cb_;
+  OpenCallback open_cb_;
 };
 #endif
 

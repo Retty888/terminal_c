@@ -10,6 +10,7 @@
     "opengl",
     "gtest",
     "implot",
+    "ixwebsocket",
     { "name": "webview2", "platform": "windows" }
   ]
 }

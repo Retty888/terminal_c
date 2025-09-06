@@ -113,6 +113,38 @@ std::optional<ConfigData> ConfigSchema::parse(const nlohmann::json &j,
     cfg.enable_chart = j["enable_chart"].get<bool>();
   }
 
+  if (j.contains("require_tv_chart")) {
+    if (!j["require_tv_chart"].is_boolean()) {
+      error = "'require_tv_chart' must be a boolean";
+      return std::nullopt;
+    }
+    cfg.require_tv_chart = j["require_tv_chart"].get<bool>();
+  }
+
+  if (j.contains("http_timeout_ms")) {
+    if (!j["http_timeout_ms"].is_number_unsigned()) {
+      error = "'http_timeout_ms' must be an unsigned number";
+      return std::nullopt;
+    }
+    cfg.http_timeout_ms = static_cast<int>(j["http_timeout_ms"].get<unsigned int>());
+  }
+
+  if (j.contains("webview_ready_timeout_ms")) {
+    if (!j["webview_ready_timeout_ms"].is_number_unsigned()) {
+      error = "'webview_ready_timeout_ms' must be an unsigned number";
+      return std::nullopt;
+    }
+    cfg.webview_ready_timeout_ms = static_cast<int>(j["webview_ready_timeout_ms"].get<unsigned int>());
+  }
+
+  if (j.contains("webview_throttle_ms")) {
+    if (!j["webview_throttle_ms"].is_number_unsigned()) {
+      error = "'webview_throttle_ms' must be an unsigned number";
+      return std::nullopt;
+    }
+    cfg.webview_throttle_ms = static_cast<int>(j["webview_throttle_ms"].get<unsigned int>());
+  }
+
   if (j.contains("chart_html_path")) {
     if (!j["chart_html_path"].is_string()) {
       error = "'chart_html_path' must be a string";

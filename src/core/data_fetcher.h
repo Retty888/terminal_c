@@ -46,6 +46,7 @@ class DataFetcher {
 public:
   DataFetcher(std::shared_ptr<IHttpClient> http_client,
               std::shared_ptr<IRateLimiter> rate_limiter);
+  void set_http_timeout(std::chrono::milliseconds timeout) { http_timeout_ = timeout; }
 
   // Fetches kline (candle) data from a specified API (e.g., Binance).
   KlinesResult fetch_klines(const std::string &symbol, const std::string &interval,
@@ -89,6 +90,7 @@ private:
 
   std::shared_ptr<IHttpClient> http_client_;
   std::shared_ptr<IRateLimiter> rate_limiter_;
+  std::chrono::milliseconds http_timeout_{std::chrono::milliseconds(15000)};
 };
 
 } // namespace Core

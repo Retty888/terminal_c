@@ -187,6 +187,8 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
     long long last_open_time = read_last_open_time(symbol, interval);
 
     std::size_t written = 0;
+    std::size_t overlaps = 0;
+    std::size_t duplicates = 0;
     {
         std::lock_guard<std::recursive_mutex> lock(mutex_);
         bool file_exists = std::filesystem::exists(path_to_save);
@@ -205,9 +207,8 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
 
         for (const auto& c : candles) {
             if (last_open_time >= 0 && c.open_time <= last_open_time) {
-                if (c.open_time < last_open_time) {
-                    Logger::instance().warn("Overlap detected at open_time " + std::to_string(c.open_time));
-                }
+                if (c.open_time < last_open_time) { ++overlaps; }
+                else { ++duplicates; }
                 continue; // skip duplicates or overlaps
             }
 
@@ -231,6 +232,12 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
 
     if (written > 0) {
         write_last_open_time(symbol, interval, last_open_time);
+    }
+    if (overlaps > 0) {
+        Logger::instance().warn("Skipped " + std::to_string(overlaps) + " overlap candle(s) for " + symbol + " " + interval);
+    }
+    if (duplicates > 0) {
+        Logger::instance().info("Skipped " + std::to_string(duplicates) + " duplicate candle(s) for " + symbol + " " + interval);
     }
 
     return true;

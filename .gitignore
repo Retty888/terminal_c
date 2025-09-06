@@ -3,6 +3,13 @@ build/
 CMakeFiles/
 CMakeCache.txt
 
+# Additional build output folders
+build*/
+
+# vcpkg build caches (recreated as needed)
+vcpkg/buildtrees/
+scripts/vcpkg/buildtrees/
+
 # Compiled object files
 *.o
 *.obj

@@ -131,6 +131,21 @@ bool App::init_window() {
   glfwMaximizeWindow(window_.get());
   // Process pending size events so framebuffer size reflects maximized window
   glfwPollEvents();
+  // Ensure the parent window does not paint over child windows (WebView host)
+  // by enabling WS_CLIPCHILDREN and WS_CLIPSIBLINGS. Without these, the DX11
+  // swapchain render can obscure the embedded WebView child HWND.
+  {
+    HWND hwnd_parent = glfwGetWin32Window(window_.get());
+    if (hwnd_parent) {
+      LONG_PTR style = GetWindowLongPtrW(hwnd_parent, GWL_STYLE);
+      if (style != 0) {
+        style |= WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
+        SetWindowLongPtrW(hwnd_parent, GWL_STYLE, style);
+        SetWindowPos(hwnd_parent, nullptr, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+      }
+    }
+  }
   // Initialize Direct3D 11 context
   HWND hwnd = glfwGetWin32Window(window_.get());
   int w, h;
@@ -181,6 +196,7 @@ void App::setup_imgui() {
     }
     ui_manager_.set_require_tv_chart(cfg->require_tv_chart);
     ui_manager_.set_webview_ready_timeout_ms(cfg->webview_ready_timeout_ms);
+    ui_manager_.set_webview_throttle_ms(cfg->webview_throttle_ms);
   }
   ui_manager_.set_interval_callback([this](const std::string &iv) {
     this->ctx_->selected_interval = iv;
@@ -1088,6 +1104,20 @@ int App::run() {
     return -1;
   setup_imgui();
   load_config();
+  // Fast path: load only the active pair/interval from disk to seed the chart,
+  // then start background fetch/streams. Avoid heavy multi-interval loading to keep UI responsive.
+  {
+    std::vector<Core::Candle> initial =
+        data_service_.load_candles(this->ctx_->active_pair, this->ctx_->active_interval);
+    if (!initial.empty()) {
+      {
+        std::lock_guard<std::shared_mutex> lock(this->ctx_->candles_mutex);
+        this->ctx_->all_candles[this->ctx_->active_pair][this->ctx_->active_interval] = initial;
+      }
+      ui_manager_.set_candles(initial);
+    }
+  }
+  start_initial_fetch_and_streams();
   if (!journal_service_.load("journal.json")) {
     add_status("Failed to load journal.json", Core::LogLevel::Error);
   }

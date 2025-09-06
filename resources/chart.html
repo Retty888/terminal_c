@@ -14,7 +14,7 @@
     #coords { position:absolute; right:0; bottom:0; z-index:10; background:#222; color:#fff; padding:2px 4px; font-family:monospace; }
   </style>
   <title>Chart</title>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: file:; script-src 'self' 'unsafe-inline' file:;">
+  <!-- CSP removed to avoid blocking local file:// scripts in WebView2. -->
   </head>
 <body>
 <div id="container">
@@ -38,8 +38,18 @@
   <div id="coords"></div>
 </div>
 <script>
-  function __status(msg){ try { if (typeof appStatus === 'function') appStatus(String(msg)); } catch(e){}
-    try { console.log('[chart]', msg); } catch(e){}
+  let __lastStatusMsg = null, __lastStatusAt = 0;
+  function __status(msg){
+    try {
+      const now = Date.now();
+      const str = String(msg);
+      // Reduce noise: only forward if message changes or at least 1000ms passed
+      if (str !== __lastStatusMsg || (now - __lastStatusAt) > 1000) {
+        if (typeof appStatus === 'function') appStatus(str);
+        try { console.log('[chart]', str); } catch(e){}
+        __lastStatusMsg = str; __lastStatusAt = now;
+      }
+    } catch(e){}
   }
   window.addEventListener('error', function(e){ __status('js-error: '+(e && e.message)); });
   document.addEventListener('DOMContentLoaded', function(){ __status('dom-content-loaded'); });
@@ -63,7 +73,8 @@
   __status('chart-created');
   let series = chart.addCandlestickSeries();
   let markers = [];
-  let priceLine = null;
+  let priceLineValue = null;
+  let priceLineHandle = null;
   const data = [];
   const ctx = overlay.getContext('2d');
   chart.subscribeCrosshairMove(param => {
@@ -102,6 +113,10 @@
   }
   window.addEventListener('resize', resize);
   resize();
+  // Notify native right after initial layout (one-time)
+  try {
+    if (!window._appReadySent && typeof appReady === 'function') { appReady('ok'); window._appReadySent = true; }
+  } catch(e){}
 
   function setActiveTool(t) {
     currentTool = t;
@@ -133,7 +148,10 @@
     series.setData(data);
     __status('series-added');
     if (markers.length) series.setMarkers(markers);
-    if (priceLine !== null) series.createPriceLine({ price: priceLine });
+    if (priceLineHandle) { try { priceLineHandle.remove(); } catch(e){} priceLineHandle = null; }
+    if (priceLineValue !== null) {
+      try { priceLineHandle = series.createPriceLine({ price: priceLineValue }); } catch(e){}
+    }
   }
   function setActiveSeries(t) { seriesSelect.value = t; createSeries(t); }
   window.setActiveSeries = setActiveSeries;
@@ -207,8 +225,13 @@
     } else { data.push(c); series.update(c); }
   };
   window.chart = {
-    setMarkers: function(m) { markers = m; series.setMarkers(m); },
-    setPriceLine: function(p) { priceLine = p; series.createPriceLine({ price: p }); }
+    setMarkers: function(m) { markers = m; try { series.setMarkers(m); } catch(e){} },
+    setPriceLine: function(p) {
+      try { if (priceLineHandle) { priceLineHandle.remove(); priceLineHandle = null; } } catch(e){}
+      if (p === null || p === undefined || Number.isNaN(Number(p))) { priceLineValue = null; return; }
+      priceLineValue = Number(p);
+      try { priceLineHandle = series.createPriceLine({ price: priceLineValue }); } catch(e){}
+    }
   };
   window.addPosition = function(p) { p.id = p.id ?? (positionId++); positions.push(p); redraw(); return p.id; };
   window.removePosition = function(id) { const i = positions.findIndex(p => p.id === id); if (i !== -1) { positions.splice(i,1); redraw(); } };

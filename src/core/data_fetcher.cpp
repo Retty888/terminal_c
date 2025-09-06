@@ -16,7 +16,7 @@
 
 namespace {
 
-constexpr std::chrono::milliseconds kHttpTimeout{10000};
+// timeout is configurable via DataFetcher::set_http_timeout
 const std::map<std::string, std::string> kDefaultHeaders{};
 
 std::string map_gate_interval(const std::string &interval) {
@@ -76,7 +76,7 @@ KlinesResult DataFetcher::fetch_klines_from_api(
     bool success = false;
     for (int attempt = 0; attempt < max_retries; ++attempt) {
       rate_limiter_->acquire();
-      HttpResponse r = http_client_->get(url, kHttpTimeout, kDefaultHeaders);
+      HttpResponse r = http_client_->get(url, http_timeout_, kDefaultHeaders);
       if (r.network_error) {
         Logger::instance().error("Request error: " + r.error_message);
         if (attempt < max_retries - 1) {
@@ -204,7 +204,7 @@ KlinesResult DataFetcher::fetch_klines_alt(
     bool success = false;
     for (int attempt = 0; attempt < max_retries; ++attempt) {
       rate_limiter_->acquire();
-      HttpResponse r = http_client_->get(url, kHttpTimeout, kDefaultHeaders);
+      HttpResponse r = http_client_->get(url, http_timeout_, kDefaultHeaders);
       if (r.network_error) {
         Logger::instance().error("Alt request error: " + r.error_message);
         if (attempt < max_retries - 1) {
@@ -287,12 +287,12 @@ SymbolsResult DataFetcher::fetch_all_symbols(
     // Launch ticker request in parallel while fetching exchange info.
     auto ticker_future = std::async(std::launch::async, [this, &ticker_url]() {
       rate_limiter_->acquire();
-      return http_client_->get(ticker_url, kHttpTimeout, kDefaultHeaders);
+      return http_client_->get(ticker_url, http_timeout_, kDefaultHeaders);
     });
 
     rate_limiter_->acquire();
     HttpResponse info_resp =
-        http_client_->get(info_url, kHttpTimeout, kDefaultHeaders);
+        http_client_->get(info_url, http_timeout_, kDefaultHeaders);
     HttpResponse ticker_resp = ticker_future.get();
 
     if (info_resp.network_error) {
@@ -382,7 +382,7 @@ IntervalsResult DataFetcher::fetch_all_intervals(
   const std::string url = "https://api.binance.com/api/v3/exchangeInfo";
   for (int attempt = 0; attempt < max_retries; ++attempt) {
     rate_limiter_->acquire();
-    HttpResponse r = http_client_->get(url, kHttpTimeout, kDefaultHeaders);
+    HttpResponse r = http_client_->get(url, http_timeout_, kDefaultHeaders);
     if (r.network_error) {
       Logger::instance().error("Request error: " + r.error_message);
       if (attempt < max_retries - 1) {

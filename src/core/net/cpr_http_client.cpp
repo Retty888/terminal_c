@@ -10,8 +10,10 @@ HttpResponse CprHttpClient::get(const std::string &url,
   HttpResponse resp;
   try {
     cpr::Timeout to{static_cast<int32_t>(timeout.count())};
+    cpr::ConnectTimeout cto{5000};
+    cpr::LowSpeed low{1024, 10};
     cpr::Header hdr{headers.begin(), headers.end()};
-    auto r = cpr::Get(cpr::Url{url}, to, hdr);
+    auto r = cpr::Get(cpr::Url{url}, to, cto, low, hdr);
     resp.status_code = static_cast<int>(r.status_code);
     resp.text = std::move(r.text);
     if (r.error.code != cpr::ErrorCode::OK) {

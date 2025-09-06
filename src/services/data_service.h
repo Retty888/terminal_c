@@ -79,6 +79,9 @@ public:
   Core::CandleManager &candle_manager() { return candle_manager_; }
   const Core::CandleManager &candle_manager() const { return candle_manager_; }
 
+  // Configuration accessors -----------------------------------------------
+  std::string primary_provider() const;
+
 private:
   Core::KlinesResult FetchRangeImpl(
       const std::string &url,

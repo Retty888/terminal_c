@@ -48,6 +48,11 @@ public:
   void set_initial_interval(const std::string &interval);
   // Inform the UI about the current pair during initialization.
   void set_initial_pair(const std::string &pair);
+  // Require TradingView/WebView chart; if true, never fall back to ImPlot.
+  void set_require_tv_chart(bool require);
+  // Timeout (ms) to wait for WebView readiness before considering fallback.
+  void set_webview_ready_timeout_ms(int ms);
+  void set_webview_throttle_ms(int ms);
   void end_frame(GLFWwindow *window);
   void shutdown();
   // Provide the absolute or executable-relative path to chart HTML.
@@ -104,6 +109,8 @@ private:
   bool shutdown_called_ = false;
   bool owns_imgui_context_ = false;
   mutable std::mutex ui_mutex_;
+  bool require_tv_chart_ = true;
+  int webview_ready_timeout_ms_ = 5000;
 
   // Cached data for pair and interval selection combos
   std::vector<std::string> pair_strings_;
@@ -113,7 +120,8 @@ private:
 
   // Throttling for real-time candle pushes
   std::chrono::steady_clock::time_point last_push_time_{};
-  std::chrono::milliseconds throttle_interval_{100};
+  // Throttle JS push updates to WebView; default 2000ms (2s) for reduced churn.
+  std::chrono::milliseconds throttle_interval_{2000};
   std::optional<Core::Candle> cached_candle_{};
 
 #ifdef HAVE_WEBVIEW
@@ -123,9 +131,22 @@ private:
   bool webview_missing_chart_ = false;
   bool webview_init_failed_ = false;
   std::string chart_html_path_{};
+  std::string chart_url_{};
+  std::optional<std::chrono::steady_clock::time_point> webview_nav_time_{};
+  std::optional<std::chrono::steady_clock::time_point> last_nav_retry_time_{};
+  int nav_retry_interval_ms_ = 2000;
+  int nav_retry_max_ = 60;
+  int nav_retry_count_ = 0;
+#if defined(_WIN32)
+  bool com_initialized_ = false;
+#endif
 #if defined(_WIN32)
   void *webview_host_hwnd_ = nullptr; // HWND for embedded WebView child
 #endif
+  // Queue for JavaScript commands posted before WebView is ready or to marshal
+  // execution onto the WebView UI thread safely.
+  std::vector<std::string> pending_js_;
+  void post_js(const std::string &js);
 #endif
 
   GLFWwindow *glfw_window_ = nullptr;

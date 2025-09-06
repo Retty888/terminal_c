@@ -15,7 +15,6 @@
 #include <thread>
 
 namespace {
-constexpr std::chrono::milliseconds kHttpTimeout{10000};
 const std::map<std::string, std::string> kDefaultHeaders{};
 } // namespace
 
@@ -23,13 +22,20 @@ DataService::DataService()
     : http_client_(std::make_shared<Core::CprHttpClient>()),
       rate_limiter_(std::make_shared<Core::TokenBucketRateLimiter>(
           1, std::chrono::milliseconds(1100))),
-      fetcher_(http_client_, rate_limiter_) {}
+      fetcher_(http_client_, rate_limiter_) {
+  // Initialize fetcher timeout from config if available
+  const auto &cfg = config();
+  fetcher_.set_http_timeout(std::chrono::milliseconds(cfg.http_timeout_ms));
+}
 
 DataService::DataService(const std::filesystem::path &data_dir)
     : http_client_(std::make_shared<Core::CprHttpClient>()),
       rate_limiter_(std::make_shared<Core::TokenBucketRateLimiter>(
           1, std::chrono::milliseconds(1100))),
-      fetcher_(http_client_, rate_limiter_), candle_manager_(data_dir) {}
+      fetcher_(http_client_, rate_limiter_), candle_manager_(data_dir) {
+  const auto &cfg = config();
+  fetcher_.set_http_timeout(std::chrono::milliseconds(cfg.http_timeout_ms));
+}
 
 const Config::ConfigData &DataService::config() const {
   if (!config_cache_) {
@@ -38,6 +44,14 @@ const Config::ConfigData &DataService::config() const {
             .value_or(Config::ConfigData{});
   }
   return *config_cache_;
+}
+
+std::string DataService::primary_provider() const {
+  const auto &cfg = config();
+  if (cfg.primary_provider == "binance" || cfg.primary_provider == "gateio")
+    return cfg.primary_provider;
+  Core::Logger::instance().warn("Unknown primary provider '" + cfg.primary_provider + "', defaulting to binance");
+  return "binance";
 }
 
 Core::SymbolsResult
@@ -111,7 +125,7 @@ Core::KlinesResult DataService::FetchRangeImpl(
   for (int attempt = 0; attempt < max_retries; ++attempt) {
     rate_limiter_->acquire();
     Core::HttpResponse r =
-        http_client_->get(url, kHttpTimeout, kDefaultHeaders);
+        http_client_->get(url, std::chrono::milliseconds(config().http_timeout_ms), kDefaultHeaders);
     if (r.network_error) {
       Core::Logger::instance().error("Range request error: " +
                                      r.error_message);
@@ -250,6 +264,10 @@ std::future<Core::KlinesResult> DataService::fetch_klines_async(
 std::vector<Core::Candle>
 DataService::load_candles(const std::string &pair,
                           const std::string &interval) const {
+  // Avoid noise and unnecessary work for unsupported sub-minute intervals
+  if ((interval == "5s" || interval == "15s") && primary_provider() == "binance") {
+    return candle_manager_.load_candles(pair, interval);
+  }
   if (!candle_manager_.validate_candles(pair, interval)) {
     Core::Logger::instance().warn("Invalid candles detected for " + pair + " " +
                                   interval + ", reloading");
@@ -323,6 +341,11 @@ bool DataService::clear_interval(const std::string &pair,
 
 bool DataService::reload_candles(const std::string &pair,
                                  const std::string &interval) const {
+  // Skip unsupported sub-minute intervals when primary is Binance
+  if ((interval == "5s" || interval == "15s") && primary_provider() == "binance") {
+    Core::Logger::instance().info("Skipping reload for unsupported interval " + pair + " " + interval + " (primary=binance)");
+    return false;
+  }
   const Config::ConfigData &cfg = config();
   auto res = fetch_klines(pair, interval, static_cast<int>(cfg.candles_limit));
   if (res.error == Core::FetchError::None && !res.candles.empty()) {
