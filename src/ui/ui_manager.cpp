@@ -1012,6 +1012,9 @@ void UiManager::set_candles(const std::vector<Core::Candle> &candles) {
   candles_.reserve(candles.size());
   candles_.insert(candles_.end(), candles.begin(), candles.end());
   cached_candle_.reset();
+  if (!candles_.empty()) {
+    fit_next_plot_ = true;
+  }
 }
 
 void UiManager::push_candle(const Core::Candle &candle) {

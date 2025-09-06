@@ -295,8 +295,9 @@ bool CandleManager::validate_candles(const std::string& symbol, const std::strin
             return false;
         }
 
-        if (prev_open != -1 && c.open_time != prev_open + interval_ms) {
-            Logger::instance().warn("Non-monotonic candle sequence in " + path.string());
+        // Allow gaps: enforce strictly increasing timestamps instead of exact interval steps.
+        if (prev_open != -1 && c.open_time <= prev_open) {
+            Logger::instance().warn("Non-increasing candle timestamp in " + path.string());
             return false;
         }
         prev_open = c.open_time;
