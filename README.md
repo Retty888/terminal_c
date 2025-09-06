@@ -1,15 +1,32 @@
 # terminal-c
 
-Standalone C++ trading terminal using ImGui. The project relies on packages provided by `vcpkg` and `find_package` in CMake. The chart panel is powered by TradingView's Lightweight Charts rendered inside an embedded WebView.
+Standalone C++ trading terminal using ImGui. The project relies on packages provided by `vcpkg` and `find_package` in CMake. The chart panel is uses a native ImPlot-based renderer (no WebView/HTML).
+
+## Build & Test (vcpkg + CMakePresets)
+
+This repository includes `CMakePresets.json` configured to use the local `vcpkg` toolchain.
+
+- Configure Release: `cmake --preset default-vcpkg-Release`
+- Build Release: `cmake --build --preset build-rel`
+- Run tests (Release): `ctest --preset test-rel --output-on-failure`
+
+Debug configuration is also available via `default-vcpkg-Debug` and `build-dbg` / `test-dbg`.
+
+To run the app with a custom config file from the repo root:
+
+```
+$env:CANDLE_CONFIG_PATH = (Resolve-Path 'config.json')
+build_vs_rel/Release/TradingTerminal.exe
+```
 
 ## Быстрый обзор
 
 - `main.cpp`: входная точка приложения.
 - UI: ImGui + ImPlot + OpenGL + GLFW.
 - Данные: REST/WS Binance (обёртки в `core/*`).
-- Чарт: TradingView Lightweight Charts внутри WebView (отдельное окно).
+- Чарт: ����: �������� ImPlot (�����/�����/�������), ��� WebView.
 - Зависимости: `vcpkg`, `find_package` в CMake.
-- Библиотеки: ImGui, ImPlot, nlohmann-json, cpr, WebView2 (Windows) / WebKitGTK (Linux).
+- Библиотеки: ImGui, ImPlot, nlohmann-json, cpr, (no WebView dependency).
 
 ## Сборка и запуск
 
@@ -20,26 +37,13 @@ Standalone C++ trading terminal using ImGui. The project relies on packages prov
 
 Примечание: требуется установленный `vcpkg` и корректный `CMAKE_TOOLCHAIN_FILE`.
 
+## Renderer Requirement (Important)
+
+- Windows: migrate from OpenGL to DirectX 11 backend for ImGui/ImPlot. This is an explicit product requirement. Current builds still use OpenGL while migration is in progress.
+
 ## Charting
 
-The HTML file under `resources/` embeds [TradingView Lightweight Charts](https://github.com/tradingview/lightweight-charts) and is displayed through a WebView.
-
-### WebView requirements
-
-- Windows: [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/)
-- Linux: WebKitGTK packages (`libwebkit2gtk-4.1-0` and related)
-
-If the platform WebView is unavailable, a legacy single-header implementation (`third_party/webview_legacy/webview`) may be used on supported platforms.
-
-### Ресурсы чарта
-
-Скрипты Windows находятся в `scripts/`.
-
-`scripts/prepare_chart_resources.bat` копирует `chart.html` и `lightweight-charts.standalone.production.js` в подкаталог `resources` рядом с бинарником. Скрипт вызывается автоматически пост-степом сборки или вручную:
-
-```
-scripts/prepare_chart_resources.bat <build_directory>
-```
+The application renders charts natively with ImPlot (candlestick/line/area). Embedded WebView/HTML charts have been removed. Any configuration such as `chart_html_path` is ignored.
 
 ### Marking trades
 
@@ -63,4 +67,7 @@ Application trades are recorded in `journal.json`. A CSV copy (`journal.csv`) is
 ## Examples
 
 The `examples/sample_chart.py` script demonstrates how to download and display BTC/USDT candles using Python.
+
+
+
 

@@ -3,8 +3,10 @@
     "chart_html_path": "resources/chart.html",
     "data_dir": "candle_data",
     "enable_chart": true,
-    "enable_streaming": false,
-    "fallback_provider": "gateio",
+    "enable_streaming": true,
+    "require_tv_chart": false,
+    "webview_ready_timeout_ms": 4000,
+    "fallback_provider": "binance",
     "log_file": "terminal.log",
     "log_level": "INFO",
     "log_sinks": [

@@ -29,6 +29,12 @@
 #include <vector>
 
 #include <GLFW/glfw3.h>
+#if defined(UI_BACKEND_DX11)
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
+#include <windows.h>
+#include "core/dx11_context.h"
+#endif
 
 #include "ui/analytics_window.h"
 #include "ui/backtest_window.h"
@@ -108,13 +114,40 @@ bool App::init_window() {
     glfw_context_.reset();
     return false;
   }
+  Core::Logger::instance().info("GLFW initialized");
   glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+#if defined(UI_BACKEND_DX11)
+  glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+#endif
   window_.reset(glfwCreateWindow(1280, 720, "Trading Terminal", NULL, NULL));
   if (!window_) {
     Core::Logger::instance().error("Failed to create GLFW window");
     glfw_context_.reset();
     return false;
   }
+  Core::Logger::instance().info("GLFW window created");
+#if defined(UI_BACKEND_DX11)
+  // Maximize on startup to mirror previous OpenGL behavior
+  glfwMaximizeWindow(window_.get());
+  // Process pending size events so framebuffer size reflects maximized window
+  glfwPollEvents();
+  // Initialize Direct3D 11 context
+  HWND hwnd = glfwGetWin32Window(window_.get());
+  int w, h;
+  glfwGetFramebufferSize(window_.get(), &w, &h);
+  if (!Core::Dx11Context::instance().initialize(hwnd, w, h)) {
+    Core::Logger::instance().error("Failed to initialize D3D11");
+    return false;
+  }
+  // Resize callback to handle swapchain
+  glfwSetFramebufferSizeCallback(window_.get(), [](GLFWwindow* /*w*/, int width, int height){
+    Core::Dx11Context::instance().resize(width, height);
+  });
+  // Ensure swapchain matches current framebuffer size (in case we missed events before callback)
+  glfwGetFramebufferSize(window_.get(), &w, &h);
+  Core::Dx11Context::instance().resize(w, h);
+  Core::Logger::instance().info("D3D11 context ready");
+#else
   glfwMakeContextCurrent(window_.get());
   glfwMaximizeWindow(window_.get());
   glfwSwapInterval(1);
@@ -122,6 +155,20 @@ bool App::init_window() {
   int w, h;
   glfwGetFramebufferSize(window_.get(), &w, &h);
   OnFramebufferResize(window_.get(), w, h);
+  Core::Logger::instance().info("OpenGL context ready");
+#endif
+  // Diagnostics: log window close/focus; optionally ignore close if requested
+  glfwSetWindowCloseCallback(window_.get(), [](GLFWwindow* w){
+    Core::Logger::instance().info("Window close requested");
+    const char* env = std::getenv("CANDLE_IGNORE_CLOSE");
+    if (env && env[0] == '1') {
+      glfwSetWindowShouldClose(w, GLFW_FALSE);
+      Core::Logger::instance().info("Ignoring close request due to CANDLE_IGNORE_CLOSE=1");
+    }
+  });
+  glfwSetWindowFocusCallback(window_.get(), [](GLFWwindow* /*w*/, int focused){
+    Core::Logger::instance().info(std::string("Window focus ") + (focused?"gained":"lost"));
+  });
   return true;
 }
 
@@ -132,6 +179,8 @@ void App::setup_imgui() {
     if (cfg->enable_chart) {
       ui_manager_.set_chart_html_path(cfg->chart_html_path);
     }
+    ui_manager_.set_require_tv_chart(cfg->require_tv_chart);
+    ui_manager_.set_webview_ready_timeout_ms(cfg->webview_ready_timeout_ms);
   }
   ui_manager_.set_interval_callback([this](const std::string &iv) {
     this->ctx_->selected_interval = iv;
@@ -149,6 +198,7 @@ void App::setup_imgui() {
   Core::Logger::instance().set_sink(
       [this](Core::LogLevel level, std::chrono::system_clock::time_point time,
              const std::string &msg) { this->add_status(msg, level, time); });
+  Core::Logger::instance().info("ImGui setup completed");
 }
 
 void App::load_config() {
@@ -174,6 +224,14 @@ void App::load_config() {
     this->ctx_->candles_limit = 5000;
     this->ctx_->streaming_enabled = false;
     this->ctx_->save_journal_csv = true;
+  }
+  // Basic summary of loaded configuration
+  {
+    std::ostringstream oss;
+    oss << "Config loaded: pairs=" << (pair_names.empty() ? 0 : pair_names.size())
+        << ", streaming=" << (this->ctx_->streaming_enabled ? "on" : "off")
+        << ", candles_limit=" << this->ctx_->candles_limit;
+    Core::Logger::instance().info(oss.str());
   }
   this->ctx_->intervals = {"1m", "3m", "5m", "15m", "1h", "4h", "1d"};
   auto exchange_interval_res = data_service_.fetch_intervals();
@@ -247,12 +305,16 @@ void App::load_pairs(std::vector<std::string> &pair_names) {
 void App::update_available_intervals() {
   this->ctx_->available_intervals.clear();
   auto stored = data_service_.list_stored_data();
+  const std::string primary = data_service_.primary_provider();
   for (const auto &entry : stored) {
     auto lp = entry.rfind(" (");
     auto rp = entry.rfind(')');
     if (lp != std::string::npos && rp != std::string::npos && lp < rp) {
       auto symbol = entry.substr(0, lp);
       auto interval = entry.substr(lp + 2, rp - lp - 2);
+      // Filter unsupported sub-minute intervals when primary is Binance
+      if ((interval == "5s" || interval == "15s") && primary == "binance")
+        continue;
       if (symbol == this->ctx_->active_pair &&
           Core::parse_interval(interval).count() > 0) {
         this->ctx_->available_intervals.push_back(interval);
@@ -402,8 +464,10 @@ void App::start_initial_fetch_and_streams() {
       this->ctx_->active_interval != "15s") {
     for (const auto &p : this->ctx_->pairs) {
       std::string pair = p.name;
+      std::string provider = data_service_.primary_provider();
       auto stream = std::make_shared<Core::KlineStream>(
-          pair, this->ctx_->active_interval, data_service_.candle_manager());
+          pair, this->ctx_->active_interval, data_service_.candle_manager(),
+          Core::default_websocket_factory(), nullptr, std::chrono::milliseconds(1000), provider);
       stream->start(
           [this, pair](const Core::Candle &c) {
             std::lock_guard<std::shared_mutex> lock(this->ctx_->candles_mutex);
@@ -631,6 +695,22 @@ void App::stop_fetch_thread() {
 
 void App::process_events() {
   glfwPollEvents();
+  // Handle fullscreen toggle: F11 or Alt+Enter
+  static int prev_f11 = GLFW_RELEASE;
+  static int prev_enter_combo = GLFW_RELEASE;
+  int f11 = glfwGetKey(window_.get(), GLFW_KEY_F11);
+  bool alt_down = (glfwGetKey(window_.get(), GLFW_KEY_LEFT_ALT) == GLFW_PRESS) ||
+                  (glfwGetKey(window_.get(), GLFW_KEY_RIGHT_ALT) == GLFW_PRESS);
+  int enter = glfwGetKey(window_.get(), GLFW_KEY_ENTER);
+  if (prev_f11 == GLFW_RELEASE && f11 == GLFW_PRESS) {
+    toggle_fullscreen();
+  }
+  if (prev_enter_combo == GLFW_RELEASE && enter == GLFW_PRESS && alt_down) {
+    toggle_fullscreen();
+  }
+  prev_f11 = f11;
+  // Track combo on Enter key to avoid sticky repeats when Alt stays pressed
+  prev_enter_combo = (enter == GLFW_PRESS && alt_down) ? GLFW_PRESS : GLFW_RELEASE;
   auto period = Core::parse_interval(this->ctx_->active_interval);
   auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::system_clock::now().time_since_epoch())
@@ -642,6 +722,29 @@ void App::process_events() {
   if (use_http)
     handle_http_updates();
   update_candle_progress();
+}
+
+void App::toggle_fullscreen() {
+  if (!window_) return;
+  if (!fullscreen_) {
+    // Save current windowed position and size
+    glfwGetWindowPos(window_.get(), &windowed_x_, &windowed_y_);
+    glfwGetWindowSize(window_.get(), &windowed_w_, &windowed_h_);
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    if (monitor) {
+      const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+      if (mode) {
+        glfwSetWindowMonitor(window_.get(), monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+        fullscreen_ = true;
+        Core::Logger::instance().info("Entered fullscreen");
+      }
+    }
+  } else {
+    // Restore windowed mode
+    glfwSetWindowMonitor(window_.get(), nullptr, windowed_x_, windowed_y_, windowed_w_, windowed_h_, 0);
+    fullscreen_ = false;
+    Core::Logger::instance().info("Exited fullscreen");
+  }
 }
 
 void App::schedule_http_updates(std::chrono::milliseconds period,
@@ -775,6 +878,35 @@ void App::update_next_fetch_time(long long candidate) {
 
 void App::render_ui() {
   ui_manager_.begin_frame();
+  // Failsafe: draw a full-viewport opaque window to guarantee visibility
+  {
+    auto* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->Pos, ImGuiCond_Always);
+    ImGui::SetNextWindowSize(vp->Size, ImGuiCond_Always);
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings |
+                             ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus |
+                             ImGuiWindowFlags_NoNav;
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.08f, 0.08f, 0.08f, 1.0f));
+    ImGui::Begin("FailsafeUI", nullptr, flags);
+    ImGui::TextUnformatted("UI is active (failsafe)");
+    ImGui::Text("Framebuffer: %.0fx%.0f", vp->Size.x, vp->Size.y);
+    ImGui::End();
+    ImGui::PopStyleColor();
+  }
+  // Temporary debug overlay to confirm UI/DX11 rendering is visible
+  {
+    ImGui::SetNextWindowBgAlpha(0.35f);
+    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_Always);
+    ImGui::Begin("overlay_debug", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing |
+                     ImGuiWindowFlags_NoNav);
+    ImGui::Text("UI running (DX11)");
+    ImGui::End();
+  }
+  // Also force-show ImGui demo for visibility diagnostics
+  static bool show_demo = true;
+  ImGui::ShowDemoWindow(&show_demo);
   render_status_window();
   render_main_windows();
   handle_active_pair_change();
