@@ -27,5 +27,29 @@ HttpResponse CprHttpClient::get(const std::string &url,
   return resp;
 }
 
+HttpResponse CprHttpClient::post(const std::string &url, const std::string &body,
+                                 std::chrono::milliseconds timeout,
+                                 const std::map<std::string, std::string> &headers) {
+  HttpResponse resp;
+  try {
+    cpr::Timeout to{static_cast<int32_t>(timeout.count())};
+    cpr::ConnectTimeout cto{5000};
+    cpr::LowSpeed low{1024, 10};
+    cpr::Header hdr{headers.begin(), headers.end()};
+    cpr::Body b{body};
+    auto r = cpr::Post(cpr::Url{url}, to, cto, low, hdr, b);
+    resp.status_code = static_cast<int>(r.status_code);
+    resp.text = std::move(r.text);
+    if (r.error.code != cpr::ErrorCode::OK) {
+      resp.network_error = true;
+      resp.error_message = r.error.message;
+    }
+  } catch (const std::exception &e) {
+    resp.network_error = true;
+    resp.error_message = e.what();
+  }
+  return resp;
+}
+
 } // namespace Core
 

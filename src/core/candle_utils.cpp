@@ -2,6 +2,7 @@
 
 #include <utility>
 #include <charconv>
+#include <algorithm>
 
 namespace Core {
 
@@ -24,6 +25,43 @@ void fill_missing(std::vector<Candle> &candles, long long interval_ms) {
   }
   filled.push_back(candles.back());
   candles = std::move(filled);
+}
+
+static void fix_high_low(Candle &c) {
+  double mx = std::max({c.open, c.close, c.high});
+  double mn = std::min({c.open, c.close, c.low});
+  if (c.high < mx) c.high = mx;
+  if (c.low > mn) c.low = mn;
+}
+
+void normalize_candles(std::vector<Candle> &candles) {
+  if (candles.empty()) return;
+  // Sort by open_time; stable to keep later duplicates later
+  std::stable_sort(candles.begin(), candles.end(),
+                   [](const Candle &a, const Candle &b) { return a.open_time < b.open_time; });
+  // Dedup keeping last occurrence
+  std::vector<Candle> out;
+  out.reserve(candles.size());
+  long long prev_ts = std::numeric_limits<long long>::min();
+  for (size_t i = 0; i < candles.size(); ++i) {
+    if (!out.empty() && out.back().open_time == candles[i].open_time) {
+      out.back() = candles[i];
+    } else {
+      out.push_back(candles[i]);
+    }
+  }
+  for (auto &c : out) fix_high_low(c);
+  candles.swap(out);
+}
+
+void merge_candles(std::vector<Candle> &base, const std::vector<Candle> &add) {
+  if (add.empty()) { normalize_candles(base); return; }
+  std::vector<Candle> merged;
+  merged.reserve(base.size() + add.size());
+  merged.insert(merged.end(), base.begin(), base.end());
+  merged.insert(merged.end(), add.begin(), add.end());
+  normalize_candles(merged);
+  base.swap(merged);
 }
 
 bool ParseLong(std::string_view s, long long &out) {

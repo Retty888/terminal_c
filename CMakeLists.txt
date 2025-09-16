@@ -7,35 +7,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_definitions(NOMINMAX)
 add_compile_definitions(GTEST_HAS_STD_FORMAT=0)
 add_compile_definitions(GTEST_HAS_STD_WSTRING=0)
+add_compile_definitions(IMGUI_HAS_DOCKING=1)
 
 option(BUILD_TRADING_TERMINAL "Build the TradingTerminal application" ON)
+
+set(USE_OPENGL_BACKEND ON)
 
 # WebView/HTML chart was removed; native ImPlot chart is used exclusively.
 
 find_package(GTest CONFIG REQUIRED)
-find_package(imgui CONFIG QUIET)
-if(NOT imgui_FOUND)
-  message(WARNING "imgui not found, using bundled sources")
-  add_library(imgui
-    third_party/imgui/imgui.cpp
-    third_party/imgui/imgui_draw.cpp
-    third_party/imgui/imgui_tables.cpp
-    third_party/imgui/imgui_widgets.cpp
-  )
-  target_include_directories(imgui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
-  add_library(imgui::imgui ALIAS imgui)
-endif()
-find_package(implot CONFIG QUIET)
-if(NOT implot_FOUND)
-  message(WARNING "implot not found, using bundled sources")
-  add_library(implot
-    third_party/implot/implot.cpp
-    third_party/implot/implot_items.cpp
-  )
-  target_include_directories(implot PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/implot)
-  target_link_libraries(implot PUBLIC imgui::imgui)
-  add_library(implot::implot ALIAS implot)
-endif()
+find_package(imgui CONFIG REQUIRED)
+find_package(implot CONFIG REQUIRED)
+set(IMGUI_TARGET imgui::imgui)
+set(IMPLOT_TARGET implot::implot)
 if(BUILD_TRADING_TERMINAL)
   find_package(glfw3 CONFIG REQUIRED)
   find_package(OpenGL REQUIRED)
@@ -55,7 +39,8 @@ if(BUILD_TRADING_TERMINAL)
     src/candle.cpp
     src/journal.cpp
     src/core/candle_manager.cpp
-    src/core/data_fetcher.cpp
+    src/core/net/binance_data_provider.cpp
+    src/core/net/hyperliquid_data_provider.cpp
     src/core/interval_utils.cpp
     src/core/candle_utils.cpp
     src/core/data_dir.cpp
@@ -81,21 +66,12 @@ if(BUILD_TRADING_TERMINAL)
   )
 
   if (WIN32 AND NOT USE_OPENGL_BACKEND)
-    target_sources(TradingTerminal PRIVATE
-      ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_glfw.cpp
-      ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_dx11.cpp
-    )
-    target_compile_definitions(TradingTerminal PRIVATE UI_BACKEND_DX11 HAVE_WEBVIEW EMBED_WEBVIEW)
-  else()
-    target_sources(TradingTerminal PRIVATE
-      ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_glfw.cpp
-      ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_opengl3.cpp
-    )
+    target_compile_definitions(TradingTerminal PRIVATE UI_BACKEND_DX11)
   endif()
 
   target_link_libraries(TradingTerminal PRIVATE
-      imgui::imgui
-      implot::implot
+      ${IMGUI_TARGET}
+      ${IMPLOT_TARGET}
     glfw::glfw
     $<$<OR:$<NOT:$<PLATFORM_ID:Windows>>,$<BOOL:${USE_OPENGL_BACKEND}>>:OpenGL::GL>
     cpr::cpr
@@ -104,33 +80,22 @@ if(BUILD_TRADING_TERMINAL)
     $<$<AND:$<PLATFORM_ID:Windows>,$<NOT:$<BOOL:${USE_OPENGL_BACKEND}>>>:d3d11>
     $<$<AND:$<PLATFORM_ID:Windows>,$<NOT:$<BOOL:${USE_OPENGL_BACKEND}>>>:dxgi>
     $<$<AND:$<PLATFORM_ID:Windows>,$<NOT:$<BOOL:${USE_OPENGL_BACKEND}>>>:d3dcompiler>
+    $<$<AND:$<PLATFORM_ID:Windows>,$<NOT:$<BOOL:${USE_OPENGL_BACKEND}>>>:Windowscodecs>
+    $<$<AND:$<PLATFORM_ID:Windows>,$<NOT:$<BOOL:${USE_OPENGL_BACKEND}>>>:Shlwapi>
   )
 
   target_include_directories(TradingTerminal PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/webview_legacy/webview
+    $<TARGET_PROPERTY:imgui::imgui,INTERFACE_INCLUDE_DIRECTORIES>
     $<TARGET_PROPERTY:glfw::glfw,INTERFACE_INCLUDE_DIRECTORIES>
     $<TARGET_PROPERTY:cpr::cpr,INTERFACE_INCLUDE_DIRECTORIES>
     $<$<TARGET_EXISTS:ixwebsocket::ixwebsocket>:$<TARGET_PROPERTY:ixwebsocket::ixwebsocket,INTERFACE_INCLUDE_DIRECTORIES>>
   )
 
-  # WebView embedding enabled on Windows (header-only wrapper using WebView2)
+  # WebView embedding removed; native chart path only.
 
-  # Copy chart resources next to the executable so relative paths from the
-  # config (e.g. resources/chart.html) resolve correctly when using
-  # Core::path_from_executable.
-  add_custom_command(TARGET TradingTerminal POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_SOURCE_DIR}/resources
-            $<TARGET_FILE_DIR:TradingTerminal>/resources)
-
-  
-
-  # WebView support removed.
-
-  # No chart resources to prepare.
+  # WebView HTML chart disabled; no resource copying in native build.
 
 endif()
 
@@ -149,19 +114,20 @@ if (EXISTS "${CMAKE_SOURCE_DIR}/tests")
     src/config_path.cpp
     src/core/path_utils.cpp
   )
-  target_include_directories(test_candle_manager PRIVATE src include third_party/imgui)
+  target_include_directories(test_candle_manager PRIVATE src include)
   target_link_libraries(test_candle_manager PRIVATE GTest::gtest_main)
   add_test(NAME test_candle_manager COMMAND test_candle_manager)
 
   add_executable(test_data_fetcher
     tests/test_data_fetcher.cpp
-    src/core/data_fetcher.cpp
     src/core/interval_utils.cpp
     src/core/candle_utils.cpp
     src/core/exchange_utils.cpp
     src/candle.cpp
     src/core/logger.cpp
     src/services/data_service.cpp
+    src/core/net/binance_data_provider.cpp
+    src/core/net/hyperliquid_data_provider.cpp
     src/config_manager.cpp
     src/config_schema.cpp
     src/config_path.cpp
@@ -171,7 +137,7 @@ if (EXISTS "${CMAKE_SOURCE_DIR}/tests")
     src/core/net/token_bucket_rate_limiter.cpp
     src/core/data_dir.cpp
   )
-  target_include_directories(test_data_fetcher PRIVATE src include third_party/imgui)
+  target_include_directories(test_data_fetcher PRIVATE src include)
   target_link_libraries(test_data_fetcher PRIVATE GTest::gtest_main cpr::cpr)
   add_test(NAME test_data_fetcher COMMAND test_data_fetcher)
 
@@ -179,7 +145,7 @@ if (EXISTS "${CMAKE_SOURCE_DIR}/tests")
     tests/test_interval_utils.cpp
     src/core/interval_utils.cpp
   )
-  target_include_directories(test_interval_utils PRIVATE src include third_party/imgui)
+  target_include_directories(test_interval_utils PRIVATE src include)
   target_link_libraries(test_interval_utils PRIVATE GTest::gtest_main)
   add_test(NAME test_interval_utils COMMAND test_interval_utils)
 
@@ -188,7 +154,7 @@ if (EXISTS "${CMAKE_SOURCE_DIR}/tests")
     src/core/interval_utils.cpp
     src/candle.cpp
   )
-  target_include_directories(test_scheduler PRIVATE src include third_party/imgui)
+  target_include_directories(test_scheduler PRIVATE src include)
   target_link_libraries(test_scheduler PRIVATE GTest::gtest_main)
   add_test(NAME test_scheduler COMMAND test_scheduler)
 
@@ -206,7 +172,7 @@ if (EXISTS "${CMAKE_SOURCE_DIR}/tests")
     src/core/path_utils.cpp
     src/core/exchange_utils.cpp
   )
-  target_include_directories(test_kline_stream PRIVATE src include third_party/imgui)
+  target_include_directories(test_kline_stream PRIVATE src include)
   target_link_libraries(test_kline_stream PRIVATE 
     GTest::gtest_main 
     $<$<TARGET_EXISTS:ixwebsocket::ixwebsocket>:ixwebsocket::ixwebsocket>
@@ -218,7 +184,7 @@ if (EXISTS "${CMAKE_SOURCE_DIR}/tests")
     tests/test_logger.cpp
     src/core/logger.cpp
   )
-  target_include_directories(test_logger PRIVATE src include third_party/imgui)
+  target_include_directories(test_logger PRIVATE src include)
   target_link_libraries(test_logger PRIVATE GTest::gtest_main)
   add_test(NAME test_logger COMMAND test_logger)
 
@@ -233,30 +199,25 @@ if (EXISTS "${CMAKE_SOURCE_DIR}/tests")
     src/core/path_utils.cpp
     src/core/logger.cpp
   )
-  target_include_directories(test_signal PRIVATE src include third_party/imgui)
+  target_include_directories(test_signal PRIVATE src include)
   target_link_libraries(test_signal PRIVATE GTest::gtest_main)
   add_test(NAME test_signal COMMAND test_signal)
 
   add_executable(test_ui_manager
       tests/test_ui_manager.cpp
       src/ui/ui_manager.cpp
+      src/core/data_dir.cpp
+      src/core/interval_utils.cpp
       src/core/path_utils.cpp
+      src/config_path.cpp
       src/core/logger.cpp
     )
-    target_include_directories(test_ui_manager PRIVATE tests/stubs src include third_party/imgui third_party/imgui/backends third_party/implot)
-    if (WIN32)
-      # For tests we use stubbed ImGui backends, do not link real renderer backends.
-      target_link_libraries(test_ui_manager PRIVATE GTest::gtest_main imgui::imgui implot::implot)
-    else()
-      target_sources(test_ui_manager PRIVATE 
-        ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_glfw.cpp
-        ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_opengl3.cpp
-      )
-      target_link_libraries(test_ui_manager PRIVATE GTest::gtest_main imgui::imgui implot::implot glfw::glfw OpenGL::GL)
-    endif()
+    target_include_directories(test_ui_manager PRIVATE tests/stubs src include)
+    target_link_libraries(test_ui_manager PRIVATE GTest::gtest_main imgui::imgui implot::implot glfw::glfw OpenGL::GL)
   add_test(NAME test_ui_manager COMMAND test_ui_manager)
 
   add_custom_target(ctest COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
       DEPENDS test_candle_manager test_scheduler test_kline_stream test_data_fetcher test_interval_utils test_logger test_signal test_ui_manager
     )
 endif()
+

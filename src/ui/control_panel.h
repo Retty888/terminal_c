@@ -16,7 +16,7 @@ struct PairItem {
   bool visible;
 };
 
-void DrawControlPanel(
+float DrawControlPanel(
     std::vector<PairItem> &pairs, std::vector<std::string> &selected_pairs,
     std::string &active_pair, const std::vector<std::string> &intervals,
     std::string &selected_interval,

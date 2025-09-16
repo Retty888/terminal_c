@@ -5,13 +5,13 @@
   <style>
     html, body { margin:0; padding:0; height:100%; }
     #container { position:relative; width:100%; height:100%; }
-    #tvchart { width:100%; height:100%; background:#111; }
+    #tvchart { width:100%; height:100%; background:#ffffff; }
     #toolbar { position:absolute; left:0; top:0; z-index:10; display:flex; flex-direction:column; }
-    #toolbar button, #toolbar select { height:32px; margin:2px; background:#222; color:#fff; border:none; cursor:pointer; }
-    #toolbar button { width:64px; }
-    #toolbar button.active { background:#555; }
+    #toolbar button, #toolbar select { height:32px; margin:2px; background:#e6e6e6; color:#000; border:1px solid #c8c8c8; cursor:pointer; }
+    #toolbar button { width:72px; }
+    #toolbar button.active { background:#cfcfcf; }
     #overlay { position:absolute; left:0; top:0; z-index:5; }
-    #coords { position:absolute; right:0; bottom:0; z-index:10; background:#222; color:#fff; padding:2px 4px; font-family:monospace; }
+    #coords { position:absolute; right:0; bottom:0; z-index:10; background:#f2f2f2; color:#000; border:1px solid #d0d0d0; padding:2px 4px; font-family:monospace; }
   </style>
   <title>Chart</title>
   <!-- CSP removed to avoid blocking local file:// scripts in WebView2. -->
@@ -43,12 +43,9 @@
     try {
       const now = Date.now();
       const str = String(msg);
-      // Reduce noise: only forward if message changes or at least 1000ms passed
-      if (str !== __lastStatusMsg || (now - __lastStatusAt) > 1000) {
-        if (typeof appStatus === 'function') appStatus(str);
-        try { console.log('[chart]', str); } catch(e){}
-        __lastStatusMsg = str; __lastStatusAt = now;
-      }
+      // Forward all status messages for debugging
+      if (typeof appStatus === 'function') appStatus(str);
+      try { console.log('[chart]', str); } catch(e){}
     } catch(e){}
   }
   window.addEventListener('error', function(e){ __status('js-error: '+(e && e.message)); });
@@ -68,10 +65,45 @@
   const chart = LightweightCharts.createChart(chartEl, {
     width: container.clientWidth,
     height: container.clientHeight,
-    timeScale: { timeVisible: true, secondsVisible: false }
+    layout: {
+      background: { color: '#ffffff' },
+      textColor: '#111111',
+    },
+    grid: {
+      vertLines: { color: '#e6e6e6' },
+      horzLines: { color: '#e6e6e6' },
+    },
+    crosshair: {
+      color: '#999999',
+    },
+    rightPriceScale: {
+      borderColor: '#bfbfbf',
+    },
+    timeScale: {
+      timeVisible: true,
+      secondsVisible: false,
+      borderColor: '#bfbfbf',
+    },
+    localization: {
+      locale: 'ru-RU',
+    },
   });
   __status('chart-created');
-  let series = chart.addCandlestickSeries();
+  let series = chart.addCandlestickSeries({
+    upColor: '#f2f2f2',
+    downColor: '#404040',
+    borderUpColor: '#111111',
+    borderDownColor: '#111111',
+    wickUpColor: '#111111',
+    wickDownColor: '#111111',
+  });
+  const originalSetData = series.setData;
+  series.setData = function(arr) {
+    if (arr && arr.length > 0) {
+      __status('setData[0]: ' + JSON.stringify(arr[0]));
+    }
+    originalSetData.call(this, arr);
+  };
   let markers = [];
   let priceLineValue = null;
   let priceLineHandle = null;
@@ -88,9 +120,11 @@
         const v = param.seriesData.value || param.seriesData;
         price = (typeof v === 'object' && v && 'close' in v) ? v.close : v;
       }
-      const ts = (typeof param.time === 'object')
-        ? `${param.time.year}-${param.time.month}-${param.time.day}`
-        : new Date(param.time * 1000).toLocaleString();
+      // Show human-friendly RU format in UTC to match candle times
+      const ts = new Date(param.time * 1000).toLocaleString('ru-RU', {
+        year: '2-digit', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit'
+      });
       coordsEl.textContent = `${ts} ${price !== undefined ? Number(price).toFixed(2) : ''}`;
     } catch(e) {
       __status('crosshair-error: '+(e && e.message));
@@ -142,9 +176,20 @@
 
   function createSeries(t) {
     if (series) chart.removeSeries(series);
-    if (t === 'LineSeries') series = chart.addLineSeries();
-    else if (t === 'AreaSeries') series = chart.addAreaSeries();
-    else series = chart.addCandlestickSeries();
+    if (t === 'LineSeries') {
+      series = chart.addLineSeries({ color: '#333333', lineWidth: 2 });
+    } else if (t === 'AreaSeries') {
+      series = chart.addAreaSeries({ lineColor: '#333333', topColor: 'rgba(0,0,0,0.10)', bottomColor: 'rgba(0,0,0,0.02)' });
+    } else {
+      series = chart.addCandlestickSeries({
+        upColor: '#f2f2f2',
+        downColor: '#404040',
+        borderUpColor: '#111111',
+        borderDownColor: '#111111',
+        wickUpColor: '#111111',
+        wickDownColor: '#111111',
+      });
+    }
     series.setData(data);
     __status('series-added');
     if (markers.length) series.setMarkers(markers);
@@ -187,7 +232,7 @@
       const y1 = series.priceToCoordinate(d.price1);
       const x2 = chart.timeScale().timeToCoordinate(d.time2);
       const y2 = series.priceToCoordinate(d.price2);
-      ctx.strokeStyle = 'yellow';
+      ctx.strokeStyle = '#808080';
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
     });
     positions.forEach(p => {
@@ -195,8 +240,8 @@
       const y1 = series.priceToCoordinate(p.price1);
       const x2 = chart.timeScale().timeToCoordinate(p.time2);
       const y2 = series.priceToCoordinate(p.price2);
-      ctx.fillStyle = p.tool === 'long' ? 'rgba(0,255,0,0.2)' : 'rgba(255,0,0,0.2)';
-      ctx.strokeStyle = p.tool === 'long' ? 'green' : 'red';
+      ctx.fillStyle = p.tool === 'long' ? 'rgba(0,0,0,0.12)' : 'rgba(0,0,0,0.20)';
+      ctx.strokeStyle = p.tool === 'long' ? '#666666' : '#222222';
       ctx.beginPath(); ctx.rect(x1, y1, x2 - x1, y2 - y1); ctx.fill(); ctx.stroke();
     });
   }
@@ -220,6 +265,7 @@
 
   // API used by native side
   window.updateCandle = function(c) {
+    __status('updateCandle: ' + JSON.stringify(c));
     if (data.length && data[data.length - 1].time === c.time) {
       data[data.length - 1] = c; series.update(c);
     } else { data.push(c); series.update(c); }

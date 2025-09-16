@@ -35,3 +35,20 @@ scripts/vcpkg/buildtrees/
 
 # Editor swap/backup files
 *~
+
+# Runtime logs and data
+logs/
+terminal.log*
+candle_data/
+
+# VS CMake out-of-source builds
+build_vs_dbg/
+build_vs_rel/
+
+# Ignore Windows reserved filenames
+CON
+
+# Ignore dependency directories
+vcpkg/
+scripts/vcpkg/
+vcpkg_installed/

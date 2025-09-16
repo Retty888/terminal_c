@@ -58,7 +58,7 @@ public:
   // Provide the absolute or executable-relative path to chart HTML.
   void set_chart_html_path(const std::string &path);
 
-  enum class DrawTool { None, Line, HLine, Ruler, Long, Short, Fibo };
+  enum class DrawTool { None, Line, HLine, VLine, Rect, Ruler, Long, Short, Fibo };
   enum class SeriesType { Candlestick, Line, Area };
 
   struct Position {
@@ -74,6 +74,10 @@ public:
   void remove_position(int id);
 
 private:
+  // UI polish state
+  bool high_contrast_theme_ = false;
+  ImVec4 accent_color_ = ImVec4(0.08f, 0.56f, 0.96f, 1.0f); // blue accent
+
   std::vector<Core::Candle> candles_;
   struct DrawObject {
     DrawTool type;
@@ -96,20 +100,27 @@ private:
   std::vector<DrawObject> draw_objects_;
   bool drawing_first_point_ = false;
   int editing_object_ = -1;
+  int hovered_object_ = -1;
+  bool dragging_object_ = false;
   double temp_x_ = 0.0;
   double temp_y_ = 0.0;
+  DrawObject drag_origin_{};
   int context_object_ = -1;
   std::optional<double> price_line_;
   std::string current_interval_;
   std::string current_pair_;
   bool fit_next_plot_ = false;
+  bool use_utc_time_ = false;
+  bool show_seconds_pref_ = false; // show seconds on axis/cursor when true (otherwise derive from interval)
+  bool snap_to_candles_ = true;
   std::function<void(const std::string &)> on_interval_changed_;
   std::function<void(const std::string &)> on_pair_changed_;
   std::function<void(const std::string &)> status_callback_;
   bool shutdown_called_ = false;
   bool owns_imgui_context_ = false;
+  bool layout_built_ = false;
   mutable std::mutex ui_mutex_;
-  bool require_tv_chart_ = true;
+  bool require_tv_chart_ = false;
   int webview_ready_timeout_ms_ = 5000;
 
   // Cached data for pair and interval selection combos
@@ -120,8 +131,8 @@ private:
 
   // Throttling for real-time candle pushes
   std::chrono::steady_clock::time_point last_push_time_{};
-  // Throttle JS push updates to WebView; default 2000ms (2s) for reduced churn.
-  std::chrono::milliseconds throttle_interval_{2000};
+  // Throttle real-time push updates; default 500ms for smoother live candles.
+  std::chrono::milliseconds throttle_interval_{500};
   std::optional<Core::Candle> cached_candle_{};
 
 #ifdef HAVE_WEBVIEW
@@ -150,4 +161,8 @@ private:
 #endif
 
   GLFWwindow *glfw_window_ = nullptr;
+
+  // Internal helpers for UI chrome
+  void draw_top_bar();
+  void draw_status_bar();
 };
