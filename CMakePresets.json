@@ -1,0 +1,34 @@
+﻿{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "single-vcpkg-Debug",
+      "hidden": false,
+      "generator": "Visual Studio 17 2022",
+      "architecture": { "value": "x64", "strategy": "set" },
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+      }
+    },
+    {
+      "name": "single-vcpkg-Release",
+      "hidden": false,
+      "generator": "Visual Studio 17 2022",
+      "architecture": { "value": "x64", "strategy": "set" },
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "single-build-dbg", "configurePreset": "single-vcpkg-Debug", "configuration": "Debug" },
+    { "name": "single-build-rel", "configurePreset": "single-vcpkg-Release", "configuration": "Release" }
+  ],
+  "testPresets": [
+    { "name": "single-test-dbg", "configurePreset": "single-vcpkg-Debug", "configuration": "Debug" },
+    { "name": "single-test-rel", "configurePreset": "single-vcpkg-Release", "configuration": "Release" }
+  ]
+}

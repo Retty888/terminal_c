@@ -67,6 +67,7 @@ private:
   void update_available_intervals();
   void start_fetch_thread();
   void stop_fetch_thread();
+  void toggle_fullscreen();
 
   std::unique_ptr<AppContext> ctx_;
   DataService data_service_;
@@ -80,4 +81,11 @@ private:
   std::unique_ptr<GLFWwindow, WindowDeleter> window_{nullptr};
   UiManager ui_manager_;
   std::jthread fetch_thread_;
+
+  // Fullscreen state (GLFW-driven)
+  bool fullscreen_ = false;
+  int windowed_x_ = 0;
+  int windowed_y_ = 0;
+  int windowed_w_ = 1280;
+  int windowed_h_ = 720;
 };

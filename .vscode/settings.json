@@ -1,6 +1,67 @@
 {
-    "files.associations": {
-        "cstdio": "cpp",
-        "iostream": "cpp"
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.venv": true,
+    "**/build": true,
+    "**/.next": true,
+    "**/coverage": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.venv": true,
+    "**/.git": true,
+    "**/coverage": true
+  },
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.organizeImports": "explicit"
+  },
+  "openai.codex.model": "gpt-5",
+  "openai.codex.reasoningEffort": "medium",
+  "openai.codex.temperature": 0.15,
+  "openai.codex.topP": 0.9,
+  "openai.codex.maxOutputTokens": 6000,
+  "openai.codex.loggingLevel": "info",
+  "openai.codex.envFiles": [
+    ".env",
+    ".env.local"
+  ],
+  "openai.codex.includeGlobs": [
+    "src/**/*",
+    "apps/**/*",
+    "packages/**/*",
+    "CMakeLists.txt",
+    "**/*.py",
+    "**/*.cpp",
+    "**/*.h",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "openai.codex.excludeGlobs": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/.next/**",
+    "**/coverage/**",
+    "**/*.min.*"
+  ],
+  "openai.codex.enableRepoMap": true,
+  "openai.codex.taskTimeoutSec": 900,
+  "openai.codex.parallelTasks": 3,
+  "vscode.mcp.servers": {
+    "repo-tools": {
+      "command": "node",
+      "args": [
+        "mcp/repo-tools/server.js"
+      ]
+    },
+    "tests-runner": {
+      "command": "python",
+      "args": [
+        "mcp/tests/server.py"
+      ]
     }
+  }
 }

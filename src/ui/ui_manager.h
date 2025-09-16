@@ -48,12 +48,17 @@ public:
   void set_initial_interval(const std::string &interval);
   // Inform the UI about the current pair during initialization.
   void set_initial_pair(const std::string &pair);
+  // Require TradingView/WebView chart; if true, never fall back to ImPlot.
+  void set_require_tv_chart(bool require);
+  // Timeout (ms) to wait for WebView readiness before considering fallback.
+  void set_webview_ready_timeout_ms(int ms);
+  void set_webview_throttle_ms(int ms);
   void end_frame(GLFWwindow *window);
   void shutdown();
   // Provide the absolute or executable-relative path to chart HTML.
   void set_chart_html_path(const std::string &path);
 
-  enum class DrawTool { None, Line, HLine, Ruler, Long, Short, Fibo };
+  enum class DrawTool { None, Line, HLine, VLine, Rect, Ruler, Long, Short, Fibo };
   enum class SeriesType { Candlestick, Line, Area };
 
   struct Position {
@@ -69,6 +74,10 @@ public:
   void remove_position(int id);
 
 private:
+  // UI polish state
+  bool high_contrast_theme_ = false;
+  ImVec4 accent_color_ = ImVec4(0.08f, 0.56f, 0.96f, 1.0f); // blue accent
+
   std::vector<Core::Candle> candles_;
   struct DrawObject {
     DrawTool type;
@@ -91,19 +100,28 @@ private:
   std::vector<DrawObject> draw_objects_;
   bool drawing_first_point_ = false;
   int editing_object_ = -1;
+  int hovered_object_ = -1;
+  bool dragging_object_ = false;
   double temp_x_ = 0.0;
   double temp_y_ = 0.0;
+  DrawObject drag_origin_{};
   int context_object_ = -1;
   std::optional<double> price_line_;
   std::string current_interval_;
   std::string current_pair_;
   bool fit_next_plot_ = false;
+  bool use_utc_time_ = false;
+  bool show_seconds_pref_ = false; // show seconds on axis/cursor when true (otherwise derive from interval)
+  bool snap_to_candles_ = true;
   std::function<void(const std::string &)> on_interval_changed_;
   std::function<void(const std::string &)> on_pair_changed_;
   std::function<void(const std::string &)> status_callback_;
   bool shutdown_called_ = false;
   bool owns_imgui_context_ = false;
+  bool layout_built_ = false;
   mutable std::mutex ui_mutex_;
+  bool require_tv_chart_ = false;
+  int webview_ready_timeout_ms_ = 5000;
 
   // Cached data for pair and interval selection combos
   std::vector<std::string> pair_strings_;
@@ -113,7 +131,8 @@ private:
 
   // Throttling for real-time candle pushes
   std::chrono::steady_clock::time_point last_push_time_{};
-  std::chrono::milliseconds throttle_interval_{100};
+  // Throttle real-time push updates; default 500ms for smoother live candles.
+  std::chrono::milliseconds throttle_interval_{500};
   std::optional<Core::Candle> cached_candle_{};
 
 #ifdef HAVE_WEBVIEW
@@ -123,10 +142,27 @@ private:
   bool webview_missing_chart_ = false;
   bool webview_init_failed_ = false;
   std::string chart_html_path_{};
+  std::string chart_url_{};
+  std::optional<std::chrono::steady_clock::time_point> webview_nav_time_{};
+  std::optional<std::chrono::steady_clock::time_point> last_nav_retry_time_{};
+  int nav_retry_interval_ms_ = 2000;
+  int nav_retry_max_ = 60;
+  int nav_retry_count_ = 0;
+#if defined(_WIN32)
+  bool com_initialized_ = false;
+#endif
 #if defined(_WIN32)
   void *webview_host_hwnd_ = nullptr; // HWND for embedded WebView child
 #endif
+  // Queue for JavaScript commands posted before WebView is ready or to marshal
+  // execution onto the WebView UI thread safely.
+  std::vector<std::string> pending_js_;
+  void post_js(const std::string &js);
 #endif
 
   GLFWwindow *glfw_window_ = nullptr;
+
+  // Internal helpers for UI chrome
+  void draw_top_bar();
+  void draw_status_bar();
 };

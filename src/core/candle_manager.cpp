@@ -111,6 +111,7 @@ void CandleManager::write_last_open_time(const std::string& symbol, const std::s
 bool CandleManager::save_candles(const std::string& symbol, const std::string& interval,
                                  const std::vector<Candle>& candles, bool verify) const {
     std::filesystem::path path_to_save = get_candle_path(symbol, interval);
+    Logger::instance().info("Saving " + std::to_string(candles.size()) + " candles to " + path_to_save.string());
     {
         std::lock_guard<std::recursive_mutex> lock(mutex_);
         std::ofstream file(path_to_save);
@@ -182,13 +183,16 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
         return true;
     }
 
-    // Determine target file and last stored open_time before locking to avoid deadlock.
     std::filesystem::path path_to_save = get_candle_path(symbol, interval);
-    long long last_open_time = read_last_open_time(symbol, interval);
-
+    long long last_open_time = -1;
     std::size_t written = 0;
+    std::size_t overlaps = 0;
+    std::size_t duplicates = 0;
+
     {
         std::lock_guard<std::recursive_mutex> lock(mutex_);
+        last_open_time = read_last_open_time(symbol, interval);
+
         bool file_exists = std::filesystem::exists(path_to_save);
         std::ofstream file(path_to_save, std::ios::app);
         if (!file.is_open()) {
@@ -196,7 +200,7 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
             return false;
         }
 
-        if (!file_exists) {
+        if (!file_exists || std::filesystem::file_size(path_to_save) == 0) {
             file << "open_time,open,high,low,close,volume,close_time,quote_asset_volume,number_of_trades,taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore\n";
         }
 
@@ -205,10 +209,9 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
 
         for (const auto& c : candles) {
             if (last_open_time >= 0 && c.open_time <= last_open_time) {
-                if (c.open_time < last_open_time) {
-                    Logger::instance().warn("Overlap detected at open_time " + std::to_string(c.open_time));
-                }
-                continue; // skip duplicates or overlaps
+                if (c.open_time < last_open_time) { ++overlaps; }
+                else { ++duplicates; }
+                continue;
             }
 
             file << c.open_time << ","
@@ -227,10 +230,17 @@ bool CandleManager::append_candles(const std::string& symbol, const std::string&
             last_open_time = c.open_time;
             ++written;
         }
+        
+        if (written > 0) {
+            write_last_open_time(symbol, interval, last_open_time);
+        }
     }
 
-    if (written > 0) {
-        write_last_open_time(symbol, interval, last_open_time);
+    if (overlaps > 0) {
+        Logger::instance().warn("Skipped " + std::to_string(overlaps) + " overlap candle(s) for " + symbol + " " + interval);
+    }
+    if (duplicates > 0) {
+        Logger::instance().info("Skipped " + std::to_string(duplicates) + " duplicate candle(s) for " + symbol + " " + interval);
     }
 
     return true;
@@ -295,8 +305,9 @@ bool CandleManager::validate_candles(const std::string& symbol, const std::strin
             return false;
         }
 
-        if (prev_open != -1 && c.open_time != prev_open + interval_ms) {
-            Logger::instance().warn("Non-monotonic candle sequence in " + path.string());
+        // Allow gaps: enforce strictly increasing timestamps instead of exact interval steps.
+        if (prev_open != -1 && c.open_time <= prev_open) {
+            Logger::instance().warn("Non-increasing candle timestamp in " + path.string());
             return false;
         }
         prev_open = c.open_time;
@@ -465,6 +476,13 @@ std::vector<Candle> CandleManager::load_candles(const std::string& symbol, const
 
     file.close();
 
+    auto interval_ms = parse_interval(interval).count();
+    if (interval_ms > 0) {
+        Core::fill_missing(candles, interval_ms);
+    } else {
+        Logger::instance().warn("Could not determine interval '" + interval + "' for " + symbol);
+    }
+
     return candles;
 }
 
@@ -483,19 +501,7 @@ nlohmann::json CandleManager::load_candles_json(const std::string& symbol,
     std::size_t end = limit > 0 ? std::min(offset + limit, candles.size()) : candles.size();
     for (std::size_t i = offset; i < end; ++i) {
         const auto& c = candles[i];
-        long long ms = c.open_time;
-        std::time_t sec = ms / 1000;
-        int millis = static_cast<int>(ms % 1000);
-        std::tm tm;
-#if defined(_WIN32)
-        gmtime_s(&tm, &sec);
-#else
-        gmtime_r(&sec, &tm);
-#endif
-        std::ostringstream oss;
-        oss << std::put_time(&tm, "%FT%T") << '.'
-            << std::setw(3) << std::setfill('0') << millis << 'Z';
-        x.push_back(oss.str());
+        x.push_back(c.open_time / 1000);
         y.push_back({c.open, c.close, c.low, c.high});
     }
     return nlohmann::json{{"x", std::move(x)}, {"y", std::move(y)}};
@@ -549,6 +555,8 @@ bool CandleManager::clear_interval(const std::string& symbol, const std::string&
         if (ec) {
             Logger::instance().warn("Failed to remove " + csv_path.string() + ": " + ec.message());
             success = false;
+        } else {
+            Logger::instance().info("Removed candle CSV: " + csv_path.string());
         }
     }
 
@@ -559,6 +567,8 @@ bool CandleManager::clear_interval(const std::string& symbol, const std::string&
         if (ec) {
             Logger::instance().warn("Failed to remove " + idx_path.string() + ": " + ec.message());
             success = false;
+        } else {
+            Logger::instance().info("Removed candle IDX: " + idx_path.string());
         }
     }
 
@@ -599,4 +609,3 @@ std::vector<std::string> CandleManager::list_stored_data() const {
 }
 
 } // namespace Core
-

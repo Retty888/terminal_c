@@ -39,5 +39,4 @@ Build a high-performance C++ desktop terminal centered on trade journaling, stra
 No outstanding issues recorded in this log.
 
 ### Next Steps
-1. Configure the project with CMake using the vcpkg toolchain.
-2. Build and run the unit tests via `ctest`.
+

@@ -3,7 +3,7 @@
 
 #include "config_manager.h"
 #include "config_path.h"
-#include "core/data_fetcher.h"
+#include "core/net/fetch_result.h"
 #include "core/interval_utils.h"
 #include "core/logger.h"
 #include "imgui.h"
@@ -236,24 +236,36 @@ bool RenderPairRow(
   ImGui::TableNextColumn();
   bool removed = false;
   if (ImGui::SmallButton("X")) {
-    all_candles.erase(item.name);
-    if (active_pair == item.name) {
-      auto new_active =
-          std::find_if(pairs.begin(), pairs.end(),
-                       [](const PairItem &p) { return p.visible; });
-      active_pair =
-          new_active != pairs.end() ? new_active->name : std::string();
+    try {
+      Core::Logger::instance().info("UI: Remove pair '" + item.name + "'");
+      // Drop in-memory data first to minimize downstream references
+      auto itmap = all_candles.find(item.name);
+      if (itmap != all_candles.end()) {
+        itmap->second.clear();
+        all_candles.erase(itmap);
+      }
+      if (active_pair == item.name) {
+        auto new_active =
+            std::find_if(pairs.begin(), pairs.end(),
+                         [](const PairItem &p) { return p.visible; });
+        active_pair = new_active != pairs.end() ? new_active->name : std::string();
+      }
+      selected_pairs.erase(
+          std::remove(selected_pairs.begin(), selected_pairs.end(), item.name),
+          selected_pairs.end());
+      Config::ConfigManager::save_selected_pairs(resolve_config_path().string(),
+                                                 selected_pairs);
+      bool fs_ok = data_service.remove_candles(item.name);
+      Core::Logger::instance().info(std::string("UI: remove_candles filesystem=") + (fs_ok ? "true" : "false"));
+      if (cancel_pair)
+        cancel_pair(item.name);
+      save_pairs();
+      removed = true;
+    } catch (const std::exception &e) {
+      Core::Logger::instance().error(std::string("UI: exception removing '") + item.name + "': " + e.what());
+    } catch (...) {
+      Core::Logger::instance().error(std::string("UI: unknown exception removing '") + item.name + "'");
     }
-    selected_pairs.erase(
-        std::remove(selected_pairs.begin(), selected_pairs.end(), item.name),
-        selected_pairs.end());
-    Config::ConfigManager::save_selected_pairs(resolve_config_path().string(),
-                                               selected_pairs);
-    data_service.remove_candles(item.name);
-    if (cancel_pair)
-      cancel_pair(item.name);
-    save_pairs();
-    removed = true;
   }
   ImGui::SameLine();
   if (ImGui::Button("Reload")) {
@@ -262,7 +274,8 @@ bool RenderPairRow(
   if (ImGui::BeginPopup("ReloadPopup")) {
     for (const auto &interval : intervals) {
       if (ImGui::Selectable(interval.c_str())) {
-        bool ok = data_service.reload_candles(item.name, interval);
+        // Prefer incremental top-up if some data exists; otherwise full reload
+        bool ok = data_service.ensure_limit(item.name, interval, EXPECTED_CANDLES);
         if (ok) {
           all_candles[item.name][interval] =
               data_service.load_candles(item.name, interval);
@@ -278,9 +291,20 @@ bool RenderPairRow(
   if (ImGui::BeginPopup("DeletePopup")) {
     for (const auto &interval : intervals) {
       if (ImGui::Selectable(interval.c_str())) {
-        data_service.clear_interval(item.name, interval);
-        all_candles[item.name][interval].clear();
-        Core::Logger::instance().info("Deleted " + item.name + " " + interval);
+        try {
+          Core::Logger::instance().info("UI: clear_interval '" + item.name + " " + interval + "'");
+          bool ok = data_service.clear_interval(item.name, interval);
+          auto itp = all_candles.find(item.name);
+          if (itp != all_candles.end()) {
+            auto iti = itp->second.find(interval);
+            if (iti != itp->second.end()) iti->second.clear();
+          }
+          Core::Logger::instance().info(std::string("UI: clear_interval result=") + (ok ? "true" : "false"));
+        } catch (const std::exception &e) {
+          Core::Logger::instance().error(std::string("UI: exception clear_interval '") + item.name + " " + interval + "': " + e.what());
+        } catch (...) {
+          Core::Logger::instance().error(std::string("UI: unknown exception clear_interval '") + item.name + " " + interval + "'");
+        }
       }
     }
     ImGui::EndPopup();
@@ -410,7 +434,7 @@ static void RenderStatusPane(AppStatus &status, std::mutex &status_mutex) {
   }
 }
 
-void DrawControlPanel(
+float DrawControlPanel(
     std::vector<PairItem> &pairs, std::vector<std::string> &selected_pairs,
     std::string &active_pair, const std::vector<std::string> &intervals,
     std::string &selected_interval,
@@ -422,13 +446,52 @@ void DrawControlPanel(
     const std::function<void(const std::string &)> &cancel_pair,
     bool &show_analytics_window, bool &show_journal_window,
     bool &show_backtest_window) {
-  auto vp = ImGui::GetMainViewport();
-  ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_FirstUseEver);
-  ImGui::SetNextWindowSize(vp->WorkSize, ImGuiCond_FirstUseEver);
+  // When docking is enabled, placement is handled by the dockspace
+  if (!(ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_DockingEnable)) {
+    auto vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->WorkPos, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(vp->WorkSize, ImGuiCond_FirstUseEver);
+  }
   ImGui::Begin("Control Panel");
+
+  // Provider selection (hidden if only one provider registered)
+  auto provider_names = data_service.get_provider_names();
+  if (provider_names.size() > 1) {
+    std::string current_provider = data_service.get_active_provider_name();
+    if (ImGui::BeginCombo("Provider", current_provider.c_str())) {
+      for (const auto& name : provider_names) {
+        bool is_selected = (current_provider == name);
+        if (ImGui::Selectable(name.c_str(), is_selected)) {
+          data_service.set_active_provider(name);
+        }
+        if (is_selected) {
+          ImGui::SetItemDefaultFocus();
+        }
+      }
+      ImGui::EndCombo();
+    }
+  }
 
   RenderLoadControls(pairs, selected_pairs, intervals, all_candles, save_pairs,
                      exchange_pairs, data_service);
+  // Quick action for active pair/interval
+  if (!active_pair.empty() && !selected_interval.empty()) {
+    ImGui::Separator();
+    ImGui::Text("Active: %s (%s)", active_pair.c_str(), selected_interval.c_str());
+    ImGui::SameLine();
+    if (ImGui::Button("Clear & Reload Active")) {
+      Core::Logger::instance().info(std::string("UI: Clear & Reload clicked for ") + active_pair + " " + selected_interval);
+      bool cleared = data_service.clear_interval(active_pair, selected_interval);
+      Core::Logger::instance().info(std::string("UI: clear_interval result=") + (cleared ? "true" : "false"));
+      bool reloaded = data_service.reload_candles(active_pair, selected_interval);
+      Core::Logger::instance().info(std::string("UI: reload_candles result=") + (reloaded ? "true" : "false"));
+      if (reloaded) {
+        auto loaded = data_service.load_candles(active_pair, selected_interval);
+        Core::Logger::instance().info(std::string("UI: loaded ") + std::to_string(loaded.size()) + " candles after reload");
+        all_candles[active_pair][selected_interval] = std::move(loaded);
+      }
+    }
+  }
   RenderPairSelector(pairs, selected_pairs, active_pair, intervals,
                      selected_interval, all_candles, save_pairs, data_service,
                      status, cancel_pair);
@@ -439,5 +502,7 @@ void DrawControlPanel(
   ImGui::Checkbox("Journal", &show_journal_window);
   ImGui::Checkbox("Backtest", &show_backtest_window);
 
+  float panel_height = ImGui::GetWindowHeight();
   ImGui::End();
+  return panel_height;
 }

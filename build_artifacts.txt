@@ -1,0 +1,23 @@
+# Build artifacts that can be safely removed or ignored.
+# These are generated during the build process.
+
+# The main build directory, containing all compiled files and executables.
+build/
+
+# Directory for test results.
+Testing/
+
+# Directory where vcpkg installs dependencies.
+vcpkg_installed/
+
+# CMake generated files (already in .gitignore)
+CMakeFiles/
+CMakeCache.txt
+
+# Compiled object files (already in .gitignore)
+*.o
+*.obj
+
+# Debug and program database files (already in .gitignore)
+*.pdb
+*.idb

@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "core/candle.h"
-#include "core/data_fetcher.h"
+#include "core/net/fetch_result.h"
 #include "core/kline_stream.h"
 #include "ui/control_panel.h"
 
@@ -69,4 +69,10 @@ struct AppContext {
   // Limit per network fetch to avoid long, blocking requests for large history.
   // The app will fetch in chunks until reaching candles_limit.
   int fetch_chunk_size = 1000;
+
+  // Local/disk candle loading state for non-blocking UI when switching pairs
+  std::atomic<bool> disk_loading{false};
+  std::future<std::vector<Core::Candle>> disk_load_future;
+  std::string disk_load_pair;
+  std::string disk_load_interval;
 };

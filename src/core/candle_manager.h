@@ -63,12 +63,13 @@ public:
     void set_data_dir(const std::filesystem::path& dir);
     std::filesystem::path get_data_dir() const;
 
+    long long read_last_open_time(const std::string& symbol, const std::string& interval) const;
+
 private:
     // Helper functions to get the full path for candle CSV and index files.
     std::filesystem::path get_candle_path(const std::string& symbol, const std::string& interval) const;
     std::filesystem::path get_candle_json_path(const std::string& symbol, const std::string& interval) const;
     std::filesystem::path get_index_path(const std::string& symbol, const std::string& interval) const;
-    long long read_last_open_time(const std::string& symbol, const std::string& interval) const;
     void write_last_open_time(const std::string& symbol, const std::string& interval, long long open_time) const;
 
     std::filesystem::path data_dir_;

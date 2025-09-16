@@ -8,6 +8,7 @@
 #include "core/interval_utils.h"
 #include "core/kline_stream.h"
 #include "core/logger.h"
+#include "core/path_utils.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 
@@ -16,6 +17,7 @@
 #include <condition_variable>
 #include <deque>
 #include <functional>
+#include <filesystem>
 #include <future>
 #include <map>
 #include <memory>
@@ -29,6 +31,12 @@
 #include <vector>
 
 #include <GLFW/glfw3.h>
+#if defined(UI_BACKEND_DX11)
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
+#include <windows.h>
+#include "core/dx11_context.h"
+#endif
 
 #include "ui/analytics_window.h"
 #include "ui/backtest_window.h"
@@ -92,10 +100,19 @@ bool App::init_window() {
   bool console = cfg ? cfg->log_to_console : true;
   bool file = cfg ? cfg->log_to_file : true;
   Core::Logger::instance().enable_console_output(console);
-  if (file)
-    Core::Logger::instance().set_file(cfg ? cfg->log_file : "terminal.log");
-  else
+  if (file) {
+    try {
+      // Always write logs under executable-relative logs/terminal.log
+      auto log_path = Core::path_from_executable("logs/terminal.log");
+      std::error_code ec; std::filesystem::create_directories(log_path.parent_path(), ec);
+      Core::Logger::instance().set_file(log_path.string());
+      Core::Logger::instance().info(std::string("Log file: ") + log_path.string());
+    } catch (...) {
+      Core::Logger::instance().set_file(cfg ? cfg->log_file : "terminal.log");
+    }
+  } else {
     Core::Logger::instance().set_file("");
+  }
   Core::Logger::instance().info("Application started");
   {
     std::lock_guard<std::mutex> lock(status_mutex_);
@@ -108,13 +125,55 @@ bool App::init_window() {
     glfw_context_.reset();
     return false;
   }
+  Core::Logger::instance().info("GLFW initialized");
   glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+#if defined(UI_BACKEND_DX11)
+  glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+#endif
   window_.reset(glfwCreateWindow(1280, 720, "Trading Terminal", NULL, NULL));
   if (!window_) {
     Core::Logger::instance().error("Failed to create GLFW window");
     glfw_context_.reset();
     return false;
   }
+  Core::Logger::instance().info("GLFW window created");
+#if defined(UI_BACKEND_DX11)
+  // Maximize on startup to mirror previous OpenGL behavior
+  glfwMaximizeWindow(window_.get());
+  // Process pending size events so framebuffer size reflects maximized window
+  glfwPollEvents();
+  // Ensure the parent window does not paint over child windows (WebView host)
+  // by enabling WS_CLIPCHILDREN and WS_CLIPSIBLINGS. Without these, the DX11
+  // swapchain render can obscure the embedded WebView child HWND.
+  {
+    HWND hwnd_parent = glfwGetWin32Window(window_.get());
+    if (hwnd_parent) {
+      LONG_PTR style = GetWindowLongPtrW(hwnd_parent, GWL_STYLE);
+      if (style != 0) {
+        style |= WS_CLIPCHILDREN | WS_CLIPSIBLINGS;
+        SetWindowLongPtrW(hwnd_parent, GWL_STYLE, style);
+        SetWindowPos(hwnd_parent, nullptr, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+      }
+    }
+  }
+  // Initialize Direct3D 11 context
+  HWND hwnd = glfwGetWin32Window(window_.get());
+  int w, h;
+  glfwGetFramebufferSize(window_.get(), &w, &h);
+  if (!Core::Dx11Context::instance().initialize(hwnd, w, h)) {
+    Core::Logger::instance().error("Failed to initialize D3D11");
+    return false;
+  }
+  // Resize callback to handle swapchain
+  glfwSetFramebufferSizeCallback(window_.get(), [](GLFWwindow* /*w*/, int width, int height){
+    Core::Dx11Context::instance().resize(width, height);
+  });
+  // Ensure swapchain matches current framebuffer size (in case we missed events before callback)
+  glfwGetFramebufferSize(window_.get(), &w, &h);
+  Core::Dx11Context::instance().resize(w, h);
+  Core::Logger::instance().info("D3D11 context ready");
+#else
   glfwMakeContextCurrent(window_.get());
   glfwMaximizeWindow(window_.get());
   glfwSwapInterval(1);
@@ -122,6 +181,20 @@ bool App::init_window() {
   int w, h;
   glfwGetFramebufferSize(window_.get(), &w, &h);
   OnFramebufferResize(window_.get(), w, h);
+  Core::Logger::instance().info("OpenGL context ready");
+#endif
+  // Diagnostics: log window close/focus; optionally ignore close if requested
+  glfwSetWindowCloseCallback(window_.get(), [](GLFWwindow* w){
+    Core::Logger::instance().info("Window close requested");
+    const char* env = std::getenv("CANDLE_IGNORE_CLOSE");
+    if (env && env[0] == '1') {
+      glfwSetWindowShouldClose(w, GLFW_FALSE);
+      Core::Logger::instance().info("Ignoring close request due to CANDLE_IGNORE_CLOSE=1");
+    }
+  });
+  glfwSetWindowFocusCallback(window_.get(), [](GLFWwindow* /*w*/, int focused){
+    Core::Logger::instance().info(std::string("Window focus ") + (focused?"gained":"lost"));
+  });
   return true;
 }
 
@@ -132,6 +205,9 @@ void App::setup_imgui() {
     if (cfg->enable_chart) {
       ui_manager_.set_chart_html_path(cfg->chart_html_path);
     }
+    ui_manager_.set_require_tv_chart(cfg->require_tv_chart);
+    ui_manager_.set_webview_ready_timeout_ms(cfg->webview_ready_timeout_ms);
+    ui_manager_.set_webview_throttle_ms(cfg->webview_throttle_ms);
   }
   ui_manager_.set_interval_callback([this](const std::string &iv) {
     this->ctx_->selected_interval = iv;
@@ -149,6 +225,7 @@ void App::setup_imgui() {
   Core::Logger::instance().set_sink(
       [this](Core::LogLevel level, std::chrono::system_clock::time_point time,
              const std::string &msg) { this->add_status(msg, level, time); });
+  Core::Logger::instance().info("ImGui setup completed");
 }
 
 void App::load_config() {
@@ -174,6 +251,14 @@ void App::load_config() {
     this->ctx_->candles_limit = 5000;
     this->ctx_->streaming_enabled = false;
     this->ctx_->save_journal_csv = true;
+  }
+  // Basic summary of loaded configuration
+  {
+    std::ostringstream oss;
+    oss << "Config loaded: pairs=" << (pair_names.empty() ? 0 : pair_names.size())
+        << ", streaming=" << (this->ctx_->streaming_enabled ? "on" : "off")
+        << ", candles_limit=" << this->ctx_->candles_limit;
+    Core::Logger::instance().info(oss.str());
   }
   this->ctx_->intervals = {"1m", "3m", "5m", "15m", "1h", "4h", "1d"};
   auto exchange_interval_res = data_service_.fetch_intervals();
@@ -209,6 +294,21 @@ void App::load_pairs(std::vector<std::string> &pair_names) {
                                  intervals_found.begin(),
                                  intervals_found.end());
   }
+  // Merge pairs from config.json as well (ensures user-added pairs like ETH persist)
+  if (auto cfg = Config::ConfigManager::load(resolve_config_path().string())) {
+    for (const auto &p : cfg->pairs) {
+      std::string sym = p;
+      // If Hyperliquid is active, normalize to coin name (e.g., ETHUSDT -> ETH)
+      std::string provider = data_service_.get_active_provider_name();
+      std::transform(provider.begin(), provider.end(), provider.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+      if (provider.find("hyperliquid") != std::string::npos) {
+        if (sym.size() > 4 && (sym.rfind("USDT") == sym.size()-4)) sym = sym.substr(0, sym.size()-4);
+        else if (sym.size() > 3 && (sym.rfind("USD") == sym.size()-3)) sym = sym.substr(0, sym.size()-3);
+      }
+      if (std::find(pair_names.begin(), pair_names.end(), sym) == pair_names.end())
+        pair_names.push_back(sym);
+    }
+  }
   if (pair_names.empty())
     pair_names.push_back("BTCUSDT");
   std::sort(this->ctx_->intervals.begin(), this->ctx_->intervals.end(),
@@ -222,8 +322,16 @@ void App::load_pairs(std::vector<std::string> &pair_names) {
     this->ctx_->pairs.push_back({name, true});
   this->ctx_->save_pairs = [&]() {
     std::vector<std::string> names;
-    for (const auto &p : this->ctx_->pairs)
-      names.push_back(p.name);
+    for (const auto &p : this->ctx_->pairs) {
+      std::string sym = p.name;
+      std::string provider = data_service_.get_active_provider_name();
+      std::transform(provider.begin(), provider.end(), provider.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+      if (provider.find("hyperliquid") != std::string::npos) {
+        if (sym.size() > 4 && (sym.rfind("USDT") == sym.size()-4)) sym = sym.substr(0, sym.size()-4);
+        else if (sym.size() > 3 && (sym.rfind("USD") == sym.size()-3)) sym = sym.substr(0, sym.size()-3);
+      }
+      names.push_back(sym);
+    }
     Config::ConfigManager::save_selected_pairs(resolve_config_path().string(),
                                                names);
   };
@@ -247,12 +355,17 @@ void App::load_pairs(std::vector<std::string> &pair_names) {
 void App::update_available_intervals() {
   this->ctx_->available_intervals.clear();
   auto stored = data_service_.list_stored_data();
+  std::string primary = data_service_.get_active_provider_name();
+  std::transform(primary.begin(), primary.end(), primary.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
   for (const auto &entry : stored) {
     auto lp = entry.rfind(" (");
     auto rp = entry.rfind(')');
     if (lp != std::string::npos && rp != std::string::npos && lp < rp) {
       auto symbol = entry.substr(0, lp);
       auto interval = entry.substr(lp + 2, rp - lp - 2);
+      // Filter unsupported sub-minute intervals when primary is Binance
+      if ((interval == "5s" || interval == "15s") && primary == "binance")
+        continue;
       if (symbol == this->ctx_->active_pair &&
           Core::parse_interval(interval).count() > 0) {
         this->ctx_->available_intervals.push_back(interval);
@@ -402,8 +515,14 @@ void App::start_initial_fetch_and_streams() {
       this->ctx_->active_interval != "15s") {
     for (const auto &p : this->ctx_->pairs) {
       std::string pair = p.name;
+      std::string provider = data_service_.get_active_provider_name();
+      std::transform(provider.begin(), provider.end(), provider.begin(), [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+      if (provider.find("binance") != std::string::npos) provider = "binance";
+      else if (provider.find("gate") != std::string::npos) provider = "gateio";
+      else provider.clear();
       auto stream = std::make_shared<Core::KlineStream>(
-          pair, this->ctx_->active_interval, data_service_.candle_manager());
+          pair, this->ctx_->active_interval, data_service_.candle_manager(),
+          Core::default_websocket_factory(), nullptr, std::chrono::milliseconds(1000), provider);
       stream->start(
           [this, pair](const Core::Candle &c) {
             std::lock_guard<std::shared_mutex> lock(this->ctx_->candles_mutex);
@@ -478,20 +597,23 @@ void App::start_fetch_thread() {
                   this->ctx_->candles_mutex);
               auto &vec = this->ctx_->all_candles[it->pair][it->interval];
               long long last_time = vec.empty() ? 0 : vec.back().open_time;
-              std::vector<Core::Candle> new_candles;
-              for (const auto &c : fetched.candles) {
-                if (c.open_time > last_time) {
-                  vec.push_back(c);
-                  new_candles.push_back(c);
+              auto interval_ms = Core::parse_interval(it->interval).count();
+              // Fill potential gap before first fetched candle
+              if (interval_ms > 0 && last_time > 0 &&
+                  fetched.candles.front().open_time > last_time + interval_ms) {
+                long long gap_start = last_time + interval_ms;
+                long long gap_end = fetched.candles.front().open_time - interval_ms;
+                auto gap = data_service_.fetch_range(it->pair, it->interval, gap_start, gap_end);
+                if (gap.error == Core::FetchError::None && !gap.candles.empty()) {
+                  Core::merge_candles(vec, gap.candles);
                 }
               }
-              if (!new_candles.empty()) {
-                if (last_time > 0)
-                  data_service_.append_candles(it->pair, it->interval,
-                                               new_candles);
-                else
-                  data_service_.save_candles(it->pair, it->interval, vec);
-              }
+              // Merge fetched set
+              const std::size_t before_n = vec.size();
+              const long long before_last = before_n ? vec.back().open_time : 0LL;
+              Core::merge_candles(vec, fetched.candles);
+              const bool changed = vec.size() != before_n || (before_n && vec.back().open_time != before_last);
+              if (changed) data_service_.overwrite_candles(it->pair, it->interval, vec);
             }
             lock.lock();
             add_status("Loaded " + it->pair + " " + it->interval);
@@ -631,6 +753,22 @@ void App::stop_fetch_thread() {
 
 void App::process_events() {
   glfwPollEvents();
+  // Handle fullscreen toggle: F11 or Alt+Enter
+  static int prev_f11 = GLFW_RELEASE;
+  static int prev_enter_combo = GLFW_RELEASE;
+  int f11 = glfwGetKey(window_.get(), GLFW_KEY_F11);
+  bool alt_down = (glfwGetKey(window_.get(), GLFW_KEY_LEFT_ALT) == GLFW_PRESS) ||
+                  (glfwGetKey(window_.get(), GLFW_KEY_RIGHT_ALT) == GLFW_PRESS);
+  int enter = glfwGetKey(window_.get(), GLFW_KEY_ENTER);
+  if (prev_f11 == GLFW_RELEASE && f11 == GLFW_PRESS) {
+    toggle_fullscreen();
+  }
+  if (prev_enter_combo == GLFW_RELEASE && enter == GLFW_PRESS && alt_down) {
+    toggle_fullscreen();
+  }
+  prev_f11 = f11;
+  // Track combo on Enter key to avoid sticky repeats when Alt stays pressed
+  prev_enter_combo = (enter == GLFW_PRESS && alt_down) ? GLFW_PRESS : GLFW_RELEASE;
   auto period = Core::parse_interval(this->ctx_->active_interval);
   auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::system_clock::now().time_since_epoch())
@@ -642,6 +780,29 @@ void App::process_events() {
   if (use_http)
     handle_http_updates();
   update_candle_progress();
+}
+
+void App::toggle_fullscreen() {
+  if (!window_) return;
+  if (!fullscreen_) {
+    // Save current windowed position and size
+    glfwGetWindowPos(window_.get(), &windowed_x_, &windowed_y_);
+    glfwGetWindowSize(window_.get(), &windowed_w_, &windowed_h_);
+    GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+    if (monitor) {
+      const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+      if (mode) {
+        glfwSetWindowMonitor(window_.get(), monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+        fullscreen_ = true;
+        Core::Logger::instance().info("Entered fullscreen");
+      }
+    }
+  } else {
+    // Restore windowed mode
+    glfwSetWindowMonitor(window_.get(), nullptr, windowed_x_, windowed_y_, windowed_w_, windowed_h_, 0);
+    fullscreen_ = false;
+    Core::Logger::instance().info("Exited fullscreen");
+  }
 }
 
 void App::schedule_http_updates(std::chrono::milliseconds period,
@@ -703,15 +864,30 @@ void App::handle_http_updates() {
         auto &vec = this->ctx_->all_candles[it->first][it->second.interval];
         bool was_empty = vec.empty();
         bool appended = false;
-        for (const auto &c : latest.candles) {
-          if (vec.empty() || c.open_time > vec.back().open_time) {
-            vec.push_back(c);
-            data_service_.append_candles(it->first, it->second.interval, {c});
-            if (it->first == this->ctx_->active_pair &&
-                it->second.interval == this->ctx_->active_interval) {
-              ui_manager_.push_candle(c);
+        auto interval_ms = Core::parse_interval(it->second.interval).count();
+        if (!latest.candles.empty()) {
+          // Fill gap between last and first of latest
+          if (interval_ms > 0 && !vec.empty() &&
+              latest.candles.front().open_time > vec.back().open_time + interval_ms) {
+            long long gap_start = vec.back().open_time + interval_ms;
+            long long gap_end = latest.candles.front().open_time - interval_ms;
+            auto gap = data_service_.fetch_range(it->first, it->second.interval, gap_start, gap_end);
+            if (gap.error == Core::FetchError::None && !gap.candles.empty()) {
+              Core::merge_candles(vec, gap.candles);
+              appended = true;
             }
+          }
+          const std::size_t before_n = vec.size();
+          const long long before_last = before_n ? vec.back().open_time : 0LL;
+          Core::merge_candles(vec, latest.candles);
+          const bool changed = vec.size() != before_n || (before_n && vec.back().open_time != before_last);
+          if (changed) {
+            data_service_.overwrite_candles(it->first, it->second.interval, vec);
             appended = true;
+          }
+          if (it->first == this->ctx_->active_pair && it->second.interval == this->ctx_->active_interval) {
+            // Push only the last candle to live chart; full set sync happens per frame
+            ui_manager_.push_candle(vec.back());
           }
         }
         if (was_empty && appended && it->first == this->ctx_->active_pair &&
@@ -775,7 +951,45 @@ void App::update_next_fetch_time(long long candidate) {
 
 void App::render_ui() {
   ui_manager_.begin_frame();
+  // Removed temporary failsafe/debug windows to ensure chart is visible
   render_status_window();
+  // Check background disk load completion and render a simple overlay if loading
+  if (this->ctx_->disk_loading.load()) {
+    // Poll completion without blocking
+    auto status = this->ctx_->disk_load_future.wait_for(std::chrono::milliseconds(0));
+    if (status == std::future_status::ready) {
+      auto loaded = this->ctx_->disk_load_future.get();
+      {
+        std::lock_guard<std::shared_mutex> lock(this->ctx_->candles_mutex);
+        auto &candles = this->ctx_->all_candles[this->ctx_->disk_load_pair]
+                                               [this->ctx_->disk_load_interval];
+        candles = std::move(loaded);
+      }
+      if (this->ctx_->disk_load_pair == this->ctx_->active_pair &&
+          this->ctx_->disk_load_interval == this->ctx_->active_interval) {
+        std::shared_lock<std::shared_mutex> lock(this->ctx_->candles_mutex);
+        auto &candles = this->ctx_->all_candles[this->ctx_->active_pair]
+                                           [this->ctx_->active_interval];
+        ui_manager_.set_candles(candles);
+      }
+      add_status("Loaded " + this->ctx_->disk_load_pair + " " + this->ctx_->disk_load_interval);
+      this->ctx_->disk_loading.store(false);
+    } else {
+      // Draw centered overlay
+      auto* vp = ImGui::GetMainViewport();
+      ImGui::SetNextWindowPos(vp->Pos, ImGuiCond_Always);
+      ImGui::SetNextWindowSize(vp->Size, ImGuiCond_Always);
+      ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoSavedSettings |
+                               ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoInputs;
+      ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0.35f));
+      ImGui::Begin("loading_overlay", nullptr, flags);
+      ImVec2 center = ImVec2(vp->Size.x * 0.5f, vp->Size.y * 0.5f);
+      ImGui::SetCursorPos(ImVec2(center.x - 80.0f, center.y - 10.0f));
+      ImGui::TextUnformatted("Загрузка свечей...");
+      ImGui::End();
+      ImGui::PopStyleColor();
+    }
+  }
   render_main_windows();
   handle_active_pair_change();
   ui_manager_.end_frame(window_.get());
@@ -819,6 +1033,29 @@ void App::render_main_windows() {
   }
   {
     std::shared_lock<std::shared_mutex> lock(this->ctx_->candles_mutex);
+    // Sync chart candles with current selection if data changed
+    {
+      const std::string &pair = this->ctx_->active_pair;
+      const std::string &interval = this->ctx_->selected_interval;
+      auto itp = this->ctx_->all_candles.find(pair);
+      if (itp != this->ctx_->all_candles.end()) {
+        auto iti = itp->second.find(interval);
+        if (iti != itp->second.end()) {
+          const auto &vec = iti->second;
+          // Track last sent state per pair+interval (size + last open time)
+          struct SentState { size_t n; long long last; };
+          static std::map<std::string, SentState> last_sent;
+          std::string key = pair + "|" + interval;
+          long long last_ts = vec.empty() ? 0LL : vec.back().open_time;
+          auto it = last_sent.find(key);
+          bool changed = (it == last_sent.end()) || (it->second.n != vec.size()) || (it->second.last != last_ts);
+          if (changed) {
+            ui_manager_.set_candles(vec);
+            last_sent[key] = SentState{vec.size(), last_ts};
+          }
+        }
+      }
+    }
     ui_manager_.set_pairs(this->ctx_->selected_pairs);
     const auto &intervals_src =
         this->ctx_->available_intervals.empty() ? this->ctx_->intervals
@@ -882,17 +1119,21 @@ void App::handle_active_pair_change() {
       }
     }
     if (need_load) {
-      auto loaded = data_service_.load_candles(this->ctx_->active_pair,
-                                               this->ctx_->active_interval);
-      candles_copy = loaded;
-      {
-        std::lock_guard<std::shared_mutex> lock(this->ctx_->candles_mutex);
-        auto &candles = this->ctx_->all_candles[this->ctx_->active_pair]
-                                               [this->ctx_->active_interval];
-        candles = std::move(loaded);
-        miss = this->ctx_->candles_limit -
-               static_cast<int>(candles.size());
+      // Kick off non-blocking disk load
+      if (!this->ctx_->disk_loading.load()) {
+        this->ctx_->disk_load_pair = this->ctx_->active_pair;
+        this->ctx_->disk_load_interval = this->ctx_->active_interval;
+        this->ctx_->disk_load_future = std::async(std::launch::async, [this,
+                                                                       pair = this->ctx_->disk_load_pair,
+                                                                       interval = this->ctx_->disk_load_interval]() {
+          return data_service_.load_candles(pair, interval);
+        });
+        this->ctx_->disk_loading.store(true);
+        add_status("Loading " + this->ctx_->disk_load_pair + " " + this->ctx_->disk_load_interval + " from disk...");
       }
+      // Show empty until loaded; overlay will indicate progress
+      candles_copy.clear();
+      miss = this->ctx_->candles_limit;
     }
     ui_manager_.set_candles(candles_copy);
     bool exists;
@@ -966,3 +1207,9 @@ int App::run() {
   }
   return 0;
 }
+
+
+
+
+
+

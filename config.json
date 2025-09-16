@@ -3,8 +3,8 @@
     "chart_html_path": "resources/chart.html",
     "data_dir": "candle_data",
     "enable_chart": true,
-    "enable_streaming": false,
-    "fallback_provider": "gateio",
+    "enable_streaming": true,
+    "fallback_provider": "binance",
     "log_file": "terminal.log",
     "log_level": "INFO",
     "log_sinks": [
@@ -12,13 +12,15 @@
         "console"
     ],
     "pairs": [
-        "BTCUSDT"
+        "BTC"
     ],
     "primary_provider": "binance",
+    "require_tv_chart": false,
     "save_journal_csv": true,
     "signal": {
         "long_period": 3,
         "short_period": 2,
         "type": "sma_crossover"
-    }
+    },
+    "webview_ready_timeout_ms": 4000
 }
