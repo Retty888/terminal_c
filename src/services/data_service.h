@@ -25,7 +25,7 @@ public:
   explicit DataService(const std::filesystem::path &data_dir);
 
   void register_provider(const std::string &name, std::shared_ptr<Core::IDataProvider> provider);
-  void set_active_provider(const std::string &name);
+  bool set_active_provider(const std::string &name);
   std::vector<std::string> get_provider_names() const;
   std::string get_active_provider_name() const;
 
@@ -89,8 +89,17 @@ private:
   const Config::ConfigData &config() const;
   std::shared_ptr<Core::IHttpClient> http_client_;
   std::shared_ptr<Core::IRateLimiter> rate_limiter_;
-  std::map<std::string, std::shared_ptr<Core::IDataProvider>> providers_;
-  std::string active_provider_;
+  struct ProviderRecord {
+    std::string display_name;
+    std::shared_ptr<Core::IDataProvider> provider;
+  };
+
+  static std::string normalize_provider_name(const std::string &name);
+  void apply_configured_provider();
+  const ProviderRecord *active_provider_record() const;
+
+  std::map<std::string, ProviderRecord> providers_;
+  std::optional<std::string> active_provider_key_;
   Core::CandleManager candle_manager_;
   mutable std::optional<Config::ConfigData> config_cache_;
 

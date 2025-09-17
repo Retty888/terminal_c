@@ -4,7 +4,7 @@
     "data_dir": "candle_data",
     "enable_chart": true,
     "enable_streaming": true,
-    "fallback_provider": "binance",
+    "fallback_provider": null,
     "log_file": "terminal.log",
     "log_level": "INFO",
     "log_sinks": [
@@ -14,7 +14,7 @@
     "pairs": [
         "BTC"
     ],
-    "primary_provider": "binance",
+    "primary_provider": "hyperliquid",
     "require_tv_chart": false,
     "save_journal_csv": true,
     "signal": {

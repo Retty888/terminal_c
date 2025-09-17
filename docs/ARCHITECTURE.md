@@ -24,7 +24,8 @@ Resources
 Configuration highlights (`config.json`)
 - `enable_chart`: set to `true` to enable the WebView chart on Windows.
 - `chart_html_path`: relative or absolute path to `chart.html` (relative paths are resolved against the executable directory).
-- `enable_streaming`: toggles Binance WS stream vs. HTTP fetch.
+- `primary_provider`: defaults to `hyperliquid` (case-insensitive). `fallback_provider` can be a secondary source or disabled with `null`/`false`/empty string.
+- `enable_streaming`: зарезервирован под Binance/GateIO WS стрим; в Hyperliquid-режиме приложение работает через HTTP-поллинг.
 
 Build (Windows via vcpkg + CMakePresets)
 - Configure: `cmake --preset default-vcpkg-Release`

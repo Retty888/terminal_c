@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -34,8 +35,8 @@ struct ConfigData {
   // Limit JS updates pushed into WebView; default 2000ms.
   int webview_throttle_ms{2000};
   SignalConfig signal{};
-  std::string primary_provider{"binance"};
-  std::string fallback_provider{"gateio"};
+  std::string primary_provider{"hyperliquid"};
+  std::optional<std::string> fallback_provider{};
 };
 
 } // namespace Config
