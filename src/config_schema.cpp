@@ -162,11 +162,27 @@ std::optional<ConfigData> ConfigSchema::parse(const nlohmann::json &j,
   }
 
   if (j.contains("fallback_provider")) {
-    if (!j["fallback_provider"].is_string()) {
-      error = "'fallback_provider' must be a string";
+    const auto &fallback = j["fallback_provider"];
+    if (fallback.is_null()) {
+      cfg.fallback_provider.reset();
+    } else if (fallback.is_boolean()) {
+      if (!fallback.get<bool>()) {
+        cfg.fallback_provider.reset();
+      } else {
+        error = "'fallback_provider' cannot be 'true'";
+        return std::nullopt;
+      }
+    } else if (fallback.is_string()) {
+      auto value = fallback.get<std::string>();
+      if (value.empty()) {
+        cfg.fallback_provider.reset();
+      } else {
+        cfg.fallback_provider = value;
+      }
+    } else {
+      error = "'fallback_provider' must be a string, null, or false";
       return std::nullopt;
     }
-    cfg.fallback_provider = j["fallback_provider"].get<std::string>();
   }
 
   if (j.contains("signal")) {

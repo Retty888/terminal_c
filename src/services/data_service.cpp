@@ -14,9 +14,14 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cctype>
 #include <map>
 #include <nlohmann/json.hpp>
 #include <thread>
+
+namespace {
+constexpr const char *kDefaultProvider = "Hyperliquid";
+}
 
 DataService::DataService()
     : http_client_(std::make_shared<Core::CprHttpClient>()),
@@ -27,7 +32,10 @@ DataService::DataService()
   // Binance disabled per pivot to Hyperliquid-only
   // register_provider("Binance", std::make_shared<Core::BinanceDataProvider>(http_client_, rate_limiter_));
   register_provider("Hyperliquid", std::make_shared<Core::HyperliquidDataProvider>(http_client_, rate_limiter_));
-  set_active_provider("Hyperliquid");
+  if (!set_active_provider(kDefaultProvider)) {
+    Core::Logger::instance().error("Default provider 'Hyperliquid' is not registered");
+  }
+  apply_configured_provider();
 }
 
 DataService::DataService(const std::filesystem::path &data_dir)
@@ -39,48 +47,60 @@ DataService::DataService(const std::filesystem::path &data_dir)
   // Binance disabled per pivot to Hyperliquid-only
   // register_provider("Binance", std::make_shared<Core::BinanceDataProvider>(http_client_, rate_limiter_));
   register_provider("Hyperliquid", std::make_shared<Core::HyperliquidDataProvider>(http_client_, rate_limiter_));
-  set_active_provider("Hyperliquid");
+  if (!set_active_provider(kDefaultProvider)) {
+    Core::Logger::instance().error("Default provider 'Hyperliquid' is not registered");
+  }
+  apply_configured_provider();
 }
 
 void DataService::register_provider(const std::string &name, std::shared_ptr<Core::IDataProvider> provider) {
-    providers_[name] = provider;
+  const auto key = normalize_provider_name(name);
+  providers_[key] = ProviderRecord{name, std::move(provider)};
 }
 
-void DataService::set_active_provider(const std::string &name) {
-    if (providers_.count(name)) {
-        active_provider_ = name;
-    }
+bool DataService::set_active_provider(const std::string &name) {
+  const auto key = normalize_provider_name(name);
+  auto it = providers_.find(key);
+  if (it != providers_.end() && it->second.provider) {
+    active_provider_key_ = key;
+    return true;
+  }
+  return false;
 }
 
 std::vector<std::string> DataService::get_provider_names() const {
-    std::vector<std::string> names;
-    for (const auto& pair : providers_) {
-        names.push_back(pair.first);
-    }
-    return names;
+  std::vector<std::string> names;
+  names.reserve(providers_.size());
+  for (const auto &entry : providers_) {
+    names.push_back(entry.second.display_name);
+  }
+  return names;
 }
 
 std::string DataService::get_active_provider_name() const {
-    return active_provider_;
+  if (const auto *record = active_provider_record()) {
+    return record->display_name;
+  }
+  return std::string();
 }
 
 Core::SymbolsResult
 DataService::fetch_all_symbols(int max_retries,
                                std::chrono::milliseconds retry_delay,
                                std::size_t top_n) const {
-    if (providers_.count(active_provider_)) {
-        return providers_.at(active_provider_)->fetch_all_symbols(max_retries, retry_delay, top_n);
-    }
-    return {Core::FetchError::NetworkError, 0, "No active provider", {}};
+  if (const auto *record = active_provider_record()) {
+    return record->provider->fetch_all_symbols(max_retries, retry_delay, top_n);
+  }
+  return {Core::FetchError::NetworkError, 0, "No active provider", {}};
 }
 
 Core::IntervalsResult
 DataService::fetch_intervals(int max_retries,
                              std::chrono::milliseconds retry_delay) const {
-    if (providers_.count(active_provider_)) {
-        return providers_.at(active_provider_)->fetch_intervals(max_retries, retry_delay);
-    }
-    return {Core::FetchError::NetworkError, 0, "No active provider", {}};
+  if (const auto *record = active_provider_record()) {
+    return record->provider->fetch_intervals(max_retries, retry_delay);
+  }
+  return {Core::FetchError::NetworkError, 0, "No active provider", {}};
 }
 
 const Config::ConfigData &DataService::config() const {
@@ -95,18 +115,18 @@ const Config::ConfigData &DataService::config() const {
 Core::KlinesResult DataService::fetch_klines(
     const std::string &symbol, const std::string &interval, int limit,
     int max_retries, std::chrono::milliseconds retry_delay) const {
-    if (providers_.count(active_provider_)) {
-        return providers_.at(active_provider_)->fetch_klines(symbol, interval, limit, max_retries, retry_delay);
-    }
-    return {Core::FetchError::NetworkError, 0, "No active provider", {}};
+  if (const auto *record = active_provider_record()) {
+    return record->provider->fetch_klines(symbol, interval, limit, max_retries, retry_delay);
+  }
+  return {Core::FetchError::NetworkError, 0, "No active provider", {}};
 }
 
 Core::KlinesResult DataService::fetch_range(
     const std::string &symbol, const std::string &interval, long long start_ms,
     long long end_ms, int max_retries,
     std::chrono::milliseconds retry_delay) const {
-  if (providers_.count(active_provider_)) {
-    return providers_.at(active_provider_)
+  if (const auto *record = active_provider_record()) {
+    return record->provider
         ->fetch_range(symbol, interval, start_ms, end_ms, max_retries, retry_delay);
   }
   return {Core::FetchError::NetworkError, 0, "No active provider", {}};
@@ -118,6 +138,56 @@ std::future<Core::KlinesResult> DataService::fetch_klines_async(
     return std::async(std::launch::async, [=]() {
         return fetch_klines(symbol, interval, limit, max_retries, retry_delay);
     });
+}
+
+const DataService::ProviderRecord *DataService::active_provider_record() const {
+  if (!active_provider_key_) {
+    return nullptr;
+  }
+  auto it = providers_.find(*active_provider_key_);
+  if (it == providers_.end()) {
+    return nullptr;
+  }
+  return &it->second;
+}
+
+std::string DataService::normalize_provider_name(const std::string &name) {
+  std::string normalized;
+  normalized.reserve(name.size());
+  for (unsigned char c : name) {
+    normalized.push_back(static_cast<char>(std::tolower(c)));
+  }
+  return normalized;
+}
+
+void DataService::apply_configured_provider() {
+  const auto &cfg = config();
+  const std::string requested = cfg.primary_provider;
+  if (!requested.empty() && set_active_provider(requested)) {
+    return;
+  }
+
+  if (!requested.empty()) {
+    if (cfg.fallback_provider) {
+      const std::string fallback = *cfg.fallback_provider;
+      if (set_active_provider(fallback)) {
+        Core::Logger::instance().warn(
+            "Primary provider '" + requested + "' not available; switched to fallback '" + fallback + "'");
+        return;
+      }
+      Core::Logger::instance().warn(
+          "Primary provider '" + requested + "' not available; fallback provider '" + fallback +
+          "' also unavailable; using default '" + std::string(kDefaultProvider) + "'");
+    } else {
+      Core::Logger::instance().warn(
+          "Primary provider '" + requested + "' not available; fallback provider disabled; using default '" +
+          std::string(kDefaultProvider) + "'");
+    }
+  }
+
+  if (!set_active_provider(kDefaultProvider)) {
+    Core::Logger::instance().error("Default provider '" + std::string(kDefaultProvider) + "' is not registered");
+  }
 }
 
 std::vector<Core::Candle>
