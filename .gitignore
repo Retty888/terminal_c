@@ -52,3 +52,5 @@ CON
 vcpkg/
 scripts/vcpkg/
 vcpkg_installed/
+node_modules/
+src/UNKNOWN.egg-info/
