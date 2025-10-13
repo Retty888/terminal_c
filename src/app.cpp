@@ -1099,6 +1099,9 @@ void App::render_main_windows() {
 }
 
 void App::handle_active_pair_change() {
+  if (this->ctx_->active_pair.empty()) {
+    return;
+  }
   if (this->ctx_->active_pair != this->ctx_->last_active_pair ||
       this->ctx_->active_interval != this->ctx_->last_active_interval) {
     this->ctx_->last_active_pair = this->ctx_->active_pair;

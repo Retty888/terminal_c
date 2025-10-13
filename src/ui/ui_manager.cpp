@@ -775,7 +775,6 @@ void UiManager::draw_chart_panel() {
       }
     }
   }
-  ImGui::EndChild();
   ImVec2 screen_pos = ImGui::GetCursorScreenPos();
   ImVec2 avail = ImGui::GetContentRegionAvail();
 #ifndef HAVE_WEBVIEW
